@@ -14,7 +14,6 @@ import {
 } from 'lucide-react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/auth/AuthContext'
-import { dashboardHomeFor } from '@/auth/dashboardHome'
 import { Logo } from '@/components/common/Logo'
 import { Avatar } from '@/components/dashboard/Avatar'
 import { Badge } from '@/components/dashboard/Badge'
@@ -94,7 +93,7 @@ function SidebarFooter({ onLogout }: { onLogout: () => void }) {
 }
 
 export function DashboardLayout() {
-  const { user, isOwner, logout } = useAuth()
+  const { isOwner, logout } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const [drawerOpen, setDrawerOpen] = useState(false)

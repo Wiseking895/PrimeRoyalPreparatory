@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { MessageSquareWarning, Plus, ShieldCheck, UserCog } from 'lucide-react'
-import { Link } from 'react-router-dom'
 import { PageHeader } from '@/components/dashboard/PageHeader'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'

@@ -11,7 +11,6 @@ import {
   Users,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { useAuth } from '@/auth/AuthContext'
 import { PageHeader } from '@/components/dashboard/PageHeader'
 import { StatCard } from '@/components/dashboard/StatCard'
 import { Card } from '@/components/ui/Card'
@@ -31,7 +30,6 @@ function greeting(): string {
 }
 
 export function OwnerDashboardPage() {
-  const { user } = useAuth()
   const [summary, setSummary] = useState<OwnerSummary | null>(null)
   const [staff, setStaff] = useState<StaffView[] | null>(null)
   const [audit, setAudit] = useState<AuditEntry[] | null>(null)

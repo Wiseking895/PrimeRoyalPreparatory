@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/cn'
 
-type BadgeTone = 'green' | 'red' | 'amber' | 'blue' | 'royal' | 'magenta' | 'neutral'
+type BadgeTone = 'green' | 'red' | 'amber' | 'blue' | 'royal' | 'magenta' | 'gold' | 'neutral'
 
 const tones: Record<BadgeTone, string> = {
   green: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
@@ -10,6 +10,7 @@ const tones: Record<BadgeTone, string> = {
   blue: 'bg-sky-50 text-sky-700 ring-sky-600/20',
   royal: 'bg-royal-50 text-royal-700 ring-royal-600/20',
   magenta: 'bg-magenta-500/10 text-magenta-700 ring-magenta-600/20',
+  gold: 'bg-gold-400/20 text-gold-600 ring-gold-500/30',
   neutral: 'bg-cream-100 text-ink-700 ring-ink-500/15',
 }
 
