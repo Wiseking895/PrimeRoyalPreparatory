@@ -4,7 +4,7 @@ import { SCHOOL } from '@prps/shared'
  * Frontend-only environment configuration. VITE_* values are embedded in the
  * browser bundle and must never contain secrets.
  */
-export const apiBaseUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:4000'
+export const apiBaseUrl = import.meta.env.VITE_API_URL ?? (import.meta.env.PROD ? '' : 'http://localhost:4000')
 
 /**
  * School contact configuration.
