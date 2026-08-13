@@ -1,0 +1,151 @@
+// Prisma schema for the PRPS School Management System.
+//
+// PHASE 1 SCOPE — PostgreSQL foundation only.
+//
+// The full relational model (School, Users, Roles, Permissions, Staff,
+// Teachers, Pupils, Parents, Classes, Subjects, Academic Years, Terms,
+// Assessments, SBA, Reports, Invoices, Payments, Fees, Attendance, Lesson
+// Plans, ...) is intentionally NOT created here. Domain tables are added in
+// their owning phases via migrations. Never hand-edit a live database; always
+// evolve this schema through Prisma migrations.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Single source of truth for the school's identity. Populated by the seed
+/// script with the values from @prps/shared.
+model SchoolProfile {
+  id           String   @id @default(cuid())
+  name         String
+  abbreviation String
+  motto        String
+  tagline      String?
+  email        String?
+  phone        String?
+  address      String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("school_profile")
+}
+
+// =============================================================================
+// PHASE 2 — Owner → Headteacher authority & staff administration (RBAC).
+// Users, roles, permissions, role assignments, staff profiles and audit log.
+// =============================================================================
+
+enum AccountStatus {
+  ACTIVE
+  INACTIVE
+}
+
+model Role {
+  id          String           @id @default(cuid())
+  name        String           @unique
+  description String?
+  isSystem    Boolean          @default(false)
+  rolePermissions RolePermission[]
+  users       UserRole[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String           @id @default(cuid())
+  key         String           @unique
+  label       String
+  module      String
+  description String?
+  isSystem    Boolean          @default(false)
+  roles       RolePermission[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@index([module])
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model User {
+  id                String         @id @default(cuid())
+  fullName          String
+  email             String         @unique
+  phone             String?
+  passwordHash      String
+  profilePictureUrl String?
+  status            AccountStatus  @default(ACTIVE)
+  lastLoginAt       DateTime?
+  roles             UserRole[]
+  staffProfile      StaffProfile?
+  auditLogs         AuditLog[]
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("users")
+}
+
+model UserRole {
+  userId    String
+  roleId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([userId, roleId])
+  @@map("user_roles")
+}
+
+/// Teaching / non-teaching staff details linked one-to-one to a User.
+model StaffProfile {
+  id               String      @id @default(cuid())
+  staffId          String      @unique
+  userId           String      @unique
+  category         String?
+  address          String?
+  dateJoined       DateTime    @default(now())
+  responsibilities String?
+  user             User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  @@index([category])
+  @@map("staff_profiles")
+}
+
+/// Append-only audit trail for sensitive administrative actions.
+model AuditLog {
+  id           String   @id @default(cuid())
+  actorUserId  String?
+  action       String
+  resourceType String?
+  resourceId   String?
+  metadata     Json?
+  ip           String?
+  actorUser    User?    @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  createdAt    DateTime @default(now())
+
+  @@index([actorUserId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
+}

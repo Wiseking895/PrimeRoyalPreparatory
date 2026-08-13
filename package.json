@@ -1,0 +1,55 @@
+{
+  "name": "prps-school-management",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Prime Royal Preparatory School (P.R.P.S.) — School Management System and Progressive Web Application",
+  "workspaces": [
+    "frontend",
+    "backend",
+    "shared",
+    "database"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "dev": "npm run build:shared && concurrently -n backend,frontend -c blue,magenta \"npm:dev:backend\" \"npm:dev:frontend\"",
+    "dev:backend": "npm run dev -w @prps/backend",
+    "dev:frontend": "npm run dev -w @prps/frontend",
+    "build": "npm run build:shared && npm run build:backend && npm run build:frontend",
+    "build:shared": "npm run build -w @prps/shared",
+    "build:backend": "npm run build -w @prps/backend",
+    "build:frontend": "npm run build -w @prps/frontend",
+    "typecheck": "npm run typecheck -w @prps/shared && npm run typecheck -w @prps/backend && npm run typecheck -w @prps/frontend && npm run typecheck -w @prps/database",
+    "lint": "eslint .",
+    "test": "npm run test -w @prps/backend && npm run test -w @prps/frontend",
+    "db:generate": "npm run db:generate -w @prps/database",
+    "db:migrate": "npm run db:migrate -w @prps/database",
+    "db:deploy": "npm run db:deploy -w @prps/database",
+    "db:seed": "npm run db:seed -w @prps/database",
+    "db:studio": "npm run db:studio -w @prps/database",
+    "setup": "node scripts/bootstrap-env.mjs",
+    "check": "npm run build:shared && npm run db:generate && npm run typecheck && npm run lint && npm run test && npm run build"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "concurrently": "^9.1.2",
+    "eslint": "^9.17.0",
+    "eslint-plugin-react-hooks": "^5.1.0",
+    "eslint-plugin-react-refresh": "^0.4.16",
+    "globals": "^15.14.0",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.19.1"
+  },
+  "allowScripts": {
+    "@prisma/client@6.19.3": true,
+    "prisma@6.19.3": true,
+    "@prisma/engines@6.19.3": true,
+    "sharp@0.32.6": true,
+    "sharp@0.33.5": true,
+    "esbuild@0.27.7": true,
+    "esbuild@0.28.2": true,
+    "esbuild@0.21.5": true,
+    "esbuild@0.25.12": true
+  }
+}
