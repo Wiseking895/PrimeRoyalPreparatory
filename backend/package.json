@@ -9,19 +9,20 @@
     "seed": "tsx prisma/seed.ts"
   },
   "scripts": {
-    "dev": "tsx watch src/server.ts",
-    "build": "tsup",
-    "start": "node dist/server.js",
-    "typecheck": "tsc --noEmit",
-    "lint": "eslint .",
-    "test": "vitest run",
-    "setup": "node scripts/copy-env.mjs",
-    "db:generate": "prisma generate",
-    "db:migrate": "prisma migrate dev",
-    "db:deploy": "prisma migrate deploy",
-    "db:seed": "prisma db seed",
-    "db:studio": "prisma studio"
-  },
+  "dev": "tsx watch src/server.ts",
+  "build": "tsup",
+  "postinstall": "prisma generate",
+  "start": "node dist/server.js",
+  "typecheck": "tsc --noEmit",
+  "lint": "eslint .",
+  "test": "vitest run",
+  "setup": "node scripts/copy-env.mjs",
+  "db:generate": "prisma generate",
+  "db:migrate": "prisma migrate dev",
+  "db:deploy": "prisma migrate deploy",
+  "db:seed": "prisma db seed",
+  "db:studio": "prisma studio"
+},
   "dependencies": {
     "@prisma/client": "^6.19.3",
     "bcryptjs": "^2.4.3",
