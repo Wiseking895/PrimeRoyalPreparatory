@@ -1,4 +1,4 @@
-import { HttpStatus } from '@prps/shared'
+import { HttpStatus } from '../config/enums'
 import { signToken } from '../lib/jwt'
 import { hashPassword, verifyPassword } from '../lib/password'
 import { prisma } from '../lib/prisma'

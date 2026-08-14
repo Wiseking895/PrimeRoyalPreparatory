@@ -1,15 +1,18 @@
 # PRPS — Database
 
-**Phase:** 1 · **ORM:** Prisma · **Engine:** PostgreSQL
+**Phase:** 2 · **ORM:** Prisma · **Engine:** PostgreSQL
 
-## 1. Scope (Phase 1)
+## 1. Scope
 
-Phase 1 establishes the **PostgreSQL foundation** only:
+The PostgreSQL data layer lives **inside the backend** (`backend/prisma/`). The
+backend is the only process that reads or writes the database; the frontend
+never touches it.
 
-- Prisma project configured inside the `database/` package.
-- A minimal `SchoolProfile` table (school identity, populated by seed from
-  `@prps/shared` constants).
-- Migration + migration lock committed.
+- Prisma project configured in the backend workspace.
+- `SchoolProfile` table (school identity, populated by seed from the backend
+  school constants).
+- Phase 2: users, roles, permissions, staff profiles and audit logs.
+- Migration + migration lock committed under `prisma/migrations/`.
 - Seed script (`prisma/seed.ts`).
 
 The full relational model is intentionally **not** created yet. Domain tables
@@ -46,26 +49,15 @@ arrive in their owning phases:
 
 ## 3. Current Schema
 
-```prisma
-model SchoolProfile {
-  id           String   @id @default(cuid())
-  name         String
-  abbreviation String
-  motto        String
-  tagline      String?
-  email        String?
-  phone        String?
-  address      String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-}
-```
+The schema is defined in `prisma/schema.prisma`. Phase 2 models:
+`SchoolProfile`, `Role`, `Permission`, `RolePermission`, `User`, `UserRole`,
+`StaffProfile`, `AuditLog`, and the `AccountStatus` enum.
 
 ## 4. Workflows
 
 Requires a reachable PostgreSQL instance. Connection string:
-`DATABASE_URL` in `backend/.env` (loaded by the `database` package when
-running Prisma commands from the repo root).
+`DATABASE_URL` in `.env` (loaded by Prisma when running commands from the
+`backend` workspace or the repo root).
 
 ```bash
 # regenerate the client (no DB needed)
@@ -84,13 +76,16 @@ npm run db:seed
 npm run db:studio
 ```
 
-New tables are added with `npm run db:migrate -- --name <name>` inside the
-`database` package (or `npx prisma migrate dev --name <name> -w @prps/database`).
+New tables are added with `npm run db:migrate -- --name <name>` (runs inside
+the `backend` workspace).
 
 ## 5. Seed
 
-`prisma/seed.ts` upserts the school identity profile from `@prps/shared`.
-Future phases extend the seed with roles, the owner account, classes, fee
+`prisma/seed.ts` upserts the school identity profile from the backend
+school constants and the roles/permissions catalog from
+`src/rbac/catalog.ts`. The Owner account is intentionally NOT seeded —
+the first Owner is always created through the secure initial setup flow
+(`POST /api/setup/owner`). Future phases extend the seed with classes, fee
 structures, etc.
 
 ## 6. Future Model Notes (design intentions)

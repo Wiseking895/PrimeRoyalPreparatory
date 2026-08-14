@@ -1,4 +1,4 @@
-import { Environment } from '@prps/shared'
+import { Environment } from './enums'
 import { pino, type Logger } from 'pino'
 import { env } from './env'
 

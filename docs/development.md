@@ -1,12 +1,12 @@
 # PRPS — Development Guide
 
-**Phase:** 1
+**Phase:** 2
 
 ## 1. Prerequisites
 
 - Node.js ≥ 20 (tested on Node 24)
 - npm ≥ 10 (workspaces)
-- PostgreSQL (only required for database commands and later phases)
+- PostgreSQL (only required for database commands and backend runtime)
 
 ## 2. Install & First Run
 
@@ -14,7 +14,6 @@
 # from the repository root
 npm install
 npm run setup          # copies backend/.env.example and frontend/.env.example → .env
-npm run build:shared   # build the shared contracts package first
 npm run dev            # backend (http://localhost:4000) + frontend (http://localhost:5173)
 ```
 
@@ -25,15 +24,22 @@ http://localhost:4000/api/health for the API.
 
 | Command | What it does |
 | --- | --- |
-| `npm run dev` | Builds `@prps/shared`, then runs backend + frontend concurrently. |
+| `npm run dev` | Runs backend + frontend concurrently (each in watch mode). |
 | `npm run dev:backend` / `npm run dev:frontend` | Run a single app in watch mode. |
-| `npm run build` | Builds shared → backend → frontend. |
-| `npm run typecheck` | Type-checks all workspaces. |
-| `npm run lint` | ESLint (flat config) across the repo. |
+| `npm run build` | Builds backend → frontend. |
+| `npm run typecheck` | Type-checks both workspaces. |
+| `npm run lint` | ESLint in each workspace (frontend + backend). |
 | `npm test` | Vitest suites (backend API + frontend units). |
-| `npm run check` | Full gate: build shared → prisma generate → typecheck → lint → test → build. |
-| `npm run db:*` | `generate`, `migrate`, `deploy`, `seed`, `studio` (see `docs/database.md`). |
-| `npm run setup` | Bootstrap `.env` files from examples. |
+| `npm run check` | Full gate: prisma generate → typecheck → lint → test → build. |
+| `npm run db:*` | `generate`, `migrate`, `deploy`, `seed`, `studio` (see `backend/docs/database.md`). |
+| `npm run setup` | Bootstrap `.env` files from each app's `.env.example`. |
+
+The frontend and backend are also **independently buildable**:
+
+```bash
+cd frontend && npm run build     # needs no PostgreSQL and no DATABASE_URL
+cd backend  && npm run build     # needs prisma generate (and DB only at runtime)
+```
 
 ### Frontend-only
 
@@ -46,9 +52,17 @@ npm run preview -w @prps/frontend               # preview the production build
 
 Committed examples, never secrets:
 
-- `backend/.env` — `NODE_ENV`, `PORT`, `CLIENT_URL`, `DATABASE_URL`, `JWT_SECRET` (Phase 2+).
+- `backend/.env` — `NODE_ENV`, `PORT`, `CLIENT_URL`, `DATABASE_URL`,
+  `JWT_SECRET`.
 - `frontend/.env` — `VITE_API_URL` only. **Never** put `DATABASE_URL` or any
   secret in a `VITE_` variable (it is embedded in the browser bundle).
+
+For production the frontend must be given the deployed backend URL:
+
+```bash
+# frontend/.env (or Vercel project settings)
+VITE_API_URL=https://your-production-backend.example
+```
 
 ## 5. Adding Content / Code
 
@@ -61,8 +75,10 @@ Committed examples, never secrets:
 - **New brand token:** add to the `@theme` block in
   `frontend/src/styles/index.css` and mirror it in `illustration-colors.ts` if
   used by art.
-- **API endpoint:** follow route → controller → service; update `shared` types
-  and constants; keep the `ApiResponse` envelope.
+- **API endpoint:** follow route → controller → service in the backend; keep
+  the `ApiResponse` envelope. Update the frontend client in `lib/api.ts` and,
+  if a role/permission key changes, sync `backend/src/rbac/catalog.ts` and the
+  frontend mirror in `frontend/src/auth/roles.ts`.
 
 ## 6. Quality Gates
 
@@ -74,7 +90,7 @@ Every phase ends with:
 3. Browser console free of obvious errors.
 4. A completion report (see README phase checklist).
 
-## 7. PWA Notes (Phase 1)
+## 7. PWA Notes
 
 - Service worker registers in production builds and in `vite preview`, not in
   plain dev mode.
@@ -87,7 +103,7 @@ Every phase ends with:
 ## 8. Testing
 
 - Backend: `vitest` + `supertest` (`backend/src/*.test.ts`). Health endpoint,
-  404, security headers.
+  404, security headers, RBAC catalog/guards.
 - Frontend: `vitest` + `@testing-library/react` + `jsdom`
   (`frontend/src/**/*.test.{ts,tsx}`). Utility and component tests.
 
@@ -98,13 +114,15 @@ their respective phases.
 
 - Strict TypeScript everywhere; no `any`.
 - No business logic in route files.
-- No duplicated types — import from `@prps/shared`.
+- No shared package between frontend and backend — the two apps communicate
+  only via HTTP. Constants that both sides need are mirrored locally (backend
+  authoritative; frontend keeps display keys in sync).
 - No hardcoded fees, permissions, user IDs, or contact details (placeholders
-  documented in `src/config/site.ts`).
+  documented in `frontend/src/config/site.ts`).
 - No new dependency without a real reason; prefer the stack in
   `docs/architecture.md`.
 
-## 10. Known Phase 1 Gaps
+## 10. Known Phase 2 Gaps
 
 - Contact form and newsletter are frontend-only demos (not wired to an API).
 - Privacy Policy / Terms of Use are placeholder links.

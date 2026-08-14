@@ -1,4 +1,4 @@
-import { HEADTEACHER_ROLE, OWNER_ROLE } from '@prps/shared'
+import { HEADTEACHER_ROLE, OWNER_ROLE } from '@/auth/roles'
 import type { PublicUser } from '@/types/portal'
 
 /** Canonical landing page for a signed-in user based on their highest role. */

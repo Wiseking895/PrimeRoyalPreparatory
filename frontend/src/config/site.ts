@@ -1,4 +1,16 @@
-import { SCHOOL } from '@prps/shared'
+/**
+ * School identity constants. Mirrored locally in the frontend so the frontend
+ * and backend remain independently deployable; the backend remains the
+ * authoritative source for the database and API.
+ */
+export const SCHOOL = {
+  name: 'Prime Royal Preparatory School',
+  shortName: 'Prime Royal',
+  abbreviation: 'P.R.P.S.',
+  motto: 'EMPOWERMENT THROUGH EDUCATION',
+  tagline:
+    'Nurturing young minds with quality education, strong values, and a passion for excellence.',
+} as const
 
 /**
  * Frontend-only environment configuration. VITE_* values are embedded in the

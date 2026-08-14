@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { HEADTEACHER_ROLE, OWNER_ROLE } from '@prps/shared'
+import { HEADTEACHER_ROLE, OWNER_ROLE } from '../rbac/catalog'
 import type { AuthenticatedUser } from '../types/auth'
 import {
   assertNoEscalation,

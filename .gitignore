@@ -10,7 +10,6 @@ coverage/
 *.tsbuildinfo
 frontend/dist/
 backend/dist/
-shared/dist/
 
 # Environment
 .env
@@ -33,5 +32,5 @@ Thumbs.db
 *.swp
 
 # Prisma
-database/prisma/*.db
-database/prisma/*.db-journal
+backend/prisma/*.db
+backend/prisma/*.db-journal

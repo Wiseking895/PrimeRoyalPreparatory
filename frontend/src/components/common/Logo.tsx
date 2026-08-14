@@ -1,4 +1,4 @@
-import { SCHOOL } from '@prps/shared'
+import { SCHOOL } from '@/config/site'
 import logoAsset from '@/assets/brand/logo/LogoPrps.jpeg'
 import { cn } from '@/lib/cn'
 

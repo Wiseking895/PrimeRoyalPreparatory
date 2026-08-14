@@ -1,11 +1,12 @@
 import { PrismaClient } from '@prisma/client'
-import { PERMISSIONS, ROLE_DEFINITIONS, SCHOOL } from '@prps/shared'
+import { SCHOOL } from '../src/config/constants'
+import { PERMISSIONS, ROLE_DEFINITIONS } from '../src/rbac/catalog'
 
 const prisma = new PrismaClient()
 
 /**
  * Upserts the school identity profile, roles, permissions and default role →
- * permission assignments from the @prps/shared catalog.
+ * permission assignments from the backend RBAC catalog.
  *
  * The Owner account is intentionally NOT seeded: the first Owner is always
  * created through the secure initial setup flow (POST /api/setup/owner) so no

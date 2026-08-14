@@ -1,5 +1,5 @@
 import 'dotenv/config'
-import { Environment } from '@prps/shared'
+import { Environment } from './enums'
 
 const DEFAULT_PORT = 4000
 const DEFAULT_CLIENT_URL = 'http://localhost:5173'

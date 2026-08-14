@@ -1,4 +1,4 @@
-import { HttpStatus } from '@prps/shared'
+import { HttpStatus } from '../config/enums'
 import type { NextFunction, RequestHandler, Response } from 'express'
 import type { AuthRequest } from '../types/auth'
 import { AppError } from '../utils/app-error'

@@ -1,4 +1,5 @@
-import { HttpStatus, type HealthResponse } from '@prps/shared'
+import { HttpStatus } from '../config/enums'
+import type { HealthResponse } from '../config/api-contracts'
 import type { Request, Response } from 'express'
 import { getHealth } from '../services/health.service'
 

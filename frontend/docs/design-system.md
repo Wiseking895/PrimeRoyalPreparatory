@@ -12,7 +12,7 @@ system so the whole product feels like one thing.
 
 ## 2. Brand Palette
 
-Source of truth: `frontend/src/styles/index.css` (`@theme`). The illustration
+Source of truth: `src/styles/index.css` (`@theme`). The illustration
 system mirrors it in `components/illustrations/illustration-colors.ts`.
 
 | Token | Value | Role |

@@ -5,7 +5,7 @@ import {
   ROLE_DEFINITIONS,
   type PermissionDefinition,
   type RoleDefinition,
-} from '@prps/shared'
+} from '../rbac/catalog'
 import type { AuthenticatedUser } from '../types/auth'
 import { isOwner } from './rbac-guards'
 

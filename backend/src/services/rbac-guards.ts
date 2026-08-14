@@ -1,4 +1,4 @@
-import { ASSIGNABLE_STAFF_ROLES, HEADTEACHER_ROLE, OWNER_ROLE } from '@prps/shared'
+import { ASSIGNABLE_STAFF_ROLES, HEADTEACHER_ROLE, OWNER_ROLE } from '../rbac/catalog'
 import type { AuthenticatedUser } from '../types/auth'
 import { AppError } from '../utils/app-error'
 

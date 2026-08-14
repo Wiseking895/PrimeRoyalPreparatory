@@ -2,8 +2,8 @@
  * School identity constants.
  *
  * The school name, abbreviation and motto are fixed identity facts for the
- * whole product (public website + dashboards). They should not be duplicated
- * across packages.
+ * whole product. Kept in the backend so the health endpoint, database seed and
+ * any future backend services use a single source of truth.
  */
 export const SCHOOL = {
   name: 'Prime Royal Preparatory School',

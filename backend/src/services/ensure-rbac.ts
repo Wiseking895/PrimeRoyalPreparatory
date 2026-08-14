@@ -1,4 +1,4 @@
-import { PERMISSIONS, ROLE_DEFINITIONS } from '@prps/shared'
+import { PERMISSIONS, ROLE_DEFINITIONS } from '../rbac/catalog'
 import { prisma } from '../lib/prisma'
 
 /**

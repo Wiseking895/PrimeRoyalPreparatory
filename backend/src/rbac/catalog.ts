@@ -1,11 +1,13 @@
 /**
  * Role-based access control catalog — the single source of truth for roles,
- * permissions and their default assignments.
+ * permissions and their default assignments. Owned by the backend.
  *
- * Shared by:
- *   - database seed  (upserts the catalog into PostgreSQL)
- *   - backend        (authorization + permission enforcement)
- *   - frontend       (label rendering + "modules available to you")
+ * Used by:
+ *   - database seed (upserts the catalog into PostgreSQL)
+ *   - backend      (authorization + permission enforcement)
+ *
+ * The frontend keeps a small mirror of the string constants it renders
+ * (role/permission keys); the backend catalog remains authoritative.
  *
  * The OWNER role is the root authority and always holds every permission.
  * Permissions in the `owner` module are NOT grantable to any other role.

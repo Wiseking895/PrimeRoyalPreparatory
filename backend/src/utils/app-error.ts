@@ -1,4 +1,4 @@
-import { HttpStatus } from '@prps/shared'
+import { HttpStatus } from '../config/enums'
 
 /**
  * Operational error carrying an HTTP status code. Controllers/services throw

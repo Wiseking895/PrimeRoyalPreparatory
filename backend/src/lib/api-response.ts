@@ -1,4 +1,4 @@
-import type { ApiResponse } from '@prps/shared'
+import type { ApiResponse } from '../config/api-contracts'
 
 /** Consistent API response helpers matching the shared envelope contract. */
 export function ok<T>(data: T, message = 'OK'): ApiResponse<T> {

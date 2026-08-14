@@ -1,4 +1,5 @@
-import { HttpStatus, STAFF_CATEGORIES } from '@prps/shared'
+import { HttpStatus } from '../config/enums'
+import { STAFF_CATEGORIES } from '../rbac/catalog'
 import { hashPassword } from '../lib/password'
 import { prisma } from '../lib/prisma'
 import type { AuthenticatedUser } from '../types/auth'

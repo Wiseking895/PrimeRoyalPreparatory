@@ -7,25 +7,39 @@ school community: owner/proprietress, headteacher, assistant headteacher,
 accountant, teaching and non-teaching staff, class and subject teachers,
 pupils, and parents/guardians.
 
-> **Current phase: 1 — Foundation + Public Website (10% of project scope).**
+> **Current phase: 2 — Owner Portal + Authentication (15% of project scope).**
 
 ## Repository Layout
 
 ```
 frontend/   React 19 + TypeScript + Vite + Tailwind CSS v4 public website & PWA
-backend/    Node.js + Express 4 + TypeScript REST API
-database/   PostgreSQL data layer (Prisma ORM, migrations, seed)
-shared/     Shared types, enums, constants and API contracts (@prps/shared)
-docs/       architecture, design-system, database, development
-scripts/    Small automation (env bootstrap)
+backend/    Node.js + Express 4 + TypeScript + Prisma + PostgreSQL REST API
+docs/       Repo-wide architecture + development guides (repo root)
 ```
+
+The frontend and backend are **independent applications**. They communicate only
+through HTTP: the frontend talks to the backend via `VITE_API_URL` and never
+imports backend code, and Prisma/PostgreSQL live entirely inside `backend/`.
+
+Each application is fully self-contained (its own `package.json`, `tsconfig.json`,
+ESLint config, build config, `.env.example`, scripts and app-specific docs):
+
+```
+frontend/  src/ public/ docs/ scripts/ package.json tsconfig.json vite.config.ts
+           vitest.config.ts vitest.setup.ts eslint.config.mjs .env.example
+backend/   src/ prisma/ docs/ scripts/ package.json tsconfig.json tsup.config.ts
+           vitest.config.ts eslint.config.mjs .env.example
+```
+
+Per-app documentation:
+- `frontend/docs/design-system.md` — brand, typography, components, accessibility.
+- `backend/docs/database.md` — Prisma, migrations, seed, database workflows.
 
 ## Quick Start
 
 ```bash
 npm install
 npm run setup          # create backend/.env and frontend/.env from examples
-npm run build:shared
 npm run dev            # frontend on :5173, backend on :4000
 ```
 
@@ -34,7 +48,22 @@ Check the API: http://localhost:4000/api/health
 See `docs/development.md` for the full guide and `docs/architecture.md` for
 the system design.
 
-## What Phase 1 Includes
+## Deployment
+
+- **Frontend → Vercel:** `vercel.json` at the repo root points Vercel at the
+  `frontend/` app (`root: "frontend"`); Vercel installs from the single root
+  npm workspace lockfile for reproducible builds. Set `VITE_API_URL` to your
+  production backend URL (e.g. `https://api.your-school.example`) in the
+  Vercel project settings. The frontend build needs **no** PostgreSQL and
+  **no** `DATABASE_URL`.
+- **Backend → any Node-compatible host:** build with `npm run build -w @prps/backend`,
+  apply migrations with `npm run db:deploy`, then start with `npm start`
+  (from `backend/`). Configure `DATABASE_URL`, `JWT_SECRET`, `CLIENT_URL` and
+  `PORT` in the host's environment.
+- **Database → PostgreSQL:** Prisma schema, migrations and seed live under
+  `backend/prisma/`. The backend owns all database access.
+
+## What the Project Includes
 
 - Complete responsive public website: Home (hero, features, statistics,
   academic programmes, admission process, Parent Portal promo, news, gallery,
@@ -46,12 +75,15 @@ the system design.
 - Express backend with `GET /api/health`, security headers, CORS, rate
   limiting, structured logging, 404 + centralized error handling, and API
   tests.
-- PostgreSQL foundation via Prisma: `SchoolProfile` schema, committed
-  migration, seed script, workspace commands.
-- Shared contracts package (`@prps/shared`) used by frontend and backend.
+- Owner portal + authentication (Phase 2): initial owner setup, JWT auth,
+  RBAC (roles/permissions enforced by the backend), owner → headteacher
+  administration, staff management, and an audit log.
+- PostgreSQL data layer via Prisma inside `backend/`: `SchoolProfile`, users,
+  roles, permissions, staff profiles and audit logs, with committed migrations
+  and a seed script.
 - PWA foundation: manifest, theme color, generated icons (192/512 + maskable),
   service worker precache, installability.
-- Monorepo workspace scripts: `dev`, `build`, `typecheck`, `lint`, `test`,
+- Root workspace scripts: `dev`, `build`, `typecheck`, `lint`, `test`,
   `check`, `db:*`, `setup`.
 
 ## Phase Roadmap
@@ -59,7 +91,7 @@ the system design.
 | Phase | Focus | Scope |
 | --- | --- | --- |
 | 1 ✅ | Foundation + Public Website | 10% |
-| 2 | Owner Portal + Authentication | 15% |
+| 2 ✅ | Owner Portal + Authentication | 15% |
 | 3 | Headteacher + Administration | 15% |
 | 4 | Pupil Management | 15% |
 | 5 | Accountant + Fees | 15% |
@@ -76,7 +108,7 @@ only on explicit approval.
 - Secrets live only in git-ignored `.env` files; the frontend only ever gets
   `VITE_API_URL`.
 - Phase 1 baseline: helmet, CORS, rate limiting, no error leakage.
-- From Phase 2: auth, RBAC/permission-based access control enforced by the
+- Phase 2: auth, RBAC/permission-based access control enforced by the
   backend, validation, audit logs.
 
 ## Placeholders & Assumptions

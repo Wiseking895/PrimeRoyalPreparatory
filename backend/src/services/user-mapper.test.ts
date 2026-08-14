@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { HEADTEACHER_ROLE, OWNER_ROLE } from '@prps/shared'
+import { HEADTEACHER_ROLE, OWNER_ROLE } from '../rbac/catalog'
 import {
   permissionKeysOf,
   roleNamesOf,

@@ -1,4 +1,4 @@
-import { HttpStatus } from '@prps/shared'
+import { HttpStatus } from '../config/enums'
 import type { NextFunction, RequestHandler, Response } from 'express'
 import { verifyToken } from '../lib/jwt'
 import { prisma } from '../lib/prisma'

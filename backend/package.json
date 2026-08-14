@@ -3,19 +3,27 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "PRPS API — Node.js + Express + TypeScript backend",
+  "description": "PRPS API — Node.js + Express + TypeScript + Prisma + PostgreSQL backend",
   "main": "dist/server.js",
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsup",
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint src --ext .ts",
-    "test": "vitest run"
+    "lint": "eslint .",
+    "test": "vitest run",
+    "setup": "node scripts/copy-env.mjs",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:seed": "prisma db seed",
+    "db:studio": "prisma studio"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
-    "@prps/shared": "*",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
@@ -34,6 +42,7 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^22.10.5",
     "@types/supertest": "^6.0.2",
+    "prisma": "^6.19.3",
     "supertest": "^7.0.0",
     "tsup": "^8.3.5",
     "tsx": "^4.19.2",

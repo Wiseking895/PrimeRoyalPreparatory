@@ -9,12 +9,12 @@
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint src --ext .ts,.tsx",
+    "lint": "eslint .",
     "test": "vitest run",
+    "setup": "node scripts/copy-env.mjs",
     "generate:pwa-assets": "node scripts/generate-favicons.mjs"
   },
   "dependencies": {
-    "@prps/shared": "*",
     "lucide-react": "^0.468.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

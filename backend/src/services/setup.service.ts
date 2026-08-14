@@ -1,5 +1,5 @@
-import { OWNER_ROLE } from '@prps/shared'
-import { HttpStatus } from '@prps/shared'
+import { OWNER_ROLE } from '../rbac/catalog'
+import { HttpStatus } from '../config/enums'
 import { hashPassword } from '../lib/password'
 import { prisma } from '../lib/prisma'
 import { AppError } from '../utils/app-error'

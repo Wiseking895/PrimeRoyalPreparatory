@@ -1,4 +1,4 @@
-import type { HttpStatus } from './enums.js'
+import type { HttpStatus } from './enums'
 
 /**
  * Canonical envelope for every PRPS API response.
@@ -44,7 +44,8 @@ export interface HealthData {
 export type HealthResponse = ApiResponse<HealthData>
 
 /**
- * Route constants. Kept in shared so the frontend and backend never drift.
+ * Route constants. The frontend mirrors these paths in its API client; the
+ * backend remains authoritative.
  */
 export const API_ROUTES = {
   health: '/api/health',

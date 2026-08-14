@@ -1,4 +1,5 @@
-import { APP, type HealthData } from '@prps/shared'
+import { APP } from '../config/constants'
+import type { HealthData } from '../config/api-contracts'
 
 /**
  * Builds the payload for GET /api/health.

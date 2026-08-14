@@ -1,4 +1,5 @@
-import { HEADTEACHER_ROLE, HttpStatus, OWNER_ONLY_PERMISSIONS, PERMISSIONS } from '@prps/shared'
+import { HEADTEACHER_ROLE, OWNER_ONLY_PERMISSIONS, PERMISSIONS } from '../rbac/catalog'
+import { HttpStatus } from '../config/enums'
 import { hashPassword } from '../lib/password'
 import { prisma } from '../lib/prisma'
 import type { AuthenticatedUser } from '../types/auth'

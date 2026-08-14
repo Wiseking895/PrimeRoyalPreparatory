@@ -15,7 +15,7 @@ import { ConfirmDialog } from '@/components/dashboard/ConfirmDialog'
 import { useToast } from '@/components/dashboard/Toast'
 import { api } from '@/lib/api'
 import type { GroupedPermission, PublicUser } from '@/types/portal'
-import { OWNER_ONLY_PERMISSIONS } from '@prps/shared'
+import { OWNER_ONLY_PERMISSIONS } from '@/auth/roles'
 
 const SENSITIVE_PERMISSIONS = new Set(['staff.remove_role', 'staff.manage', 'academic.manage'])
 

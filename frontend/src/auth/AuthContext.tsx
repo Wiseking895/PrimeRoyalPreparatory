@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { HEADTEACHER_ROLE, OWNER_ROLE } from '@prps/shared'
+import { HEADTEACHER_ROLE, OWNER_ROLE } from '@/auth/roles'
 import { api } from '@/lib/api'
 import { setUnauthorizedHandler } from '@/lib/api'
 import { clearSession, getStoredUser, getToken, saveSession } from '@/auth/storage'

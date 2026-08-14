@@ -1,4 +1,5 @@
-import { HttpStatus, type ApiErrorResponse } from '@prps/shared'
+import { HttpStatus } from '../config/enums'
+import type { ApiErrorResponse } from '../config/api-contracts'
 import type { ErrorRequestHandler } from 'express'
 import { env } from '../config/env'
 import { logger } from '../config/logger'

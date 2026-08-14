@@ -1,4 +1,4 @@
-import { HttpStatus } from '@prps/shared'
+import { HttpStatus } from '../config/enums'
 import { asyncHandler } from '../utils/async-handler'
 import { ok } from '../lib/api-response'
 import { createOwner, ownerExists } from '../services/setup.service'

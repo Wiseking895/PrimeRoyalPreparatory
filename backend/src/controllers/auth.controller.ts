@@ -1,4 +1,4 @@
-import { HttpStatus } from '@prps/shared'
+import { HttpStatus } from '../config/enums'
 import { ok } from '../lib/api-response'
 import type { AuthRequest } from '../types/auth'
 import { asyncHandler } from '../utils/async-handler'
