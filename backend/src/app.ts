@@ -77,3 +77,17 @@ export function createApp(): Express {
 
   return app
 }
+
+/**
+ * Vercel Functions entrypoint.
+ *
+ * With the "express" framework in Vercel Services, `@vercel/backends`
+ * auto-detects an entrypoint among `app|index|server|main` (+ `src/` variants)
+ * whose content imports `express`. `src/app.ts` matches, so it becomes the
+ * deployed function and this default export (the fully configured app) is what
+ * runs. Local development keeps using `src/server.ts` (`npm run dev`), which
+ * bootstraps RBAC and binds the HTTP listener. No port is bound here and no
+ * RBAC sync runs on serverless cold starts; the production database is migrated
+ * and seeded separately, and the Owner setup flow re-ensures the RBAC catalog.
+ */
+export default createApp()
