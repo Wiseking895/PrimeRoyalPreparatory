@@ -135,13 +135,13 @@ export function Header() {
       <div
         id="mobile-navigation"
         className={cn(
-          'fixed inset-0 z-50 lg:hidden',
+          'fixed inset-0 z-50 overflow-y-auto lg:hidden',
           open ? 'pointer-events-auto' : 'pointer-events-none',
         )}
       >
         <div
           className={cn(
-            'absolute inset-0 bg-royal-900/50 backdrop-blur-sm transition-opacity',
+            'fixed inset-0 bg-royal-900/50 backdrop-blur-sm transition-opacity',
             open ? 'opacity-100' : 'opacity-0',
           )}
           onClick={closeMenu}
@@ -152,7 +152,7 @@ export function Header() {
           aria-modal="true"
           aria-label="Mobile navigation"
           className={cn(
-            'absolute right-0 top-0 flex h-full w-[min(20rem,85vw)] flex-col bg-cream-50 shadow-2xl transition-transform duration-300',
+            'absolute right-0 top-0 flex w-[min(20rem,85vw)] flex-col bg-cream-50 shadow-2xl transition-transform duration-300',
             open ? 'translate-x-0' : 'translate-x-full',
           )}
         >
@@ -168,7 +168,7 @@ export function Header() {
             </button>
           </div>
 
-          <nav aria-label="Mobile navigation" className="flex-1 overflow-y-auto px-5 py-5">
+          <nav aria-label="Mobile navigation" className="px-5 py-5">
             <ul className="space-y-1.5">
               {mobileNav.map((item) => (
                 <li key={item.label}>
