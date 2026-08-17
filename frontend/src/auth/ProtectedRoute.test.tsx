@@ -70,6 +70,25 @@ function renderWithStatus(status: 'loading' | 'authenticated' | 'unauthenticated
   )
 }
 
+function renderHeadteacherRoute(status: 'authenticated', currentUser: PublicUser) {
+  authState.value = buildAuth(status, currentUser)
+  return render(
+    <MemoryRouter initialEntries={['/headteacher/dashboard']}>
+      <Routes>
+        <Route path="/login" element={<div data-testid="login-page">Login page</div>} />
+        <Route
+          path="/headteacher/dashboard"
+          element={
+            <ProtectedRoute roles={[HEADTEACHER_ROLE]}>
+              <div data-testid="headteacher-dashboard">Headteacher dashboard</div>
+            </ProtectedRoute>
+          }
+        />
+      </Routes>
+    </MemoryRouter>,
+  )
+}
+
 describe('ProtectedRoute', () => {
   it('shows a full-page loader while authentication status resolves', () => {
     renderWithStatus('loading', null)
@@ -95,5 +114,18 @@ describe('ProtectedRoute', () => {
     renderWithStatus('authenticated', user([HEADTEACHER_ROLE]))
 
     expect(screen.getByText(/don.t have access/i)).toBeInTheDocument()
+  })
+
+  it('lets a Headteacher access a route guarded for the Headteacher role', () => {
+    renderHeadteacherRoute('authenticated', user([HEADTEACHER_ROLE]))
+
+    expect(screen.getByTestId('headteacher-dashboard')).toBeInTheDocument()
+  })
+
+  it('blocks an Owner from a route guarded for the Headteacher role', () => {
+    renderHeadteacherRoute('authenticated', user([OWNER_ROLE]))
+
+    expect(screen.getByText(/don.t have access/i)).toBeInTheDocument()
+    expect(screen.queryByTestId('headteacher-dashboard')).toBeNull()
   })
 })
