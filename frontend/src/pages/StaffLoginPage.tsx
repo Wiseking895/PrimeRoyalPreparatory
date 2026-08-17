@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import {
+  AlertCircle,
   ArrowRight,
   BookOpen,
   BookOpenCheck,
@@ -14,12 +15,15 @@ import {
   Users,
   Wallet,
 } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
+import { useAuth } from '@/auth/AuthContext'
+import { dashboardHomeFor } from '@/auth/dashboardHome'
 import { PageHero } from '@/components/common/PageHero'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Container } from '@/components/ui/Container'
 import { SectionHeading } from '@/components/ui/SectionHeading'
+import { Spinner } from '@/components/dashboard/Loaders'
 import { cn } from '@/lib/cn'
 
 const staffRoles = [
@@ -39,13 +43,35 @@ const inputClasses =
   'h-12 w-full rounded-xl border border-cream-300 bg-white px-4 text-sm text-ink-900 outline-none transition-colors placeholder:text-ink-500/60 focus:border-magenta-500'
 
 function SignInForm() {
+  const { login } = useAuth()
+  const navigate = useNavigate()
   const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
-  const [notice, setNotice] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    setNotice(true)
+    setError(null)
+
+    if (!identifier.trim()) {
+      setError('Enter your staff ID, email or phone number.')
+      return
+    }
+    if (!password) {
+      setError('Enter your password.')
+      return
+    }
+
+    setSubmitting(true)
+    try {
+      const user = await login(identifier, password)
+      navigate(dashboardHomeFor(user), { replace: true })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Sign in failed. Please try again.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -65,7 +91,7 @@ function SignInForm() {
             autoComplete="username"
             value={identifier}
             onChange={(event) => setIdentifier(event.target.value)}
-            placeholder="e.g. TPR-0001 or name@school.ng"
+            placeholder="e.g. PRPS-HT-001 or name@school.ng"
             className={cn(inputClasses, 'pl-11')}
           />
         </div>
@@ -92,23 +118,28 @@ function SignInForm() {
         </div>
       </div>
 
-      <Button type="submit" className="w-full" size="lg">
-        <LogIn className="h-5 w-5" aria-hidden="true" />
+      {error ? (
+        <p
+          className="flex items-start gap-2 rounded-xl bg-red-50 p-3 text-sm leading-relaxed text-red-700"
+          role="alert"
+        >
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+          {error}
+        </p>
+      ) : null}
+
+      <Button type="submit" className="w-full" size="lg" disabled={submitting}>
+        {submitting ? (
+          <Spinner className="h-5 w-5" />
+        ) : (
+          <LogIn className="h-5 w-5" aria-hidden="true" />
+        )}
         Sign In
       </Button>
 
-      {notice ? (
-        <p
-          className="flex items-start gap-2 rounded-xl bg-magenta-500/10 p-3 text-sm leading-relaxed text-magenta-700"
-          role="status"
-        >
-          <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-          Staff sign-in will be available in Phase 2. Your administrator will provide your access
-          credentials.
-        </p>
-      ) : (
-        <p className="text-center text-xs text-ink-500">Sign-in will be available in Phase 2.</p>
-      )}
+      <p className="text-center text-xs text-ink-500">
+        Staff accounts are managed by school administrators — there is no public sign-up.
+      </p>
     </form>
   )
 }
@@ -155,8 +186,7 @@ export default function StaffLoginPage() {
 
               <p className="mt-5 flex items-start gap-2 text-sm text-ink-500">
                 <Info className="mt-0.5 h-4 w-4 shrink-0 text-magenta-600" aria-hidden="true" />
-                Authentication is coming in Phase 2. For now this page introduces the Staff Portal
-                entry point.
+                Use the credentials provided by the school to access the Staff Portal.
               </p>
             </div>
 

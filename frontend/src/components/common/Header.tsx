@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { LogIn, Menu, UserRound, X } from 'lucide-react'
 import { NavLink, useLocation } from 'react-router-dom'
 import { Logo } from '@/components/common/Logo'
@@ -57,6 +58,7 @@ export function Header() {
   }, [open])
 
   return (
+    <>
     <header
       className={cn(
         'sticky top-0 z-50 border-b border-transparent bg-cream-100/90 backdrop-blur transition-shadow',
@@ -130,18 +132,19 @@ export function Header() {
           <Menu className="h-6 w-6" />
         </button>
       </div>
+    </header>
 
-      {/* Mobile navigation */}
+    {createPortal(
       <div
         id="mobile-navigation"
         className={cn(
-          'fixed inset-0 z-50 overflow-y-auto lg:hidden',
-          open ? 'pointer-events-auto' : 'pointer-events-none',
+          'fixed inset-0 z-50 overflow-x-clip lg:hidden',
+          open ? 'pointer-events-auto overflow-y-auto' : 'pointer-events-none',
         )}
       >
         <div
           className={cn(
-            'fixed inset-0 bg-royal-900/50 backdrop-blur-sm transition-opacity',
+            'absolute inset-0 bg-royal-900/50 backdrop-blur-sm transition-opacity',
             open ? 'opacity-100' : 'opacity-0',
           )}
           onClick={closeMenu}
@@ -168,8 +171,8 @@ export function Header() {
             </button>
           </div>
 
-          <nav aria-label="Mobile navigation" className="px-5 py-5">
-            <ul className="space-y-1.5">
+          <nav aria-label="Mobile navigation" className="px-5 py-4">
+            <ul className="space-y-1">
               {mobileNav.map((item) => (
                 <li key={item.label}>
                   <NavLink
@@ -177,7 +180,7 @@ export function Header() {
                     onClick={closeMenu}
                     className={({ isActive }) =>
                       cn(
-                        'block rounded-xl px-4 py-3.5 text-base font-semibold transition-colors',
+                        'block rounded-xl px-4 py-2.5 text-base font-semibold transition-colors',
                         isActive
                           ? 'bg-magenta-500/10 text-magenta-600'
                           : 'text-ink-700 hover:bg-cream-200 hover:text-magenta-600',
@@ -202,7 +205,9 @@ export function Header() {
             </div>
           </nav>
         </div>
-      </div>
-    </header>
+      </div>,
+      document.body,
+    )}
+    </>
   )
 }

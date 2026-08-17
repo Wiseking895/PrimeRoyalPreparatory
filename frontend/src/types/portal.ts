@@ -30,6 +30,18 @@ export interface LoginResult {
   user: PublicUser
 }
 
+export interface SetupStatus {
+  ownerExists: boolean
+}
+
+export interface OwnerSetupInput {
+  fullName: string
+  email: string
+  phone?: string
+  password: string
+  confirmPassword: string
+}
+
 export interface OwnerSummary {
   headteacher: PublicUser | null
   totals: {

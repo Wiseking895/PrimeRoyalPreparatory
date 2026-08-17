@@ -4,9 +4,11 @@ import type {
   CreateStaffInput,
   GroupedPermission,
   LoginResult,
+  OwnerSetupInput,
   OwnerSummary,
   PublicUser,
   RoleDefinition,
+  SetupStatus,
   StaffView,
   UpdateHeadteacherInput,
   UpdateStaffInput,
@@ -104,6 +106,11 @@ const jsonBody = (payload: unknown): RequestInit => ({
 })
 
 export const api = {
+  // Setup
+  setupStatus: () => request<SetupStatus>('/api/setup/status'),
+  createOwner: (input: OwnerSetupInput) =>
+    request<PublicUser>('/api/setup/owner', jsonBody(input)),
+
   // Auth
   login: (identifier: string, password: string) =>
     request<LoginResult>('/api/auth/login', jsonBody({ identifier, password })),

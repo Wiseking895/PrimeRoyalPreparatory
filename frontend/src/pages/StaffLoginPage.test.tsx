@@ -1,17 +1,40 @@
-import { fireEvent, render } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import StaffLoginPage from './StaffLoginPage'
+
+const loginMock = vi.fn()
+
+vi.mock('@/auth/AuthContext', () => ({
+  useAuth: () => ({
+    user: null,
+    status: 'unauthenticated',
+    isOwner: false,
+    isHeadteacher: false,
+    hasPermission: () => false,
+    login: loginMock,
+    logout: vi.fn(),
+  }),
+}))
+
+vi.mock('@/auth/dashboardHome', () => ({
+  dashboardHomeFor: () => '/headteacher/dashboard',
+}))
 
 function renderPage() {
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={['/staff/login']}>
       <StaffLoginPage />
     </MemoryRouter>,
   )
 }
 
 describe('StaffLoginPage', () => {
+  beforeEach(() => {
+    loginMock.mockReset()
+    loginMock.mockResolvedValue({ id: 'user-1', roles: ['HEADTEACHER'] })
+  })
+
   it('renders the Staff Portal landing content', () => {
     const { container } = renderPage()
 
@@ -26,13 +49,38 @@ describe('StaffLoginPage', () => {
     expect(text).toContain('Parent Portal')
   })
 
-  it('shows the Phase 2 notice when the sign-in form is submitted', () => {
-    const { container } = renderPage()
+  it('shows a validation message when submitting without credentials', () => {
+    renderPage()
 
-    const form = container.querySelector('form')
-    expect(form).not.toBeNull()
-    fireEvent.submit(form as HTMLFormElement)
+    fireEvent.click(screen.getByRole('button', { name: /sign in/i }))
 
-    expect(container.textContent).toContain('will be available in Phase 2')
+    expect(loginMock).not.toHaveBeenCalled()
+    expect(screen.getByRole('alert').textContent).toContain('staff ID, email or phone')
+  })
+
+  it('signs in with the entered identifier and password', async () => {
+    renderPage()
+
+    fireEvent.change(screen.getByLabelText('Staff ID or school email'), {
+      target: { value: 'PRPS-HT-001' },
+    })
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'secret123' } })
+    fireEvent.click(screen.getByRole('button', { name: /sign in/i }))
+
+    expect((await screen.findAllByText(/no public sign-up/i)).length).toBeGreaterThan(0)
+    expect(loginMock).toHaveBeenCalledWith('PRPS-HT-001', 'secret123')
+  })
+
+  it('surfaces the backend error message when sign in fails', async () => {
+    loginMock.mockRejectedValueOnce(new Error('Invalid email, staff ID, or password.'))
+    renderPage()
+
+    fireEvent.change(screen.getByLabelText('Staff ID or school email'), {
+      target: { value: 'PRPS-HT-001' },
+    })
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'wrongpass1' } })
+    fireEvent.click(screen.getByRole('button', { name: /sign in/i }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Invalid email, staff ID, or password.')
   })
 })
