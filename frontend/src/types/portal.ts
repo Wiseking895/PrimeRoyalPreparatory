@@ -13,6 +13,8 @@ export interface PublicUser {
   profilePictureUrl: string | null
   status: 'ACTIVE' | 'INACTIVE'
   lastLoginAt: string | null
+  mustChangePassword: boolean
+  createdAt: string
   staffId: string | null
   roles: string[]
   permissions: string[]
@@ -46,11 +48,27 @@ export interface OwnerSummary {
   headteacher: PublicUser | null
   totals: {
     staff: number
+    teaching: number
+    nonTeaching: number
+    headteachers: number
     pupils: number
     classes: number
     admissions: number
     auditEntries: number
   }
+  recentStaffActivity: Array<{
+    id: string
+    action: string
+    createdAt: string
+    actor: { id: string; fullName: string; email: string } | null
+  }>
+  recentPermissionChanges: Array<{
+    id: string
+    action: string
+    metadata: Record<string, unknown> | null
+    createdAt: string
+    actor: { id: string; fullName: string; email: string } | null
+  }>
 }
 
 export interface PermissionDefinition {
@@ -96,14 +114,23 @@ export interface AuditPage {
   offset: number
 }
 
+export interface InvitationResult {
+  status: 'dev' | 'sent' | 'queued' | 'failed'
+  messageId?: string
+  error?: string
+}
+
+export interface CreateHeadteacherResult {
+  headteacher: PublicUser
+  invitation: InvitationResult
+}
+
 export interface CreateHeadteacherInput {
   firstName: string
   lastName: string
   email: string
   phone?: string
   address?: string
-  password: string
-  confirmPassword: string
   status?: 'ACTIVE' | 'INACTIVE'
 }
 

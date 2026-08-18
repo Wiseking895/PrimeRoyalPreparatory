@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
-import { ArrowLeft, Lock, Save, ShieldCheck, UserCog } from 'lucide-react'
+import { ArrowLeft, Lock, RefreshCw, Save, ShieldCheck, UserCog } from 'lucide-react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { PageHeader } from '@/components/dashboard/PageHeader'
 import { Button } from '@/components/ui/Button'
@@ -14,6 +14,7 @@ import { ErrorState, EmptyState } from '@/components/dashboard/States'
 import { ConfirmDialog } from '@/components/dashboard/ConfirmDialog'
 import { useToast } from '@/components/dashboard/Toast'
 import { api } from '@/lib/api'
+import { invitationFeedback } from '@/lib/invitation'
 import type { GroupedPermission, PublicUser } from '@/types/portal'
 import { OWNER_ONLY_PERMISSIONS } from '@/auth/roles'
 
@@ -44,6 +45,7 @@ export function OwnerHeadteacherEditPage() {
   const [savingPermissions, setSavingPermissions] = useState(false)
   const [sensitive, setSensitive] = useState<SensitiveToggle | null>(null)
   const [statusLoading, setStatusLoading] = useState(false)
+  const [resending, setResending] = useState(false)
 
   const [activeTab, setActiveTab] = useState<'profile' | 'permissions'>(() =>
     searchParams.get('tab') === 'permissions' ? 'permissions' : 'profile',
@@ -146,6 +148,20 @@ export function OwnerHeadteacherEditPage() {
     }
   }
 
+  const handleResendInvitation = async () => {
+    setResending(true)
+    try {
+      const result = await api.resendHeadteacherInvitation(id)
+      setHeadteacher(result.headteacher)
+      const feedback = invitationFeedback(result.invitation, 'resend')
+      push(feedback.tone, feedback.message)
+    } catch (err) {
+      push('error', err instanceof Error ? err.message : 'Could not resend the invitation.')
+    } finally {
+      setResending(false)
+    }
+  }
+
   if (error) {
     return (
       <div className="space-y-6">
@@ -174,6 +190,14 @@ export function OwnerHeadteacherEditPage() {
         actions={
           <>
             <StatusBadge status={headteacher.status} />
+            <Button
+              variant="soft"
+              onClick={() => void handleResendInvitation()}
+              disabled={resending}
+            >
+              {resending ? <Spinner className="h-4 w-4" /> : <RefreshCw className="h-4 w-4" aria-hidden="true" />}
+              Resend invitation
+            </Button>
             {headteacher.status === 'ACTIVE' ? (
               <Button variant="cream" onClick={() => void handleStatusToggle('INACTIVE')} disabled={statusLoading}>
                 {statusLoading ? <Spinner className="h-4 w-4" /> : null}
@@ -199,6 +223,7 @@ export function OwnerHeadteacherEditPage() {
                 HEADTEACHER
               </Badge>
               <Badge tone="magenta">{headteacher.permissions.length} permissions assigned</Badge>
+              {headteacher.mustChangePassword ? <Badge tone="amber">Awaiting password change</Badge> : null}
             </div>
             <p className="mt-2 max-w-2xl text-sm text-ink-500">
               The Headteacher is the overall operational administrator. Permissions below are the

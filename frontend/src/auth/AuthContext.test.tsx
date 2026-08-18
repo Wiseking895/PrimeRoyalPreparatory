@@ -23,6 +23,8 @@ const ownerUser: PublicUser = {
   profilePictureUrl: null,
   status: 'ACTIVE',
   lastLoginAt: null,
+  mustChangePassword: false,
+  createdAt: '2026-01-01T00:00:00.000Z',
   staffId: null,
   roles: ['OWNER'],
   permissions: ['owner.manage'],

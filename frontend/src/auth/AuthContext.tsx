@@ -16,6 +16,7 @@ interface AuthContextValue {
   hasPermission: (key: string) => boolean
   login: (identifier: string, password: string) => Promise<PublicUser>
   logout: () => void
+  refreshUser: () => Promise<PublicUser | null>
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -73,6 +74,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setStatus('unauthenticated')
   }, [])
 
+  const refreshUser = useCallback(async () => {
+    const profile = await api.me()
+    saveSession(getToken() ?? '', profile)
+    setUser(profile)
+    return profile
+  }, [])
+
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
@@ -82,8 +90,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       hasPermission: (key) => user?.permissions.includes(key) ?? false,
       login,
       logout,
+      refreshUser,
     }),
-    [user, status, login, logout],
+    [user, status, login, logout, refreshUser],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

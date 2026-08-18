@@ -1,6 +1,7 @@
 import type {
   AuditPage,
   CreateHeadteacherInput,
+  CreateHeadteacherResult,
   CreateStaffInput,
   GroupedPermission,
   LoginResult,
@@ -117,13 +118,17 @@ export const api = {
   me: () => request<PublicUser>('/api/auth/me'),
   changePassword: (currentPassword: string, newPassword: string) =>
     request<null>('/api/auth/change-password', jsonBody({ currentPassword, newPassword })),
+  firstPasswordChange: (newPassword: string, confirmPassword: string) =>
+    request<null>('/api/auth/first-password-change', jsonBody({ newPassword, confirmPassword })),
 
   // Owner
   ownerSummary: () => request<OwnerSummary>('/api/owner/summary'),
   listHeadteachers: () => request<StaffView[]>('/api/owner/headteacher'),
   getHeadteacher: (id: string) => request<PublicUser>(`/api/owner/headteacher/${id}`),
   createHeadteacher: (input: CreateHeadteacherInput) =>
-    request<PublicUser>('/api/owner/headteacher', jsonBody(input)),
+    request<CreateHeadteacherResult>('/api/owner/headteacher', jsonBody(input)),
+  resendHeadteacherInvitation: (id: string) =>
+    request<CreateHeadteacherResult>(`/api/owner/headteacher/${id}/resend-invitation`, { method: 'POST' }),
   updateHeadteacher: (id: string, input: UpdateHeadteacherInput) =>
     request<PublicUser>(`/api/owner/headteacher/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
   setHeadteacherStatus: (id: string, status: 'ACTIVE' | 'INACTIVE') =>

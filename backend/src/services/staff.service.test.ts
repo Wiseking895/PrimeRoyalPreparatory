@@ -67,6 +67,8 @@ function staffRecord(id = 'st-1') {
     profilePictureUrl: null,
     status: 'ACTIVE',
     lastLoginAt: null,
+    mustChangePassword: false,
+    createdAt: now,
     staffProfile: {
       staffId: 'PRPS-STF-0001',
       category: 'NON_TEACHING',

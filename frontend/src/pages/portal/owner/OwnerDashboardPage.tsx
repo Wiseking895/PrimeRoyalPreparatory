@@ -9,6 +9,7 @@ import {
   UserCog,
   UserRound,
   Users,
+  Wallet,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { PageHeader } from '@/components/dashboard/PageHeader'
@@ -19,7 +20,7 @@ import { StatusBadge, Badge } from '@/components/dashboard/Badge'
 import { CardSkeleton, TableSkeleton } from '@/components/dashboard/Loaders'
 import { ErrorState, EmptyState } from '@/components/dashboard/States'
 import { api } from '@/lib/api'
-import type { AuditEntry, OwnerSummary, StaffView } from '@/types/portal'
+import type { AuditEntry, OwnerSummary } from '@/types/portal'
 import { formatDate } from '@/lib/date'
 
 function greeting(): string {
@@ -29,22 +30,37 @@ function greeting(): string {
   return 'Good evening'
 }
 
+function activityLabel(action: string): string {
+  const labels: Record<string, string> = {
+    'staff.create': 'Created a staff account',
+    'staff.update': 'Updated a staff account',
+    'staff.activate': 'Activated a staff account',
+    'staff.deactivate': 'Deactivated a staff account',
+    'staff.assign_role': 'Assigned a staff role',
+    'staff.remove_role': 'Removed a staff role',
+    'owner.headteacher.create': 'Created the Headteacher account',
+    'owner.headteacher.update': 'Updated the Headteacher account',
+    'owner.headteacher.activate': 'Activated the Headteacher account',
+    'owner.headteacher.deactivate': 'Deactivated the Headteacher account',
+    'owner.headteacher.permissions.update': 'Changed Headteacher permissions',
+    'owner.headteacher.invitation.resend': 'Resent the Headteacher invitation',
+  }
+  return labels[action] ?? action.replace(/\./g, ' ')
+}
+
 export function OwnerDashboardPage() {
   const [summary, setSummary] = useState<OwnerSummary | null>(null)
-  const [staff, setStaff] = useState<StaffView[] | null>(null)
   const [audit, setAudit] = useState<AuditEntry[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setError(null)
     try {
-      const [summaryData, staffData, auditData] = await Promise.all([
+      const [summaryData, auditData] = await Promise.all([
         api.ownerSummary(),
-        api.listStaff(),
         api.listAudit(5, 0),
       ])
       setSummary(summaryData)
-      setStaff(staffData)
       setAudit(auditData.entries)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load the dashboard.')
@@ -55,8 +71,6 @@ export function OwnerDashboardPage() {
     void load()
   }, [load])
 
-  const teachingCount = staff?.filter((entry) => entry.category === 'TEACHING').length ?? 0
-  const nonTeachingCount = staff?.filter((entry) => entry.category === 'NON_TEACHING').length ?? 0
   const headteacher = summary?.headteacher ?? null
 
   return (
@@ -96,15 +110,15 @@ export function OwnerDashboardPage() {
                 />
                 <StatCard
                   label="Teaching Staff"
-                  value={staff ? teachingCount : '—'}
-                  hint={staff ? 'Current staff records' : 'Loading staff…'}
+                  value={summary.totals.teaching}
+                  hint="Current teaching records"
                   icon={<BookOpen className="h-5 w-5" aria-hidden="true" />}
                   tone="magenta"
                 />
                 <StatCard
                   label="Non-Teaching Staff"
-                  value={staff ? nonTeachingCount : '—'}
-                  hint={staff ? 'Current staff records' : 'Loading staff…'}
+                  value={summary.totals.nonTeaching}
+                  hint="Current non-teaching records"
                   icon={<Building2 className="h-5 w-5" aria-hidden="true" />}
                   tone="gold"
                 />
@@ -169,6 +183,7 @@ export function OwnerDashboardPage() {
                     <div className="mt-2 flex flex-wrap items-center gap-2">
                       <StatusBadge status={headteacher.status} />
                       <Badge tone="royal">{headteacher.permissions.length} permissions</Badge>
+                      {headteacher.mustChangePassword ? <Badge tone="amber">Awaiting password change</Badge> : null}
                     </div>
                   </div>
                 </div>
@@ -220,7 +235,7 @@ export function OwnerDashboardPage() {
                         <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-magenta-500" aria-hidden="true" />
                         <div className="min-w-0">
                           <p className="truncate text-sm font-semibold text-ink-900">
-                            {entry.actor?.fullName ?? 'System'} — {entry.action}
+                            {entry.actor?.fullName ?? 'System'} — {activityLabel(entry.action)}
                           </p>
                           <p className="text-xs text-ink-500">{formatDate(entry.createdAt)}</p>
                         </div>
@@ -231,6 +246,139 @@ export function OwnerDashboardPage() {
               </div>
             </Card>
           </div>
+
+          <div className="grid gap-6 lg:grid-cols-2">
+            {/* Headteacher overview */}
+            <Card className="p-6">
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-bold uppercase tracking-wider text-ink-500">Headteacher Overview</h2>
+                <ShieldCheck className="h-5 w-5 text-royal-500" aria-hidden="true" />
+              </div>
+              {summary === null ? (
+                <div className="mt-6 space-y-3">
+                  <CardSkeleton className="border-0 p-0" />
+                </div>
+              ) : headteacher ? (
+                <div className="mt-4">
+                  <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
+                    <div>
+                      <dt className="text-xs font-semibold uppercase tracking-wider text-ink-500">Name</dt>
+                      <dd className="mt-0.5 font-bold text-ink-900">{headteacher.fullName}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs font-semibold uppercase tracking-wider text-ink-500">Headteacher ID</dt>
+                      <dd className="mt-0.5 font-bold text-ink-900">{headteacher.staffId ?? '—'}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs font-semibold uppercase tracking-wider text-ink-500">Account status</dt>
+                      <dd className="mt-0.5">
+                        <StatusBadge status={headteacher.status} />
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs font-semibold uppercase tracking-wider text-ink-500">Last login</dt>
+                      <dd className="mt-0.5 text-ink-900">{headteacher.lastLoginAt ? formatDate(headteacher.lastLoginAt) : 'Never signed in'}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs font-semibold uppercase tracking-wider text-ink-500">Account created</dt>
+                      <dd className="mt-0.5 text-ink-900">{formatDate(headteacher.createdAt)}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs font-semibold uppercase tracking-wider text-ink-500">Staff managed</dt>
+                      <dd className="mt-0.5 text-ink-900">
+                        {summary.totals.teaching} teaching · {summary.totals.nonTeaching} non-teaching
+                      </dd>
+                    </div>
+                  </dl>
+
+                  {summary.recentPermissionChanges.length > 0 ? (
+                    <div className="mt-5 border-t border-cream-200 pt-4">
+                      <p className="text-xs font-bold uppercase tracking-wider text-ink-500">Recent permission changes</p>
+                      <ul className="mt-2 space-y-2">
+                        {summary.recentPermissionChanges.slice(0, 3).map((entry) => (
+                          <li key={entry.id} className="flex items-start gap-2 text-sm">
+                            <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-royal-500" aria-hidden="true" />
+                            <span className="min-w-0 text-ink-700">
+                              {activityLabel(entry.action)} — {entry.actor?.fullName ?? 'System'}
+                              <span className="text-xs text-ink-500"> · {formatDate(entry.createdAt)}</span>
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                </div>
+              ) : (
+                <EmptyState
+                  title="No Headteacher yet."
+                  description="Create the Headteacher account to enable staff management."
+                />
+              )}
+            </Card>
+
+            {/* Staff activity */}
+            <Card className="p-6">
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-bold uppercase tracking-wider text-ink-500">Staff Management Activity</h2>
+                <Users className="h-5 w-5 text-royal-500" aria-hidden="true" />
+              </div>
+              {summary === null ? (
+                <div className="mt-6 space-y-3">
+                  <CardSkeleton className="border-0 p-0" />
+                </div>
+              ) : summary.recentStaffActivity.length === 0 ? (
+                <EmptyState
+                  title="No staff activity yet."
+                  description="Teaching and non-teaching staff actions taken by the Headteacher will appear here."
+                />
+              ) : (
+                <ul className="mt-4 space-y-3">
+                  {summary.recentStaffActivity.map((entry) => (
+                    <li key={entry.id} className="flex items-start gap-3">
+                      <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-magenta-500" aria-hidden="true" />
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-ink-900">{activityLabel(entry.action)}</p>
+                        <p className="truncate text-xs text-ink-500">
+                          {entry.actor?.fullName ?? 'System'} · {formatDate(entry.createdAt)}
+                        </p>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <div className="mt-4 border-t border-cream-200 pt-3">
+                <p className="text-xs leading-relaxed text-ink-500">
+                  The Headteacher is responsible for day-to-day management of teaching and non-teaching
+                  staff. This panel gives you oversight of that activity.
+                </p>
+              </div>
+            </Card>
+          </div>
+
+          {/* Finance overview */}
+          <Card className="p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Wallet className="h-5 w-5 text-gold-500" aria-hidden="true" />
+                <h2 className="text-sm font-bold uppercase tracking-wider text-ink-500">Finance Overview</h2>
+              </div>
+              <Badge tone="gold">Coming in a later phase</Badge>
+            </div>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <div className="rounded-xl border border-cream-200 bg-cream-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wider text-ink-500">Total Collected</p>
+                <p className="mt-1 text-lg font-bold text-ink-500">Not available yet</p>
+              </div>
+              <div className="rounded-xl border border-cream-200 bg-cream-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wider text-ink-500">Outstanding</p>
+                <p className="mt-1 text-lg font-bold text-ink-500">Not available yet</p>
+              </div>
+            </div>
+            <p className="mt-3 text-xs leading-relaxed text-ink-500">
+              The Accountant module arrives in a later phase. High-level financial summaries will appear
+              here once fee collection and payments are implemented.
+            </p>
+          </Card>
 
           {/* Pending actions */}
           <Card className="p-6">

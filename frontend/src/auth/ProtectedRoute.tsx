@@ -28,6 +28,12 @@ export function ProtectedRoute({ roles, children }: ProtectedRouteProps) {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />
   }
 
+  // Accounts created with a temporary password must change it before entering
+  // any dashboard. This mirrors the backend gate in require-auth.
+  if (user?.mustChangePassword && location.pathname !== '/change-password') {
+    return <Navigate to="/change-password" replace />
+  }
+
   if (roles && roles.length > 0 && !roles.some((role) => user?.roles.includes(role))) {
     return <ForbiddenPage />
   }

@@ -18,6 +18,8 @@ function record(overrides: Partial<UserRecord> = {}): UserRecord {
     profilePictureUrl: null,
     status: 'ACTIVE',
     lastLoginAt: now,
+    mustChangePassword: false,
+    createdAt: now,
     staffProfile: {
       staffId: 'P/0001',
       category: 'TEACHING',
@@ -91,10 +93,17 @@ describe('user-mapper', () => {
         profilePictureUrl: null,
         status: 'ACTIVE',
         lastLoginAt: '2026-01-01T00:00:00.000Z',
+        mustChangePassword: false,
+        createdAt: '2026-01-01T00:00:00.000Z',
         staffId: 'P/0001',
         roles: [HEADTEACHER_ROLE, 'CLASS_TEACHER'],
         permissions: ['staff.view', 'classes.view'],
       })
+    })
+
+    it('surfaces the must-change-password flag', () => {
+      const user = record({ mustChangePassword: true })
+      expect(toPublicUser(user).mustChangePassword).toBe(true)
     })
 
     it('handles users without a staff profile or last login', () => {

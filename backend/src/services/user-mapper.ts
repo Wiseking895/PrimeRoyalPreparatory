@@ -14,6 +14,8 @@ export interface UserRecord {
   profilePictureUrl: string | null
   status: string
   lastLoginAt: Date | null
+  mustChangePassword: boolean
+  createdAt: Date
   staffProfile: {
     staffId: string
     category: string | null
@@ -33,6 +35,8 @@ export interface PublicUser {
   profilePictureUrl: string | null
   status: string
   lastLoginAt: string | null
+  mustChangePassword: boolean
+  createdAt: string
   staffId: string | null
   roles: string[]
   permissions: string[]
@@ -46,6 +50,8 @@ export interface StaffView {
   profilePictureUrl: string | null
   status: string
   lastLoginAt: string | null
+  mustChangePassword: boolean
+  createdAt: string
   staffId: string | null
   category: string | null
   address: string | null
@@ -74,6 +80,8 @@ export function toPublicUser(record: UserRecord): PublicUser {
     profilePictureUrl: record.profilePictureUrl,
     status: record.status,
     lastLoginAt: record.lastLoginAt?.toISOString() ?? null,
+    mustChangePassword: record.mustChangePassword,
+    createdAt: record.createdAt.toISOString(),
     staffId: record.staffProfile?.staffId ?? null,
     roles: roleNamesOf(record),
     permissions: permissionKeysOf(record),
@@ -89,6 +97,8 @@ export function toStaffView(record: UserRecord): StaffView {
     profilePictureUrl: record.profilePictureUrl,
     status: record.status,
     lastLoginAt: record.lastLoginAt?.toISOString() ?? null,
+    mustChangePassword: record.mustChangePassword,
+    createdAt: record.createdAt.toISOString(),
     staffId: record.staffProfile?.staffId ?? null,
     category: record.staffProfile?.category ?? null,
     address: record.staffProfile?.address ?? null,

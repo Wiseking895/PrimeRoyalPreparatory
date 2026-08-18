@@ -19,6 +19,7 @@ import { LoginPage } from '@/pages/portal/LoginPage'
 import { ProfilePage } from '@/pages/portal/ProfilePage'
 import { RolesPage } from '@/pages/portal/RolesPage'
 import { StaffManagementPage } from '@/pages/portal/StaffManagementPage'
+import { ChangePasswordPage } from '@/pages/portal/ChangePasswordPage'
 import { HeadteacherDashboardPage } from '@/pages/portal/headteacher/HeadteacherDashboardPage'
 import { OwnerDashboardPage } from '@/pages/portal/owner/OwnerDashboardPage'
 import { OwnerHeadteacherEditPage } from '@/pages/portal/owner/OwnerHeadteacherEditPage'
@@ -50,6 +51,14 @@ export const router = createBrowserRouter([
   {
     path: '/setup/owner',
     element: <OwnerSetupPage />,
+  },
+  {
+    path: '/change-password',
+    element: (
+      <ProtectedRoute>
+        <ChangePasswordPage />
+      </ProtectedRoute>
+    ),
   },
   {
     path: '/owner',

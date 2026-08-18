@@ -7,6 +7,7 @@ import {
   getHeadteacher,
   getOwnerSummary,
   listHeadteachers,
+  resendHeadteacherInvitation,
   setHeadteacherPermissions,
   setHeadteacherStatus,
   updateHeadteacher,
@@ -28,8 +29,25 @@ export const getHeadteacherHandler = asyncHandler(async (req, res) => {
 })
 
 export const createHeadteacherHandler = asyncHandler(async (req: AuthRequest, res) => {
-  const headteacher = await createHeadteacher(req.user!, req.body, req.ip)
-  res.status(HttpStatus.Created).json(ok(headteacher, 'Headteacher account created successfully.'))
+  const result = await createHeadteacher(req.user!, req.body, req.ip)
+  const message =
+    result.invitation.status === 'failed'
+      ? 'Headteacher account created, but the invitation email could not be sent.'
+      : result.invitation.status === 'dev'
+        ? 'Headteacher account created. Invitation logged to the server console (development transport).'
+        : 'Headteacher account created. The invitation email has been sent.'
+  res.status(HttpStatus.Created).json(ok(result, message))
+})
+
+export const resendHeadteacherInvitationHandler = asyncHandler(async (req: AuthRequest, res) => {
+  const result = await resendHeadteacherInvitation(req.user!, req.params.id, req.ip)
+  const message =
+    result.invitation.status === 'failed'
+      ? 'A new temporary credential was generated, but the invitation email could not be sent.'
+      : result.invitation.status === 'dev'
+        ? 'A fresh temporary credential was generated. Invitation logged to the server console (development transport).'
+        : 'Invitation email sent again with a fresh temporary credential.'
+  res.json(ok(result, message))
 })
 
 export const updateHeadteacherHandler = asyncHandler(async (req: AuthRequest, res) => {

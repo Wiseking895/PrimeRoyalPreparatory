@@ -62,10 +62,40 @@ export async function changePassword(
     throw new AppError('Current password is incorrect.', HttpStatus.BadRequest)
   }
   const passwordHash = await hashPassword(newPassword)
-  await prisma.user.update({ where: { id: userId }, data: { passwordHash } })
+  await prisma.user.update({ where: { id: userId }, data: { passwordHash, mustChangePassword: false } })
   await recordAudit({
     actorUserId: userId,
     action: 'auth.password_change',
+    resourceType: 'user',
+    resourceId: userId,
+    ip: ip ?? null,
+  })
+}
+
+/**
+ * First-login password change for accounts created with a server-generated
+ * temporary password. The user already authenticated with the temporary
+ * credential, so the current password is not requested again — but the account
+ * must still be flagged `mustChangePassword`. After this succeeds the old
+ * temporary hash is replaced (and thereby invalidated) and the flag clears.
+ */
+export async function completeFirstPasswordChange(
+  userId: string,
+  newPassword: string,
+  ip?: string,
+): Promise<void> {
+  const user = await prisma.user.findUnique({ where: { id: userId } })
+  if (!user) {
+    throw new AppError('Account not found.', HttpStatus.NotFound)
+  }
+  if (!user.mustChangePassword) {
+    throw new AppError('Your password is already set up. You can change it from your profile.', HttpStatus.BadRequest)
+  }
+  const passwordHash = await hashPassword(newPassword)
+  await prisma.user.update({ where: { id: userId }, data: { passwordHash, mustChangePassword: false } })
+  await recordAudit({
+    actorUserId: userId,
+    action: 'auth.first_password_change',
     resourceType: 'user',
     resourceId: userId,
     ip: ip ?? null,

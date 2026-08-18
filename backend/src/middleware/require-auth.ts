@@ -7,6 +7,22 @@ import { AppError } from '../utils/app-error'
 import { asyncHandler } from '../utils/async-handler'
 
 /**
+ * Endpoints that must stay reachable while an account still carries the
+ * `mustChangePassword` flag. Everything else is blocked so a Headteacher who
+ * signed in with a temporary password cannot browse the normal dashboard until
+ * they have set a real password.
+ */
+const FIRST_LOGIN_ALLOWLIST = new Set([
+  '/api/auth/me',
+  '/api/auth/change-password',
+  '/api/auth/first-password-change',
+])
+
+function requestPath(originalUrl: string): string {
+  return originalUrl.split('?')[0]
+}
+
+/**
  * Authenticates the bearer token and resolves the user's roles and
  * permissions from the database. Attaches `req.user` on success or rejects
  * with 401. This is the mandatory gate for every protected endpoint.
@@ -37,6 +53,13 @@ export const requireAuth: RequestHandler = asyncHandler(
     }
     if (user.status !== 'ACTIVE') {
       throw new AppError('This account has been deactivated.', HttpStatus.Forbidden)
+    }
+
+    if (user.mustChangePassword && !FIRST_LOGIN_ALLOWLIST.has(requestPath(req.originalUrl))) {
+      throw new AppError(
+        'You must set a new password before you can continue.',
+        HttpStatus.Forbidden,
+      )
     }
 
     const permissionKeys = Array.from(

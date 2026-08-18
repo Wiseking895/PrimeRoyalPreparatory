@@ -1,11 +1,14 @@
 import { HEADTEACHER_ROLE, OWNER_ONLY_PERMISSIONS, PERMISSIONS } from '../rbac/catalog'
 import { HttpStatus } from '../config/enums'
+import { logger } from '../config/logger'
 import { hashPassword } from '../lib/password'
+import { generateTemporaryPassword } from '../lib/temporary-password'
 import { prisma } from '../lib/prisma'
 import type { AuthenticatedUser } from '../types/auth'
 import { AppError } from '../utils/app-error'
 import { recordAudit } from './audit.service'
 import { ensureInitialRbac } from './ensure-rbac'
+import { maskEmail, sendHeadteacherInvitation, type MailResult } from './mail.service'
 import { toPublicUser, toStaffView, type PublicUser, type StaffView } from './user-mapper'
 
 const headteacherInclude = {
@@ -19,7 +22,6 @@ export interface HeadteacherCreateInput {
   email: string
   phone?: string
   address?: string
-  password: string
   status?: 'ACTIVE' | 'INACTIVE'
 }
 
@@ -29,6 +31,13 @@ export interface HeadteacherUpdateInput {
   email?: string
   phone?: string
   address?: string
+}
+
+export type InvitationResult = MailResult
+
+export interface HeadteacherCreateResult {
+  headteacher: PublicUser
+  invitation: InvitationResult
 }
 
 async function nextHeadteacherStaffId(): Promise<string> {
@@ -49,29 +58,81 @@ async function assertEmailAvailable(email: string, excludeUserId?: string): Prom
 
 export async function getOwnerSummary(): Promise<{
   headteacher: PublicUser | null
-  totals: { staff: number; pupils: number; classes: number; admissions: number; auditEntries: number }
+  totals: {
+    staff: number
+    teaching: number
+    nonTeaching: number
+    headteachers: number
+    pupils: number
+    classes: number
+    admissions: number
+    auditEntries: number
+  }
+  recentStaffActivity: Array<{
+    id: string
+    action: string
+    createdAt: Date
+    actor: { id: string; fullName: string; email: string } | null
+  }>
+  recentPermissionChanges: Array<{
+    id: string
+    action: string
+    metadata: unknown
+    createdAt: Date
+    actor: { id: string; fullName: string; email: string } | null
+  }>
 }> {
-  const [headteacher, staffCount, auditEntries] = await Promise.all([
-    prisma.user.findFirst({
-      where: { roles: { some: { role: { name: HEADTEACHER_ROLE } } } },
-      include: headteacherInclude,
-    }),
-    prisma.staffProfile.count({
-      where: { category: { in: ['TEACHING', 'NON_TEACHING'] } },
-    }),
-    prisma.auditLog.count(),
-  ])
+  const [headteacher, staffCount, teachingCount, nonTeachingCount, headteacherCount, auditEntries, staffActivity, permissionChanges] =
+    await Promise.all([
+      prisma.user.findFirst({
+        where: { roles: { some: { role: { name: HEADTEACHER_ROLE } } } },
+        include: headteacherInclude,
+      }),
+      prisma.staffProfile.count({ where: { category: { in: ['TEACHING', 'NON_TEACHING'] } } }),
+      prisma.staffProfile.count({ where: { category: 'TEACHING' } }),
+      prisma.staffProfile.count({ where: { category: 'NON_TEACHING' } }),
+      prisma.user.count({ where: { roles: { some: { role: { name: HEADTEACHER_ROLE } } } } }),
+      prisma.auditLog.count(),
+      prisma.auditLog.findMany({
+        where: { action: { startsWith: 'staff.' } },
+        orderBy: { createdAt: 'desc' },
+        take: 6,
+        include: { actorUser: { select: { id: true, fullName: true, email: true } } },
+      }),
+      prisma.auditLog.findMany({
+        where: { action: { startsWith: 'owner.headteacher.permissions.' } },
+        orderBy: { createdAt: 'desc' },
+        take: 6,
+        include: { actorUser: { select: { id: true, fullName: true, email: true } } },
+      }),
+    ])
 
   return {
     headteacher: headteacher ? toPublicUser(headteacher) : null,
     totals: {
       staff: staffCount,
+      teaching: teachingCount,
+      nonTeaching: nonTeachingCount,
+      headteachers: headteacherCount,
       // Later phases (4, 3, 4) own these counts.
       pupils: 0,
       classes: 0,
       admissions: 0,
       auditEntries,
     },
+    recentStaffActivity: staffActivity.map((entry) => ({
+      id: entry.id,
+      action: entry.action,
+      createdAt: entry.createdAt,
+      actor: entry.actorUser,
+    })),
+    recentPermissionChanges: permissionChanges.map((entry) => ({
+      id: entry.id,
+      action: entry.action,
+      metadata: entry.metadata,
+      createdAt: entry.createdAt,
+      actor: entry.actorUser,
+    })),
   }
 }
 
@@ -93,14 +154,20 @@ export async function getHeadteacher(id: string): Promise<PublicUser> {
 }
 
 /**
- * Creates a Headteacher account. Only one ACTIVE Headteacher may exist at a
- * time (replacement = deactivate the old one, then create the new one).
+ * Creates a Headteacher account with a server-generated temporary password and
+ * emails the invitation. Only one ACTIVE Headteacher may exist at a time
+ * (replacement = deactivate the old one, then create the new one).
+ *
+ * The temporary password is generated entirely server-side, stored only as a
+ * bcrypt hash, and delivered exclusively through the invitation email. It is
+ * never written to the audit log or returned by the API. If the email fails
+ * the account still exists so the Owner can retry via the resend endpoint.
  */
 export async function createHeadteacher(
   actor: AuthenticatedUser,
   input: HeadteacherCreateInput,
   ip?: string,
-): Promise<PublicUser> {
+): Promise<HeadteacherCreateResult> {
   await ensureInitialRbac()
 
   const activeHeadteacher = await prisma.user.findFirst({
@@ -121,7 +188,8 @@ export async function createHeadteacher(
     throw new AppError('Headteacher role is not configured.', HttpStatus.InternalServerError)
   }
 
-  const passwordHash = await hashPassword(input.password)
+  const temporaryPassword = generateTemporaryPassword()
+  const passwordHash = await hashPassword(temporaryPassword)
   const fullName = `${input.firstName.trim()} ${input.lastName.trim()}`.replace(/\s+/g, ' ').trim()
 
   const user = await prisma.$transaction(async (tx) => {
@@ -131,6 +199,7 @@ export async function createHeadteacher(
         email,
         phone: input.phone?.trim() || null,
         passwordHash,
+        mustChangePassword: true,
         status: input.status ?? 'ACTIVE',
       },
     })
@@ -155,7 +224,84 @@ export async function createHeadteacher(
     ip: ip ?? null,
   })
 
-  return getHeadteacher(user.id)
+  const headteacher = await getHeadteacher(user.id)
+  const invitation = await sendHeadteacherInvitation({
+    to: email,
+    fullName,
+    staffId: headteacher.staffId ?? '—',
+    temporaryPassword,
+  })
+
+  logger.info(
+    {
+      channel: 'mail',
+      action: 'headteacher.invitation.create',
+      staffId: headteacher.staffId ?? null,
+      to: maskEmail(email),
+      transport: invitation.transport ?? null,
+      status: invitation.status,
+    },
+    'Invitation requested for Headteacher.',
+  )
+
+  return { headteacher, invitation }
+}
+
+/**
+ * Re-sends the Headteacher invitation. A fresh temporary password is generated
+ * (invalidating any previously delivered one — no duplicate account is created)
+ * and the account is forced to change it on next sign-in.
+ */
+export async function resendHeadteacherInvitation(
+  actor: AuthenticatedUser,
+  id: string,
+  ip?: string,
+): Promise<HeadteacherCreateResult> {
+  const user = await prisma.user.findUnique({ where: { id }, include: headteacherInclude })
+  if (!user || !isHeadteacherUser(user)) {
+    throw new AppError('Headteacher account not found.', HttpStatus.NotFound)
+  }
+
+  const temporaryPassword = generateTemporaryPassword()
+  const passwordHash = await hashPassword(temporaryPassword)
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { passwordHash, mustChangePassword: true },
+  })
+
+  await recordAudit({
+    actorUserId: actor.id,
+    action: 'owner.headteacher.invitation.resend',
+    resourceType: 'headteacher',
+    resourceId: id,
+    ip: ip ?? null,
+  })
+
+  const updatedUser = await prisma.user.findUnique({ where: { id }, include: headteacherInclude })
+  if (!updatedUser) {
+    throw new AppError('Headteacher account not found.', HttpStatus.NotFound)
+  }
+  const headteacher = toPublicUser(updatedUser)
+  const invitation = await sendHeadteacherInvitation({
+    to: user.email,
+    fullName: user.fullName,
+    staffId: user.staffProfile?.staffId ?? '—',
+    temporaryPassword,
+  })
+
+  logger.info(
+    {
+      channel: 'mail',
+      action: 'headteacher.invitation.resend',
+      staffId: user.staffProfile?.staffId ?? null,
+      to: maskEmail(user.email),
+      transport: invitation.transport ?? null,
+      status: invitation.status,
+    },
+    'Invitation requested for Headteacher.',
+  )
+
+  return { headteacher, invitation }
 }
 
 export async function updateHeadteacher(

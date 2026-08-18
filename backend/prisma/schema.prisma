@@ -85,15 +85,16 @@ model RolePermission {
 }
 
 model User {
-  id                String         @id @default(cuid())
-  fullName          String
-  email             String         @unique
-  phone             String?
-  passwordHash      String
-  profilePictureUrl String?
-  status            AccountStatus  @default(ACTIVE)
-  lastLoginAt       DateTime?
-  roles             UserRole[]
+  id                  String         @id @default(cuid())
+  fullName            String
+  email               String         @unique
+  phone               String?
+  passwordHash        String
+  profilePictureUrl   String?
+  status              AccountStatus  @default(ACTIVE)
+  lastLoginAt         DateTime?
+  mustChangePassword  Boolean        @default(false)
+  roles               UserRole[]
   staffProfile      StaffProfile?
   auditLogs         AuditLog[]
   createdAt         DateTime       @default(now())

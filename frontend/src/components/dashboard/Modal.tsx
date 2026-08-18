@@ -20,21 +20,25 @@ const sizes = {
 
 export function Modal({ open, onClose, title, description, children, size = 'md' }: ModalProps) {
   const panelRef = useRef<HTMLDivElement>(null)
+  const onCloseRef = useRef(onClose)
+
+  useEffect(() => {
+    onCloseRef.current = onClose
+  }, [onClose])
 
   useEffect(() => {
     if (!open) return
     const previousActive = document.activeElement as HTMLElement | null
-    const panel = panelRef.current
-    panel?.focus()
+    panelRef.current?.focus()
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
+      if (event.key === 'Escape') onCloseRef.current()
     }
     document.addEventListener('keydown', onKeyDown)
     return () => {
       document.removeEventListener('keydown', onKeyDown)
       previousActive?.focus()
     }
-  }, [open, onClose])
+  }, [open])
 
   if (!open) return null
 

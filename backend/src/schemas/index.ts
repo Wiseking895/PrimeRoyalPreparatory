@@ -44,21 +44,24 @@ export const changePasswordSchema = z.object({
   newPassword: passwordField,
 })
 
-export const headteacherCreateSchema = z
+export const firstPasswordChangeSchema = z
   .object({
-    firstName: z.string().trim().min(2, 'First name must be at least 2 characters.').max(80),
-    lastName: z.string().trim().min(2, 'Last name must be at least 2 characters.').max(80),
-    email: emailField,
-    phone: optionalPhone,
-    address: z.string().trim().max(200).optional().or(z.literal('')),
-    password: passwordField,
+    newPassword: passwordField,
     confirmPassword: z.string(),
-    status: z.enum(['ACTIVE', 'INACTIVE']).default('ACTIVE'),
   })
-  .refine((data) => data.password === data.confirmPassword, {
+  .refine((data) => data.newPassword === data.confirmPassword, {
     message: 'Passwords do not match.',
     path: ['confirmPassword'],
   })
+
+export const headteacherCreateSchema = z.object({
+  firstName: z.string().trim().min(2, 'First name must be at least 2 characters.').max(80),
+  lastName: z.string().trim().min(2, 'Last name must be at least 2 characters.').max(80),
+  email: emailField,
+  phone: optionalPhone,
+  address: z.string().trim().max(200).optional().or(z.literal('')),
+  status: z.enum(['ACTIVE', 'INACTIVE']).default('ACTIVE'),
+})
 
 export const headteacherUpdateSchema = z.object({
   firstName: z.string().trim().min(2).max(80).optional(),

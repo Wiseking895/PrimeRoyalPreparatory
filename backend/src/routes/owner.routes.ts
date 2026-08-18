@@ -7,6 +7,7 @@ import {
   headteacherPermissionsHandler,
   listHeadteachersHandler,
   ownerSummaryHandler,
+  resendHeadteacherInvitationHandler,
   updateHeadteacherHandler,
 } from '../controllers/owner.controller'
 import { requireAuth } from '../middleware/require-auth'
@@ -31,6 +32,7 @@ router.get('/headteacher/:id', getHeadteacherHandler)
 router.patch('/headteacher/:id', validate(headteacherUpdateSchema), updateHeadteacherHandler)
 router.post('/headteacher/:id/activate', activateHeadteacherHandler)
 router.post('/headteacher/:id/deactivate', deactivateHeadteacherHandler)
+router.post('/headteacher/:id/resend-invitation', resendHeadteacherInvitationHandler)
 router.put(
   '/headteacher/:id/permissions',
   validate(headteacherPermissionsSchema),

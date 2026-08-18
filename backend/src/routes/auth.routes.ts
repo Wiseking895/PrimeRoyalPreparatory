@@ -1,9 +1,14 @@
 import { Router } from 'express'
 import { rateLimit } from 'express-rate-limit'
-import { changePasswordHandler, loginHandler, meHandler } from '../controllers/auth.controller'
+import {
+  changePasswordHandler,
+  firstPasswordChangeHandler,
+  loginHandler,
+  meHandler,
+} from '../controllers/auth.controller'
 import { requireAuth } from '../middleware/require-auth'
 import { validate } from '../middleware/validate'
-import { changePasswordSchema, loginSchema } from '../schemas'
+import { changePasswordSchema, firstPasswordChangeSchema, loginSchema } from '../schemas'
 
 const router = Router()
 
@@ -20,5 +25,7 @@ router.post('/login', loginLimiter, validate(loginSchema), loginHandler)
 router.get('/me', requireAuth, meHandler)
 
 router.post('/change-password', requireAuth, validate(changePasswordSchema), changePasswordHandler)
+
+router.post('/first-password-change', requireAuth, validate(firstPasswordChangeSchema), firstPasswordChangeHandler)
 
 export const authRouter = router

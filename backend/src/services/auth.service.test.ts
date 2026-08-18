@@ -3,7 +3,7 @@ import { HttpStatus } from '../config/enums'
 import { HEADTEACHER_ROLE, OWNER_ROLE } from '../rbac/catalog'
 import type { UserRecord } from './user-mapper'
 import { AppError } from '../utils/app-error'
-import { changePassword, getUserProfile, login } from './auth.service'
+import { changePassword, completeFirstPasswordChange, getUserProfile, login } from './auth.service'
 
 const prismaMock = vi.hoisted(() => ({
   user: {
@@ -26,6 +26,8 @@ vi.mock('../lib/password', () => ({
 }))
 vi.mock('../lib/jwt', () => ({ signToken: signTokenMock, verifyToken: vi.fn() }))
 
+const NOW = new Date('2026-01-01T00:00:00.000Z')
+
 function user(overrides: Partial<UserRecord> & { passwordHash?: string } = {}): UserRecord {
   return {
     id: 'user-1',
@@ -35,6 +37,8 @@ function user(overrides: Partial<UserRecord> & { passwordHash?: string } = {}): 
     profilePictureUrl: null,
     status: 'ACTIVE',
     lastLoginAt: null,
+    mustChangePassword: false,
+    createdAt: NOW,
     staffProfile: null,
     roles: [],
     ...overrides,
@@ -175,7 +179,7 @@ describe('auth.service', () => {
       expect(hashPasswordMock).toHaveBeenCalledWith('newpass1')
       expect(prismaMock.user.update).toHaveBeenCalledWith({
         where: { id: 'user-1' },
-        data: { passwordHash: 'hashed' },
+        data: { passwordHash: 'hashed', mustChangePassword: false },
       })
       expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ action: 'auth.password_change' }) }),
@@ -196,6 +200,40 @@ describe('auth.service', () => {
       prismaMock.user.findUnique.mockResolvedValue(null)
 
       await expect(changePassword('missing', 'oldpass1', 'newpass1')).rejects.toMatchObject({
+        statusCode: HttpStatus.NotFound,
+      })
+    })
+  })
+
+  describe('completeFirstPasswordChange', () => {
+    it('sets a new password and clears the temporary-password flag', async () => {
+      prismaMock.user.findUnique.mockResolvedValue(user({ id: 'user-1', mustChangePassword: true }))
+
+      await completeFirstPasswordChange('user-1', 'brandnew1', '127.0.0.1')
+
+      expect(hashPasswordMock).toHaveBeenCalledWith('brandnew1')
+      expect(prismaMock.user.update).toHaveBeenCalledWith({
+        where: { id: 'user-1' },
+        data: { passwordHash: 'hashed', mustChangePassword: false },
+      })
+      expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ action: 'auth.first_password_change' }) }),
+      )
+    })
+
+    it('rejects the change when the account is not flagged', async () => {
+      prismaMock.user.findUnique.mockResolvedValue(user({ id: 'user-1', mustChangePassword: false }))
+
+      await expect(completeFirstPasswordChange('user-1', 'brandnew1')).rejects.toMatchObject({
+        statusCode: HttpStatus.BadRequest,
+      })
+      expect(prismaMock.user.update).not.toHaveBeenCalled()
+    })
+
+    it('throws a 404 for a missing account', async () => {
+      prismaMock.user.findUnique.mockResolvedValue(null)
+
+      await expect(completeFirstPasswordChange('missing', 'brandnew1')).rejects.toMatchObject({
         statusCode: HttpStatus.NotFound,
       })
     })

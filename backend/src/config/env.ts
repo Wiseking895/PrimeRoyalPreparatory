@@ -30,4 +30,14 @@ export const env = {
   jwtSecret: process.env.JWT_SECRET ?? 'unsafe-default-change-me',
   jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? '12h',
   passwordCost: toNumber(process.env.PASSWORD_HASH_COST, 12),
+  // Email (invitations). When SMTP is not configured the mail service falls
+  // back to a development transport that prints messages to the server log
+  // instead of sending real email.
+  emailHost: process.env.EMAIL_HOST ?? '',
+  emailPort: toNumber(process.env.EMAIL_PORT, 587),
+  emailSecure: process.env.EMAIL_SECURE === 'true',
+  emailUser: process.env.EMAIL_USER ?? '',
+  emailPassword: process.env.EMAIL_PASSWORD ?? '',
+  emailFrom: process.env.EMAIL_FROM ?? '',
+  emailEnabled: process.env.EMAIL_ENABLED === 'true',
 } as const

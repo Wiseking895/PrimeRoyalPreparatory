@@ -63,6 +63,8 @@ describe('setup.service', () => {
         profilePictureUrl: null,
         status: 'ACTIVE',
         lastLoginAt: null,
+        mustChangePassword: false,
+        createdAt: new Date('2026-01-01T00:00:00.000Z'),
       })
 
       const result = await createOwner(input)
@@ -116,6 +118,8 @@ describe('setup.service', () => {
         profilePictureUrl: null,
         status: 'ACTIVE',
         lastLoginAt: null,
+        mustChangePassword: false,
+        createdAt: new Date('2026-01-01T00:00:00.000Z'),
       })
 
       await createOwner({ ...input, phone: ' +233 20 000 0000 ' })
