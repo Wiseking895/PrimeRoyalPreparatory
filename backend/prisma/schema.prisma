@@ -45,6 +45,16 @@ enum AccountStatus {
   INACTIVE
 }
 
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum PupilStatus {
+  ACTIVE
+  INACTIVE
+}
+
 model Role {
   id          String           @id @default(cuid())
   name        String           @unique
@@ -122,6 +132,7 @@ model StaffProfile {
   staffId          String      @unique
   userId           String      @unique
   category         String?
+  position         String?
   address          String?
   dateJoined       DateTime    @default(now())
   responsibilities String?
@@ -130,6 +141,7 @@ model StaffProfile {
   updatedAt        DateTime    @updatedAt
 
   @@index([category])
+  @@index([position])
   @@map("staff_profiles")
 }
 
@@ -149,4 +161,92 @@ model AuditLog {
   @@index([action])
   @@index([createdAt])
   @@map("audit_logs")
+}
+
+// =============================================================================
+// PHASE 4 — Pupil / Student management.
+// School-managed classes, shared guardian records and pupil profiles.
+// =============================================================================
+
+/// School classes / academic levels. The class structure is school-managed
+/// (not hard-coded in the application): default levels are seeded, and the
+/// school may rename, extend or deactivate levels. Pupils reference their
+/// current class; a future academic-year history table can build on this
+/// without rewriting the pupil model.
+model SchoolClass {
+  id          String        @id @default(cuid())
+  key         String        @unique
+  name        String        @unique
+  description String?
+  sortOrder   Int           @default(0)
+  status      AccountStatus @default(ACTIVE)
+  pupils      Pupil[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([status])
+  @@index([sortOrder])
+  @@map("classes")
+}
+
+/// A parent/guardian. Shared across pupils so a single guardian can be linked
+/// to many pupils and a single pupil to many guardians (via PupilGuardian).
+model Guardian {
+  id             String          @id @default(cuid())
+  fullName       String
+  phone          String?
+  email          String?
+  address        String?
+  pupilGuardians PupilGuardian[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@index([email])
+  @@map("guardians")
+}
+
+/// Join table between pupils and guardians carrying the relationship and the
+/// primary / emergency-contact flags that are specific to that pupil.
+model PupilGuardian {
+  pupilId      String
+  guardianId   String
+  relationship String?
+  isPrimary    Boolean  @default(false)
+  isEmergency  Boolean  @default(false)
+  pupil        Pupil    @relation(fields: [pupilId], references: [id], onDelete: Cascade)
+  guardian     Guardian @relation(fields: [guardianId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+
+  @@id([pupilId, guardianId])
+  @@map("pupil_guardians")
+}
+
+/// Pupil / student record. Deactivation is preferred over physical deletion so
+/// school history is preserved.
+model Pupil {
+  id                String        @id @default(cuid())
+  pupilId           String        @unique
+  admissionNumber   String?       @unique
+  firstName         String
+  middleName        String?
+  lastName          String
+  dateOfBirth       DateTime
+  gender            Gender
+  profilePictureUrl String?
+  classId           String
+  dateAdmitted      DateTime
+  status            PupilStatus   @default(ACTIVE)
+  address           String?
+  class             SchoolClass   @relation(fields: [classId], references: [id])
+  guardians         PupilGuardian[]
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  @@index([status])
+  @@index([classId])
+  @@index([firstName])
+  @@index([lastName])
+  @@index([dateAdmitted])
+  @@index([createdAt])
+  @@map("pupils")
 }

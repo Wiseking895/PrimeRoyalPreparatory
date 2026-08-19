@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import {
   ArrowRight,
   BookOpen,
+  BookOpenCheck,
   Building2,
   ClipboardList,
   ScrollText,
@@ -12,6 +13,7 @@ import {
   Wallet,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import { useAuth } from '@/auth/AuthContext'
 import { PageHeader } from '@/components/dashboard/PageHeader'
 import { StatCard } from '@/components/dashboard/StatCard'
 import { Card } from '@/components/ui/Card'
@@ -38,6 +40,7 @@ function activityLabel(action: string): string {
     'staff.deactivate': 'Deactivated a staff account',
     'staff.assign_role': 'Assigned a staff role',
     'staff.remove_role': 'Removed a staff role',
+    'staff.invitation.resend': 'Resent a staff invitation',
     'owner.headteacher.create': 'Created the Headteacher account',
     'owner.headteacher.update': 'Updated the Headteacher account',
     'owner.headteacher.activate': 'Activated the Headteacher account',
@@ -49,6 +52,7 @@ function activityLabel(action: string): string {
 }
 
 export function OwnerDashboardPage() {
+  const { hasPermission } = useAuth()
   const [summary, setSummary] = useState<OwnerSummary | null>(null)
   const [audit, setAudit] = useState<AuditEntry[] | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -72,6 +76,7 @@ export function OwnerDashboardPage() {
   }, [load])
 
   const headteacher = summary?.headteacher ?? null
+  const canViewPupils = hasPermission('pupils.view')
 
   return (
     <div className="space-y-8">
@@ -101,10 +106,19 @@ export function OwnerDashboardPage() {
                   icon={<UserCog className="h-5 w-5" aria-hidden="true" />}
                   tone="royal"
                 />
+                {canViewPupils ? (
+                  <StatCard
+                    label="Total Pupils"
+                    value={summary.totals.pupils}
+                    hint={`${summary.totals.activePupils} active · ${summary.totals.inactivePupils} inactive`}
+                    icon={<BookOpenCheck className="h-5 w-5" aria-hidden="true" />}
+                    tone="magenta"
+                  />
+                ) : null}
                 <StatCard
                   label="Active Staff"
-                  value={summary.totals.staff}
-                  hint="Teaching and non-teaching accounts"
+                  value={summary.totals.activeStaff}
+                  hint={summary.totals.inactiveStaff > 0 ? `${summary.totals.inactiveStaff} inactive account(s)` : 'All teaching & non-teaching accounts active'}
                   icon={<Users className="h-5 w-5" aria-hidden="true" />}
                   tone="green"
                 />
@@ -140,6 +154,12 @@ export function OwnerDashboardPage() {
                     icon: UserCog,
                   },
                   { label: 'View Staff', to: '/owner/staff', icon: Users },
+                  ...(canViewPupils
+                    ? [
+                        { label: 'Manage Pupils', to: '/owner/pupils', icon: BookOpenCheck },
+                        { label: 'Manage Classes', to: '/owner/classes', icon: BookOpen },
+                      ]
+                    : []),
                   { label: 'Roles & Permissions', to: '/owner/roles', icon: ShieldCheck },
                   { label: 'Audit Activity', to: '/owner/audit', icon: ScrollText },
                 ].map(({ label, to, icon: Icon }) => (
@@ -354,6 +374,67 @@ export function OwnerDashboardPage() {
               </div>
             </Card>
           </div>
+
+          {/* Pupils overview */}
+          {canViewPupils ? (
+            <Card className="p-6">
+              <div className="flex items-center justify-between">
+                <h2 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-ink-500">
+                  <BookOpenCheck className="h-5 w-5 text-royal-500" aria-hidden="true" />
+                  Pupils Overview
+                </h2>
+                <Link
+                  to="/owner/pupils"
+                  className="inline-flex items-center gap-1.5 text-sm font-semibold text-magenta-600 transition-colors hover:text-magenta-700"
+                >
+                  Manage pupils <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                </Link>
+              </div>
+              {summary === null ? (
+                <div className="mt-6 space-y-3">
+                  <CardSkeleton className="border-0 p-0" />
+                </div>
+              ) : summary.pupilsByClass.length === 0 ? (
+                <EmptyState
+                  title="No pupils registered yet."
+                  description="Registered pupils grouped by class will appear here."
+                  action={
+                    <Link
+                      to="/owner/pupils"
+                      className="rounded-full bg-magenta-500 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-magenta-600"
+                    >
+                      Register pupils
+                    </Link>
+                  }
+                />
+              ) : (
+                <>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {summary.pupilsByClass.map((entry) => (
+                      <div
+                        key={entry.classId}
+                        className="rounded-xl border border-cream-200 bg-cream-50 p-4"
+                      >
+                        <p className="text-xs font-semibold uppercase tracking-wider text-ink-500">
+                          {entry.className}
+                        </p>
+                        <p className="mt-1 text-lg font-bold text-ink-900">
+                          {entry.count}
+                          <span className="ml-1 text-xs font-medium text-ink-500">pupil(s)</span>
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-4 border-t border-cream-200 pt-3">
+                    <p className="text-xs leading-relaxed text-ink-500">
+                      {summary.totals.pupils} registered pupils across {summary.totals.classes} class
+                      levels. Pupil records are managed by the Headteacher and class teachers.
+                    </p>
+                  </div>
+                </>
+              )}
+            </Card>
+          ) : null}
 
           {/* Finance overview */}
           <Card className="p-6">

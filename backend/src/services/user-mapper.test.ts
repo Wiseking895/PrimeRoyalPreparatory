@@ -23,6 +23,7 @@ function record(overrides: Partial<UserRecord> = {}): UserRecord {
     staffProfile: {
       staffId: 'P/0001',
       category: 'TEACHING',
+      position: 'CLASS_TEACHER',
       address: 'Accra',
       dateJoined: now,
       responsibilities: null,
@@ -96,6 +97,8 @@ describe('user-mapper', () => {
         mustChangePassword: false,
         createdAt: '2026-01-01T00:00:00.000Z',
         staffId: 'P/0001',
+        category: 'TEACHING',
+        position: 'CLASS_TEACHER',
         roles: [HEADTEACHER_ROLE, 'CLASS_TEACHER'],
         permissions: ['staff.view', 'classes.view'],
       })
@@ -129,6 +132,7 @@ describe('user-mapper', () => {
       expect(toStaffView(user)).toMatchObject({
         staffId: 'P/0001',
         category: 'TEACHING',
+        position: 'CLASS_TEACHER',
         address: 'Accra',
         dateJoined: '2026-01-01T00:00:00.000Z',
         responsibilities: null,

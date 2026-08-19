@@ -37,6 +37,8 @@ const prismaMock = vi.hoisted(() => ({
   auditLog: { count: vi.fn(), create: vi.fn(), findMany: vi.fn() },
   $transaction: vi.fn(),
   permission: { upsert: vi.fn() },
+  pupil: { count: vi.fn(), groupBy: vi.fn() },
+  schoolClass: { count: vi.fn(), findMany: vi.fn() },
 }))
 
 vi.mock('../lib/prisma', () => ({ prisma: prismaMock }))
@@ -154,6 +156,10 @@ describe('owner.service', () => {
       where.id === 'ht-1' ? headteacherRecord() : null,
     )
     prismaMock.user.findFirst.mockResolvedValue(null)
+    prismaMock.pupil.count.mockResolvedValue(0)
+    prismaMock.pupil.groupBy.mockResolvedValue([])
+    prismaMock.schoolClass.count.mockResolvedValue(0)
+    prismaMock.schoolClass.findMany.mockResolvedValue([])
   })
 
   describe('getOwnerSummary', () => {
@@ -167,6 +173,33 @@ describe('owner.service', () => {
       expect(summary.headteacher?.staffId).toBe('PRPS-HT-001')
       expect(summary.totals.staff).toBe(3)
       expect(summary.totals.auditEntries).toBe(7)
+    })
+
+    it('includes pupil and class totals plus a per-class breakdown', async () => {
+      prismaMock.pupil.count.mockImplementation(
+        async ({ where }: { where?: { status?: string } } = {}) =>
+          where?.status === 'ACTIVE' ? 6 : where?.status === 'INACTIVE' ? 4 : 10,
+      )
+      prismaMock.pupil.groupBy.mockResolvedValue([
+        { classId: 'class-1', _count: { _all: 4 } },
+        { classId: 'class-2', _count: { _all: 6 } },
+      ])
+      prismaMock.schoolClass.count.mockResolvedValue(8)
+      prismaMock.schoolClass.findMany.mockResolvedValue([
+        { id: 'class-1', name: 'Primary 1' },
+        { id: 'class-2', name: 'Primary 2' },
+      ])
+
+      const summary = await getOwnerSummary()
+
+      expect(summary.totals.pupils).toBe(10)
+      expect(summary.totals.activePupils).toBe(6)
+      expect(summary.totals.inactivePupils).toBe(4)
+      expect(summary.totals.classes).toBe(8)
+      expect(summary.pupilsByClass).toEqual([
+        { classId: 'class-1', className: 'Primary 1', count: 4 },
+        { classId: 'class-2', className: 'Primary 2', count: 6 },
+      ])
     })
   })
 

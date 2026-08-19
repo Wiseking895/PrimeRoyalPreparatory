@@ -1,15 +1,27 @@
 import type {
   AuditPage,
+  ClassCreateInput,
+  ClassUpdateInput,
   CreateHeadteacherInput,
   CreateHeadteacherResult,
   CreateStaffInput,
+  CreateStaffResult,
   GroupedPermission,
   LoginResult,
   OwnerSetupInput,
   OwnerSummary,
   PublicUser,
+  PupilCreateInput,
+  PupilListQuery,
+  PupilPage,
+  PupilStats,
+  PupilUpdateInput,
+  PupilView,
   RoleDefinition,
+  SchoolClassView,
   SetupStatus,
+  StaffListQuery,
+  StaffStats,
   StaffView,
   UpdateHeadteacherInput,
   UpdateStaffInput,
@@ -142,10 +154,20 @@ export const api = {
     }),
 
   // Staff
-  listStaff: (query?: string) =>
-    request<StaffView[]>(`/api/staff${query ? `?q=${encodeURIComponent(query)}` : ''}`),
+  listStaff: (params?: StaffListQuery) => {
+    const search = new URLSearchParams()
+    if (params?.q) search.set('q', params.q)
+    if (params?.category) search.set('category', params.category)
+    if (params?.position) search.set('position', params.position)
+    if (params?.status) search.set('status', params.status)
+    const query = search.toString()
+    return request<StaffView[]>(`/api/staff${query ? `?${query}` : ''}`)
+  },
   getStaff: (id: string) => request<StaffView>(`/api/staff/${id}`),
-  createStaff: (input: CreateStaffInput) => request<StaffView>('/api/staff', jsonBody(input)),
+  staffStats: () => request<StaffStats>('/api/staff/stats'),
+  createStaff: (input: CreateStaffInput) => request<CreateStaffResult>('/api/staff', jsonBody(input)),
+  resendStaffInvitation: (id: string) =>
+    request<CreateStaffResult>(`/api/staff/${id}/resend-invitation`, { method: 'POST' }),
   updateStaff: (id: string, input: UpdateStaffInput) =>
     request<StaffView>(`/api/staff/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
   setStaffStatus: (id: string, status: 'ACTIVE' | 'INACTIVE') =>
@@ -153,6 +175,40 @@ export const api = {
   assignRole: (id: string, roleName: string) =>
     request<StaffView>(`/api/staff/${id}/role`, { method: 'PUT', body: JSON.stringify({ roleName }) }),
   removeRole: (id: string) => request<StaffView>(`/api/staff/${id}/role`, { method: 'DELETE' }),
+
+  // Pupils
+  listPupils: (params?: PupilListQuery) => {
+    const search = new URLSearchParams()
+    if (params?.q) search.set('q', params.q)
+    if (params?.status) search.set('status', params.status)
+    if (params?.classId) search.set('classId', params.classId)
+    if (params?.sortBy) search.set('sortBy', params.sortBy)
+    if (params?.order) search.set('order', params.order)
+    if (params?.page) search.set('page', String(params.page))
+    if (params?.pageSize) search.set('pageSize', String(params.pageSize))
+    const query = search.toString()
+    return request<PupilPage>(`/api/pupils${query ? `?${query}` : ''}`)
+  },
+  getPupil: (id: string) => request<PupilView>(`/api/pupils/${id}`),
+  pupilStats: () => request<PupilStats>('/api/pupils/stats'),
+  createPupil: (input: PupilCreateInput) => request<PupilView>('/api/pupils', jsonBody(input)),
+  updatePupil: (id: string, input: PupilUpdateInput) =>
+    request<PupilView>(`/api/pupils/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
+  setPupilStatus: (id: string, status: 'ACTIVE' | 'INACTIVE') =>
+    request<PupilView>(`/api/pupils/${id}/${status === 'ACTIVE' ? 'activate' : 'deactivate'}`, {
+      method: 'POST',
+    }),
+
+  // Classes
+  listClasses: () => request<SchoolClassView[]>('/api/classes'),
+  getClass: (id: string) => request<SchoolClassView>(`/api/classes/${id}`),
+  createClass: (input: ClassCreateInput) => request<SchoolClassView>('/api/classes', jsonBody(input)),
+  updateClass: (id: string, input: ClassUpdateInput) =>
+    request<SchoolClassView>(`/api/classes/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
+  setClassStatus: (id: string, status: 'ACTIVE' | 'INACTIVE') =>
+    request<SchoolClassView>(`/api/classes/${id}/${status === 'ACTIVE' ? 'activate' : 'deactivate'}`, {
+      method: 'POST',
+    }),
 
   // Roles & permissions
   listRoles: () => request<RoleDefinition[]>('/api/roles'),

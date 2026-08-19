@@ -22,6 +22,39 @@ export const STAFF_CATEGORIES = {
   LEADERSHIP: 'LEADERSHIP',
 } as const
 
+export interface StaffPositionDefinition {
+  key: string
+  label: string
+  category: string
+  /** System role this position maps to (see ROLE_DEFINITIONS). */
+  role: string
+}
+
+/**
+ * Canonical staff positions offered by the school. The single source of truth
+ * for how a position maps to its staff category and system role — used by the
+ * seed, the backend service layer and mirrored by the frontend for rendering.
+ * Stored on StaffProfile.position as the stable position key.
+ */
+export const STAFF_POSITIONS: StaffPositionDefinition[] = [
+  { key: 'CLASS_TEACHER', label: 'Class Teacher', category: STAFF_CATEGORIES.TEACHING, role: 'CLASS_TEACHER' },
+  { key: 'SUBJECT_TEACHER', label: 'Subject Teacher', category: STAFF_CATEGORIES.TEACHING, role: 'SUBJECT_TEACHER' },
+  { key: 'ASSISTANT_HEADTEACHER', label: 'Assistant Headteacher', category: STAFF_CATEGORIES.NON_TEACHING, role: 'ASSISTANT_HEADTEACHER' },
+  { key: 'GENERAL_SUPERVISOR', label: 'General Supervisor', category: STAFF_CATEGORIES.NON_TEACHING, role: 'ADMINISTRATIVE_STAFF' },
+  { key: 'ACCOUNTANT', label: 'Accountant / Finance', category: STAFF_CATEGORIES.NON_TEACHING, role: 'ACCOUNTANT' },
+  { key: 'CLEANER', label: 'Cleaner', category: STAFF_CATEGORIES.NON_TEACHING, role: 'SUPPORT_STAFF' },
+  { key: 'COOK', label: 'Cook', category: STAFF_CATEGORIES.NON_TEACHING, role: 'SUPPORT_STAFF' },
+  { key: 'DRIVER', label: 'Driver', category: STAFF_CATEGORIES.NON_TEACHING, role: 'SUPPORT_STAFF' },
+  { key: 'BUS_CONDUCTOR', label: 'Bus Conductor', category: STAFF_CATEGORIES.NON_TEACHING, role: 'SUPPORT_STAFF' },
+]
+
+export const STAFF_POSITION_KEYS: string[] = STAFF_POSITIONS.map((position) => position.key)
+
+export function staffPositionByKey(key: string | null | undefined): StaffPositionDefinition | undefined {
+  if (!key) return undefined
+  return STAFF_POSITIONS.find((position) => position.key === key)
+}
+
 /** Permission keys that may only ever belong to the OWNER role. */
 export const OWNER_ONLY_PERMISSIONS = [
   'owner.manage',

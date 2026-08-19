@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
+  BookOpenCheck,
   CircleUserRound,
   Eye,
   LayoutDashboard,
@@ -24,10 +25,13 @@ interface NavItem {
   to: string
   icon: typeof LayoutDashboard
   end?: boolean
+  permission?: string
 }
 
 const ownerNav: NavItem[] = [
   { label: 'Dashboard', to: '/owner/dashboard', icon: LayoutDashboard, end: true },
+  { label: 'Pupils', to: '/owner/pupils', icon: Users, permission: 'pupils.view' },
+  { label: 'Classes', to: '/owner/classes', icon: BookOpenCheck, permission: 'classes.view' },
   { label: 'Headteacher', to: '/owner/headteacher', icon: UserCog },
   { label: 'Staff', to: '/owner/staff', icon: Users },
   { label: 'Roles & Permissions', to: '/owner/roles', icon: ShieldCheck },
@@ -38,33 +42,45 @@ const ownerNav: NavItem[] = [
 
 const headteacherNav: NavItem[] = [
   { label: 'Dashboard', to: '/headteacher/dashboard', icon: LayoutDashboard, end: true },
+  { label: 'Pupils', to: '/headteacher/pupils', icon: Users, permission: 'pupils.view' },
+  { label: 'Classes', to: '/headteacher/classes', icon: BookOpenCheck, permission: 'classes.view' },
   { label: 'Staff', to: '/headteacher/staff', icon: Users },
   { label: 'Roles', to: '/headteacher/roles', icon: ShieldCheck },
   { label: 'My Profile', to: '/headteacher/profile', icon: CircleUserRound },
 ]
 
-function NavList({ items, onNavigate }: { items: NavItem[]; onNavigate?: () => void }) {
+function NavList({
+  items,
+  hasPermission,
+  onNavigate,
+}: {
+  items: NavItem[]
+  hasPermission: (key: string) => boolean
+  onNavigate?: () => void
+}) {
   return (
     <nav aria-label="Dashboard navigation" className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
-      {items.map((item) => (
-        <NavLink
-          key={item.to}
-          to={item.to}
-          end={item.end}
-          onClick={onNavigate}
-          className={({ isActive }) =>
-            cn(
-              'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors',
-              isActive
-                ? 'bg-white/10 text-white shadow-sm ring-1 ring-inset ring-white/10'
-                : 'text-cream-200/80 hover:bg-white/5 hover:text-white',
-            )
-          }
-        >
-          <item.icon className="h-5 w-5 shrink-0" aria-hidden="true" />
-          {item.label}
-        </NavLink>
-      ))}
+      {items
+        .filter((item) => !item.permission || hasPermission(item.permission))
+        .map((item) => (
+          <NavLink
+            key={item.to}
+            to={item.to}
+            end={item.end}
+            onClick={onNavigate}
+            className={({ isActive }) =>
+              cn(
+                'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors',
+                isActive
+                  ? 'bg-white/10 text-white shadow-sm ring-1 ring-inset ring-white/10'
+                  : 'text-cream-200/80 hover:bg-white/5 hover:text-white',
+              )
+            }
+          >
+            <item.icon className="h-5 w-5 shrink-0" aria-hidden="true" />
+            {item.label}
+          </NavLink>
+        ))}
     </nav>
   )
 }
@@ -93,7 +109,7 @@ function SidebarFooter({ onLogout }: { onLogout: () => void }) {
 }
 
 export function DashboardLayout() {
-  const { isOwner, logout } = useAuth()
+  const { isOwner, logout, hasPermission } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -134,7 +150,7 @@ export function DashboardLayout() {
           <Logo dark />
           {roleBadge}
         </div>
-        <NavList items={items} />
+        <NavList items={items} hasPermission={hasPermission} />
         <div className="px-5 pb-3">
           <NavLink
             to="/"
@@ -199,7 +215,7 @@ export function DashboardLayout() {
               <X className="h-5 w-5" aria-hidden="true" />
             </button>
           </div>
-          <NavList items={items} onNavigate={() => setDrawerOpen(false)} />
+          <NavList items={items} hasPermission={hasPermission} onNavigate={() => setDrawerOpen(false)} />
           <div className="px-5 pb-3">
             <NavLink
               to="/"

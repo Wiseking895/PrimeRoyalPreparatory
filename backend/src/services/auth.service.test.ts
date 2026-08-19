@@ -104,6 +104,7 @@ describe('auth.service', () => {
           staffProfile: {
             staffId: 'PRPS-HT-001',
             category: 'LEADERSHIP',
+            position: null,
             address: null,
             dateJoined: new Date('2026-01-01T00:00:00.000Z'),
             responsibilities: null,

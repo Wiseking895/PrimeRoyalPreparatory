@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client'
 import { SCHOOL } from '../src/config/constants'
+import { DEFAULT_CLASSES } from '../src/config/constants'
 import { PERMISSIONS, ROLE_DEFINITIONS } from '../src/rbac/catalog'
 
 const prisma = new PrismaClient()
@@ -84,6 +85,26 @@ async function main(): Promise<void> {
     })
   }
   console.log('[seed] Default role permissions ready.')
+
+  // Default class levels. These are the starting point only — the school
+  // manages its own class structure through the class management API.
+  for (const klass of DEFAULT_CLASSES) {
+    await prisma.schoolClass.upsert({
+      where: { key: klass.key },
+      update: {
+        name: klass.name,
+        description: klass.description,
+        sortOrder: klass.sortOrder,
+      },
+      create: {
+        key: klass.key,
+        name: klass.name,
+        description: klass.description,
+        sortOrder: klass.sortOrder,
+      },
+    })
+  }
+  console.log(`[seed] Default classes ready: ${DEFAULT_CLASSES.length}`)
 }
 
 main()

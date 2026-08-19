@@ -14,11 +14,15 @@ import NotFoundPage from '@/pages/NotFoundPage'
 import SchoolLifePage from '@/pages/SchoolLifePage'
 import StaffLoginPage from '@/pages/StaffLoginPage'
 import { AuditPage } from '@/pages/portal/AuditPage'
+import { ClassManagementPage } from '@/pages/portal/ClassManagementPage'
 import { ForbiddenPage } from '@/pages/portal/ForbiddenPage'
 import { LoginPage } from '@/pages/portal/LoginPage'
 import { ProfilePage } from '@/pages/portal/ProfilePage'
+import { PupilManagementPage } from '@/pages/portal/PupilManagementPage'
+import { PupilProfilePage } from '@/pages/portal/PupilProfilePage'
 import { RolesPage } from '@/pages/portal/RolesPage'
 import { StaffManagementPage } from '@/pages/portal/StaffManagementPage'
+import { StaffProfilePage } from '@/pages/portal/StaffProfilePage'
 import { ChangePasswordPage } from '@/pages/portal/ChangePasswordPage'
 import { HeadteacherDashboardPage } from '@/pages/portal/headteacher/HeadteacherDashboardPage'
 import { OwnerDashboardPage } from '@/pages/portal/owner/OwnerDashboardPage'
@@ -70,9 +74,13 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <Navigate to="/owner/dashboard" replace /> },
       { path: 'dashboard', element: <OwnerDashboardPage /> },
+      { path: 'pupils', element: <PupilManagementPage /> },
+      { path: 'pupils/:id', element: <PupilProfilePage /> },
+      { path: 'classes', element: <ClassManagementPage /> },
       { path: 'headteacher', element: <OwnerHeadteacherPage /> },
       { path: 'headteacher/:id', element: <OwnerHeadteacherEditPage /> },
       { path: 'staff', element: <StaffManagementPage /> },
+      { path: 'staff/:id', element: <StaffProfilePage /> },
       { path: 'roles', element: <RolesPage /> },
       { path: 'audit', element: <AuditPage /> },
       { path: 'profile', element: <ProfilePage /> },
@@ -89,7 +97,11 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <Navigate to="/headteacher/dashboard" replace /> },
       { path: 'dashboard', element: <HeadteacherDashboardPage /> },
+      { path: 'pupils', element: <PupilManagementPage /> },
+      { path: 'pupils/:id', element: <PupilProfilePage /> },
+      { path: 'classes', element: <ClassManagementPage /> },
       { path: 'staff', element: <StaffManagementPage /> },
+      { path: 'staff/:id', element: <StaffProfilePage /> },
       { path: 'roles', element: <RolesPage /> },
       { path: 'profile', element: <ProfilePage /> },
     ],

@@ -42,6 +42,14 @@ interface HeadteacherInvitationInput {
   temporaryPassword: string
 }
 
+interface StaffInvitationInput {
+  to: string
+  fullName: string
+  staffId: string
+  temporaryPassword: string
+  position: string
+}
+
 /**
  * Masks an email address for safe, non-sensitive log output (e.g. `g***@school.edu`).
  */
@@ -133,6 +141,39 @@ export async function sendHeadteacherInvitation(
     `Hello ${input.fullName},`,
     '',
     `An account has been created for you as the Headteacher of ${SCHOOL.name}.`,
+    '',
+    `Your staff ID is: ${input.staffId}`,
+    '',
+    `Your temporary password is: ${input.temporaryPassword}`,
+    '',
+    `Sign in to the PRPS staff portal at: ${staffLoginUrl}`,
+    '',
+    'You will be required to change your password before you can continue.',
+    '',
+    'Do not share this email. For security, delete it after you have changed your password.',
+    '',
+    SCHOOL.tagline,
+  ].join('\n')
+
+  return sendMail({ to: input.to, subject, text })
+}
+
+/**
+ * Composes a teaching/non-teaching staff invitation email and sends it. The
+ * temporary password appears only inside this message (or the dev console
+ * transport) — it is never written to the audit log, returned by an API
+ * response or stored.
+ */
+export async function sendStaffInvitation(
+  input: StaffInvitationInput,
+): Promise<MailResult> {
+  const subject = `Welcome to ${SCHOOL.name} — your ${input.position} account`
+  const staffLoginUrl = `${env.clientUrl}/staff/login`
+
+  const text = [
+    `Hello ${input.fullName},`,
+    '',
+    `An account has been created for you as a ${input.position} at ${SCHOOL.name}.`,
     '',
     `Your staff ID is: ${input.staffId}`,
     '',

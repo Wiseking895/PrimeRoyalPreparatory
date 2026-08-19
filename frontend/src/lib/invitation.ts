@@ -5,6 +5,13 @@ export type InvitationFeedback = {
   message: string
 }
 
+type InvitationEntity = 'headteacher' | 'staff'
+
+const entityName: Record<InvitationEntity, string> = {
+  headteacher: 'Headteacher',
+  staff: 'Staff',
+}
+
 /**
  * Maps the backend invitation status to an honest, human-readable toast.
  *
@@ -14,14 +21,16 @@ export type InvitationFeedback = {
 export function invitationFeedback(
   result: InvitationResult,
   context: 'create' | 'resend',
+  entity: InvitationEntity = 'headteacher',
 ): InvitationFeedback {
+  const name = entityName[entity]
   switch (result.status) {
     case 'failed':
       return {
         tone: 'error',
         message:
           context === 'create'
-            ? 'Headteacher account created, but the invitation email could not be sent.'
+            ? `${name} account created, but the invitation email could not be sent.`
             : 'A new temporary credential was generated, but the invitation email could not be sent.',
       }
     case 'sent':
@@ -30,7 +39,7 @@ export function invitationFeedback(
         tone: 'success',
         message:
           context === 'create'
-            ? 'Headteacher account created. The invitation email has been sent.'
+            ? `${name} account created. The invitation email has been sent.`
             : 'Invitation email sent again with a fresh temporary credential.',
       }
     case 'dev':
@@ -38,7 +47,7 @@ export function invitationFeedback(
         tone: 'info',
         message:
           context === 'create'
-            ? 'Headteacher account created. The invitation was logged to the server console (development transport) — no real email was sent.'
+            ? `${name} account created. The invitation was logged to the server console (development transport) — no real email was sent.`
             : 'A fresh temporary credential was generated. The invitation was logged to the server console (development transport) — no real email was sent.',
       }
   }

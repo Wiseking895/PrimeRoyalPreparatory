@@ -134,4 +134,29 @@ describe('mail.service', () => {
       vi.unstubAllEnvs()
     })
   })
+
+  describe('sendStaffInvitation', () => {
+    it('includes the staff ID, position and temporary password in the message', async () => {
+      vi.stubEnv('EMAIL_ENABLED', 'false')
+      vi.resetModules()
+      const { sendStaffInvitation } = await import('./mail.service')
+      sendMailMock.mockResolvedValue({ messageId: 'dev-id', message: '{}' })
+
+      await sendStaffInvitation({
+        to: 'katherine@school.edu',
+        fullName: 'Katherine Johnson',
+        staffId: 'PRPS-STF-0001',
+        temporaryPassword: 'T0pSecret12',
+        position: 'Class Teacher',
+      })
+
+      const [payload] = sendMailMock.mock.calls[0]
+      expect(payload.subject).toContain('Prime Royal')
+      expect(payload.subject).toContain('Class Teacher')
+      expect(payload.text).toContain('PRPS-STF-0001')
+      expect(payload.text).toContain('T0pSecret12')
+      expect(payload.text).toContain('change your password')
+      vi.unstubAllEnvs()
+    })
+  })
 })

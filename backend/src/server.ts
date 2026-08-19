@@ -1,20 +1,27 @@
 import { createApp } from './app'
 import { env } from './config/env'
 import { logger } from './config/logger'
+import { ensureInitialClasses } from './services/class.service'
 import { ensureInitialRbac } from './services/ensure-rbac'
 
 /**
- * Bootstraps the RBAC catalog (roles + permissions + defaults) before serving
- * traffic so authentication and authorization always have a consistent catalog.
- * A failure here is fatal: serving traffic without RBAC would silently pretend
- * the authorization layer is initialized, which it is not.
+ * Bootstraps the RBAC catalog (roles + permissions + defaults) and the default
+ * class structure before serving traffic so authentication, authorization and
+ * pupil management always have a consistent foundation. A failure here is
+ * fatal: serving traffic without them would silently pretend the system is
+ * initialized, which it is not.
  */
 async function bootstrap(): Promise<void> {
   try {
     await ensureInitialRbac()
     logger.info('RBAC catalog ready (roles + permissions + defaults).')
+    await ensureInitialClasses()
+    logger.info('Default class structure ready.')
   } catch (error) {
-    logger.error({ error }, 'FATAL: could not initialize the RBAC catalog. Check DATABASE_URL and run migrations.')
+    logger.error(
+      { error },
+      'FATAL: could not initialize the RBAC catalog / class structure. Check DATABASE_URL and run migrations.',
+    )
     process.exit(1)
   }
 

@@ -62,12 +62,21 @@ export async function getOwnerSummary(): Promise<{
     staff: number
     teaching: number
     nonTeaching: number
+    activeStaff: number
+    inactiveStaff: number
     headteachers: number
     pupils: number
+    activePupils: number
+    inactivePupils: number
     classes: number
     admissions: number
     auditEntries: number
   }
+  pupilsByClass: Array<{
+    classId: string
+    className: string
+    count: number
+  }>
   recentStaffActivity: Array<{
     id: string
     action: string
@@ -82,30 +91,72 @@ export async function getOwnerSummary(): Promise<{
     actor: { id: string; fullName: string; email: string } | null
   }>
 }> {
-  const [headteacher, staffCount, teachingCount, nonTeachingCount, headteacherCount, auditEntries, staffActivity, permissionChanges] =
-    await Promise.all([
-      prisma.user.findFirst({
-        where: { roles: { some: { role: { name: HEADTEACHER_ROLE } } } },
-        include: headteacherInclude,
-      }),
-      prisma.staffProfile.count({ where: { category: { in: ['TEACHING', 'NON_TEACHING'] } } }),
-      prisma.staffProfile.count({ where: { category: 'TEACHING' } }),
-      prisma.staffProfile.count({ where: { category: 'NON_TEACHING' } }),
-      prisma.user.count({ where: { roles: { some: { role: { name: HEADTEACHER_ROLE } } } } }),
-      prisma.auditLog.count(),
-      prisma.auditLog.findMany({
-        where: { action: { startsWith: 'staff.' } },
-        orderBy: { createdAt: 'desc' },
-        take: 6,
-        include: { actorUser: { select: { id: true, fullName: true, email: true } } },
-      }),
-      prisma.auditLog.findMany({
-        where: { action: { startsWith: 'owner.headteacher.permissions.' } },
-        orderBy: { createdAt: 'desc' },
-        take: 6,
-        include: { actorUser: { select: { id: true, fullName: true, email: true } } },
-      }),
-    ])
+  const [
+    headteacher,
+    staffCount,
+    teachingCount,
+    nonTeachingCount,
+    activeStaffCount,
+    inactiveStaffCount,
+    headteacherCount,
+    auditEntries,
+    pupilCount,
+    activePupilCount,
+    inactivePupilCount,
+    classCount,
+    pupilGroupBy,
+    staffActivity,
+    permissionChanges,
+  ] = await Promise.all([
+    prisma.user.findFirst({
+      where: { roles: { some: { role: { name: HEADTEACHER_ROLE } } } },
+      include: headteacherInclude,
+    }),
+    prisma.staffProfile.count({ where: { category: { in: ['TEACHING', 'NON_TEACHING'] } } }),
+    prisma.staffProfile.count({ where: { category: 'TEACHING' } }),
+    prisma.staffProfile.count({ where: { category: 'NON_TEACHING' } }),
+    prisma.staffProfile.count({
+      where: { category: { in: ['TEACHING', 'NON_TEACHING'] }, user: { is: { status: 'ACTIVE' } } },
+    }),
+    prisma.staffProfile.count({
+      where: { category: { in: ['TEACHING', 'NON_TEACHING'] }, user: { is: { status: 'INACTIVE' } } },
+    }),
+    prisma.user.count({ where: { roles: { some: { role: { name: HEADTEACHER_ROLE } } } } }),
+    prisma.auditLog.count(),
+    prisma.pupil.count(),
+    prisma.pupil.count({ where: { status: 'ACTIVE' } }),
+    prisma.pupil.count({ where: { status: 'INACTIVE' } }),
+    prisma.schoolClass.count(),
+    prisma.pupil.groupBy({ by: ['classId'], _count: { _all: true } }),
+    prisma.auditLog.findMany({
+      where: { action: { startsWith: 'staff.' } },
+      orderBy: { createdAt: 'desc' },
+      take: 6,
+      include: { actorUser: { select: { id: true, fullName: true, email: true } } },
+    }),
+    prisma.auditLog.findMany({
+      where: { action: { startsWith: 'owner.headteacher.permissions.' } },
+      orderBy: { createdAt: 'desc' },
+      take: 6,
+      include: { actorUser: { select: { id: true, fullName: true, email: true } } },
+    }),
+  ])
+
+  const classIds = pupilGroupBy.map((row) => row.classId)
+  const classes = classIds.length > 0
+    ? await prisma.schoolClass.findMany({
+        where: { id: { in: classIds } },
+        select: { id: true, name: true },
+      })
+    : []
+  const classMap = new Map(classes.map((entry) => [entry.id, entry.name]))
+  const pupilsByClass = pupilGroupBy
+    .map((row) => ({
+      classId: row.classId,
+      className: classMap.get(row.classId) ?? '—',
+      count: row._count._all,
+    }))
+    .sort((a, b) => a.className.localeCompare(b.className))
 
   return {
     headteacher: headteacher ? toPublicUser(headteacher) : null,
@@ -113,13 +164,18 @@ export async function getOwnerSummary(): Promise<{
       staff: staffCount,
       teaching: teachingCount,
       nonTeaching: nonTeachingCount,
+      activeStaff: activeStaffCount,
+      inactiveStaff: inactiveStaffCount,
       headteachers: headteacherCount,
-      // Later phases (4, 3, 4) own these counts.
-      pupils: 0,
-      classes: 0,
+      pupils: pupilCount,
+      activePupils: activePupilCount,
+      inactivePupils: inactivePupilCount,
+      classes: classCount,
+      // Later phases own the admissions count.
       admissions: 0,
       auditEntries,
     },
+    pupilsByClass,
     recentStaffActivity: staffActivity.map((entry) => ({
       id: entry.id,
       action: entry.action,

@@ -19,6 +19,7 @@ export interface UserRecord {
   staffProfile: {
     staffId: string
     category: string | null
+    position: string | null
     address: string | null
     dateJoined: Date
     responsibilities: string | null
@@ -38,6 +39,8 @@ export interface PublicUser {
   mustChangePassword: boolean
   createdAt: string
   staffId: string | null
+  category: string | null
+  position: string | null
   roles: string[]
   permissions: string[]
 }
@@ -54,6 +57,7 @@ export interface StaffView {
   createdAt: string
   staffId: string | null
   category: string | null
+  position: string | null
   address: string | null
   dateJoined: string | null
   responsibilities: string | null
@@ -83,6 +87,8 @@ export function toPublicUser(record: UserRecord): PublicUser {
     mustChangePassword: record.mustChangePassword,
     createdAt: record.createdAt.toISOString(),
     staffId: record.staffProfile?.staffId ?? null,
+    category: record.staffProfile?.category ?? null,
+    position: record.staffProfile?.position ?? null,
     roles: roleNamesOf(record),
     permissions: permissionKeysOf(record),
   }
@@ -101,6 +107,7 @@ export function toStaffView(record: UserRecord): StaffView {
     createdAt: record.createdAt.toISOString(),
     staffId: record.staffProfile?.staffId ?? null,
     category: record.staffProfile?.category ?? null,
+    position: record.staffProfile?.position ?? null,
     address: record.staffProfile?.address ?? null,
     dateJoined: record.staffProfile?.dateJoined.toISOString() ?? null,
     responsibilities: record.staffProfile?.responsibilities ?? null,
