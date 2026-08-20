@@ -390,7 +390,35 @@ export const sbaUpdateSchema = z
     maxScore: maxScoreField,
     comment: optionalLongText(500).nullable(),
   })
-  .refine((data) => data.score <= data.maxScore, {
+.refine((data) => data.score <= data.maxScore, {
     message: 'Score cannot exceed the maximum score.',
     path: ['score'],
   })
+
+// =============================================================================
+// Phase 7 — Terminal reports & Parent Portal
+// =============================================================================
+
+export const parentLoginSchema = z.object({
+  identifier: z.string().trim().min(1, 'Email is required.'),
+  password: z.string().min(1, 'Password is required.'),
+})
+
+export const parentChangePasswordSchema = z.object({
+  currentPassword: z.string().min(1, 'Current password is required.'),
+  newPassword: passwordField,
+})
+
+export const parentFirstPasswordChangeSchema = z
+  .object({
+    newPassword: passwordField,
+    confirmPassword: z.string(),
+  })
+  .refine((data) => data.newPassword === data.confirmPassword, {
+    message: 'Passwords do not match.',
+    path: ['confirmPassword'],
+  })
+
+export const parentAccountCreateSchema = z.object({
+  accountEmail: optionalEmail,
+})

@@ -19,3 +19,21 @@ export interface AuthenticatedUser {
 export interface AuthRequest extends Request {
   user?: AuthenticatedUser
 }
+
+/**
+ * Resolved identity attached to parent-portal requests by
+ * `requireParentAuth`. Parents are Guardians with a provisioned account; they
+ * are a separate identity class from staff and never carry roles/permissions.
+ */
+export interface GuardianIdentity {
+  id: string
+  fullName: string
+  email: string | null
+  phone: string | null
+  status: string
+  mustChangePassword: boolean
+}
+
+export interface ParentRequest extends Request {
+  parent?: GuardianIdentity
+}

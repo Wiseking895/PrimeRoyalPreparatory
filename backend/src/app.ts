@@ -24,6 +24,9 @@ import { paymentsRouter } from './routes/payments.routes'
 import { subjectRouter } from './routes/subject.routes'
 import { academicRouter } from './routes/academic.routes'
 import { sbaRouter } from './routes/sba.routes'
+import { parentRouter } from './routes/parent.routes'
+import { guardiansRouter } from './routes/guardians.routes'
+import { reportsRouter } from './routes/reports.routes'
 
 /**
  * Builds and configures the Express application. Kept separate from the HTTP
@@ -90,6 +93,11 @@ export function createApp(): Express {
   app.use('/api/subjects', subjectRouter)
   app.use('/api/academic', academicRouter)
   app.use('/api/sba', sbaRouter)
+
+  // Phase 7 — terminal reports, guardian parent-portal accounts and the parent portal.
+  app.use('/api/reports', reportsRouter)
+  app.use('/api/guardians', guardiansRouter)
+  app.use('/api/parent', parentRouter)
 
   // 404 + centralized error handling (must be last)
   app.use(notFoundHandler)

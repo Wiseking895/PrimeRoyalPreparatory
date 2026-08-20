@@ -105,3 +105,32 @@
     transform: translateY(0);
   }
 }
+
+/* Phase 7 — clean report printing: hide everything but the report sheet. */
+@media print {
+  .print\:hidden {
+    display: none !important;
+  }
+
+  body {
+    background: #ffffff;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  .report-sheet-print,
+  .report-sheet-print * {
+    visibility: visible;
+  }
+
+  .report-sheet-print {
+    position: absolute;
+    inset: 0;
+    margin: 0;
+    width: 100%;
+    box-shadow: none !important;
+    border: none !important;
+  }
+}

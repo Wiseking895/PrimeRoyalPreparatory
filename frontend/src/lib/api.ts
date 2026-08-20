@@ -20,9 +20,15 @@ import type {
   FinancePupilListResult,
   FinanceSummaryView,
   GroupedPermission,
+  GuardianAccountView,
+  GuardianListResult,
   LoginResult,
   OwnerSetupInput,
   OwnerSummary,
+  ParentAccountResult,
+  ParentChildView,
+  ParentLoginResult,
+  ParentProfileView,
   PaymentCreateInput,
   PaymentListResult,
   PaymentVoidInput,
@@ -35,6 +41,9 @@ import type {
   PupilStats,
   PupilUpdateInput,
   PupilView,
+  ReportPupilListResult,
+  ReportSessionOption,
+  ReportTermOption,
   RoleDefinition,
   SbaBulkResult,
   SbaBulkUpsertInput,
@@ -60,10 +69,12 @@ import type {
   TeacherView,
   TermCreateInput,
   TermUpdateInput,
+  TerminalReportView,
   UpdateHeadteacherInput,
   UpdateStaffInput,
 } from '@/types/portal'
 import { clearSession, getToken } from '@/auth/storage'
+import { clearParentSession, getParentToken } from '@/auth/parentStorage'
 
 /**
  * Thin, typed HTTP client for the PRPS REST API.
@@ -101,14 +112,26 @@ export class ApiError extends Error {
 }
 
 let unauthorizedHandler: (() => void) | null = null
+let parentUnauthorizedHandler: (() => void) | null = null
 
 /** Registers a callback invoked whenever the API detects a 401 response. */
 export function setUnauthorizedHandler(handler: (() => void) | null): void {
   unauthorizedHandler = handler
 }
 
+/** Registers a callback invoked when the parent-portal API detects a 401. */
+export function setParentUnauthorizedHandler(handler: (() => void) | null): void {
+  parentUnauthorizedHandler = handler
+}
+
+/** Requests under `/api/parent` authenticate with the Parent Portal session. */
+function isParentPath(path: string): boolean {
+  return path.startsWith('/api/parent')
+}
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const token = getToken()
+  const parentPath = isParentPath(path)
+  const token = parentPath ? getParentToken() : getToken()
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(init.headers as Record<string, string> | undefined),
@@ -132,8 +155,13 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   }
 
   if (response.status === 401) {
-    clearSession()
-    unauthorizedHandler?.()
+    if (parentPath) {
+      clearParentSession()
+      parentUnauthorizedHandler?.()
+    } else {
+      clearSession()
+      unauthorizedHandler?.()
+    }
   }
 
   if (!response.ok || !body?.success) {
@@ -418,4 +446,57 @@ export const api = {
   sbaBulk: (input: SbaBulkUpsertInput) => request<SbaBulkResult>('/api/sba/bulk', jsonBody(input)),
   updateSbaRecord: (id: string, input: SbaUpdateInput) =>
     request<SbaRecordView>(`/api/sba/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
+
+  // Phase 7 — Parent Portal
+  parentLogin: (identifier: string, password: string) =>
+    request<ParentLoginResult>('/api/parent/login', jsonBody({ identifier, password })),
+  parentMe: () => request<ParentProfileView>('/api/parent/me'),
+  parentChangePassword: (currentPassword: string, newPassword: string) =>
+    request<null>('/api/parent/change-password', jsonBody({ currentPassword, newPassword })),
+  parentFirstPasswordChange: (newPassword: string, confirmPassword: string) =>
+    request<null>('/api/parent/first-password-change', jsonBody({ newPassword, confirmPassword })),
+  myChildren: () => request<ParentChildView[]>('/api/parent/children'),
+  getMyChild: (pupilId: string) => request<ParentChildView>(`/api/parent/children/${pupilId}`),
+  getMyChildFinance: (pupilId: string) => request<PupilFinanceView>(`/api/parent/children/${pupilId}/finance`),
+  getMyChildReports: (pupilId: string) =>
+    request<ReportTermOption[]>(`/api/parent/children/${pupilId}/reports`),
+  getMyChildReportSessions: (pupilId: string) =>
+    request<ReportSessionOption[]>(`/api/parent/children/${pupilId}/reports/sessions`),
+  getMyChildReport: (pupilId: string, termId: string) =>
+    request<TerminalReportView>(`/api/parent/children/${pupilId}/reports/terms/${termId}`),
+
+  // Phase 7 — Terminal reports (staff)
+  listReportPupils: (params?: { q?: string; classId?: string }) => {
+    const search = new URLSearchParams()
+    if (params?.q) search.set('q', params.q)
+    if (params?.classId) search.set('classId', params.classId)
+    const query = search.toString()
+    return request<ReportPupilListResult>(`/api/reports/pupils${query ? `?${query}` : ''}`)
+  },
+  listPupilReports: (pupilId: string, sessionId?: string) => {
+    const query = sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : ''
+    return request<ReportTermOption[]>(`/api/reports/pupils/${pupilId}/reports${query}`)
+  },
+  getPupilReport: (pupilId: string, termId: string) =>
+    request<TerminalReportView>(`/api/reports/pupils/${pupilId}/reports/terms/${termId}`),
+
+  // Phase 7 — Parent accounts (guardians administration)
+  listGuardians: (params?: { q?: string; account?: 'has_account' | 'no_account'; status?: 'ACTIVE' | 'INACTIVE' }) => {
+    const search = new URLSearchParams()
+    if (params?.q) search.set('q', params.q)
+    if (params?.account) search.set('account', params.account)
+    if (params?.status) search.set('status', params.status)
+    const query = search.toString()
+    return request<GuardianListResult>(`/api/guardians${query ? `?${query}` : ''}`)
+  },
+  getGuardian: (id: string) => request<GuardianAccountView>(`/api/guardians/${id}`),
+  createParentAccount: (guardianId: string, accountEmail?: string) =>
+    request<ParentAccountResult>(`/api/guardians/${guardianId}/parent-account`, jsonBody({ accountEmail })),
+  resendParentInvitation: (guardianId: string) =>
+    request<ParentAccountResult>(`/api/guardians/${guardianId}/parent-account/resend`, { method: 'POST' }),
+  setParentAccountStatus: (guardianId: string, status: 'ACTIVE' | 'INACTIVE') =>
+    request<GuardianAccountView>(
+      `/api/guardians/${guardianId}/parent-account/${status === 'ACTIVE' ? 'activate' : 'deactivate'}`,
+      { method: 'POST' },
+    ),
 }

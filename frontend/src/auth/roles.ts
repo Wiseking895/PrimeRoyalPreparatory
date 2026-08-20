@@ -14,6 +14,9 @@ export const CLASS_TEACHER_ROLE = 'CLASS_TEACHER'
 export const SUBJECT_TEACHER_ROLE = 'SUBJECT_TEACHER'
 export const ASSISTANT_HEADTEACHER_ROLE = 'ASSISTANT_HEADTEACHER'
 
+/** Parent Portal identity (a provisioned Guardian account, not a staff RBAC role). */
+export const PARENT_ROLE = 'PARENT'
+
 /** Roles that use the teacher portal (`/teacher`). */
 export const TEACHER_ROLES = [CLASS_TEACHER_ROLE, SUBJECT_TEACHER_ROLE] as const
 
@@ -40,6 +43,11 @@ export const SUBJECTS_MANAGE = 'subjects.manage'
 export const ASSIGNMENTS_MANAGE = 'assignments.manage'
 export const SBA_VIEW = 'sba.view'
 export const SBA_MANAGE = 'sba.manage'
+
+/** Phase 7 — terminal reports & parent accounts permissions. */
+export const REPORTS_VIEW = 'reports.view'
+export const GUARDIANS_VIEW = 'guardians.view'
+export const GUARDIANS_MANAGE = 'guardians.manage'
 
 /** Roles a Headteacher (never the Owner or another Headteacher) may assign. */
 export const ASSIGNABLE_STAFF_ROLES: string[] = [

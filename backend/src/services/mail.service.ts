@@ -50,6 +50,12 @@ interface StaffInvitationInput {
   position: string
 }
 
+interface GuardianInvitationInput {
+  to: string
+  fullName: string
+  temporaryPassword: string
+}
+
 /**
  * Masks an email address for safe, non-sensitive log output (e.g. `g***@school.edu`).
  */
@@ -180,6 +186,39 @@ export async function sendStaffInvitation(
     `Your temporary password is: ${input.temporaryPassword}`,
     '',
     `Sign in to the PRPS staff portal at: ${staffLoginUrl}`,
+    '',
+    'You will be required to change your password before you can continue.',
+    '',
+    'Do not share this email. For security, delete it after you have changed your password.',
+    '',
+    SCHOOL.tagline,
+  ].join('\n')
+
+  return sendMail({ to: input.to, subject, text })
+}
+
+/**
+ * Composes a guardian Parent Portal invitation email and sends it. The
+ * temporary password appears only inside this message (or the dev console
+ * transport) — it is never written to the audit log, returned by an API
+ * response or stored.
+ */
+export async function sendGuardianInvitation(
+  input: GuardianInvitationInput,
+): Promise<MailResult> {
+  const subject = `Welcome to ${SCHOOL.name} — your Parent Portal account`
+  const parentLoginUrl = `${env.clientUrl}/parent/login`
+
+  const text = [
+    `Hello ${input.fullName},`,
+    '',
+    `A Parent Portal account has been created for you at ${SCHOOL.name}.`,
+    '',
+    "With this account you can view your child's terminal reports and account.",
+    '',
+    `Your temporary password is: ${input.temporaryPassword}`,
+    '',
+    `Sign in to the PRPS Parent Portal at: ${parentLoginUrl}`,
     '',
     'You will be required to change your password before you can continue.',
     '',

@@ -106,6 +106,7 @@ model User {
   mustChangePassword Boolean       @default(false)
   roles                UserRole[]
   staffProfile         StaffProfile?
+  guardianAccounts     Guardian[]         @relation("GuardianAccountCreator")
   auditLogs            AuditLog[]
   teachingAssignments  TeachingAssignment[] @relation("TeachingAssignmentTeacher")
   classTeachers        ClassTeacher[]       @relation("ClassTeacherTeacher")
@@ -197,17 +198,35 @@ model SchoolClass {
 
 /// A parent/guardian. Shared across pupils so a single guardian can be linked
 /// to many pupils and a single pupil to many guardians (via PupilGuardian).
+///
+/// Phase 7 adds optional login credentials to the same row so a guardian can
+/// hold a secure Parent Portal account without a separate identity model:
+///   - `accountEmail` is the unique login email (distinct from the contact
+///     `email`, which may be shared across guardians).
+///   - `passwordHash` is null until an account is provisioned by the school.
+///   - `status` reflects the account lifecycle; `mustChangePassword` forces the
+///     first-login password change exactly like staff accounts.
+///   - `createdByUserId` records which staff member provisioned the account.
 model Guardian {
-  id             String          @id @default(cuid())
-  fullName       String
-  phone          String?
-  email          String?
-  address        String?
-  pupilGuardians PupilGuardian[]
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  id                 String          @id @default(cuid())
+  fullName           String
+  phone              String?
+  email              String?
+  address            String?
+  accountEmail       String?         @unique
+  passwordHash       String?
+  status             AccountStatus   @default(INACTIVE)
+  mustChangePassword Boolean         @default(false)
+  lastLoginAt        DateTime?
+  createdByUserId    String?
+  createdBy          User?           @relation("GuardianAccountCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  pupilGuardians     PupilGuardian[]
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
 
   @@index([email])
+  @@index([status])
+  @@index([createdByUserId])
   @@map("guardians")
 }
 

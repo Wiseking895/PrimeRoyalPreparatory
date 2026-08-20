@@ -132,6 +132,9 @@ export const PERMISSIONS: PermissionDefinition[] = [
   // SBA
   { key: 'sba.view', module: 'sba', moduleLabel: 'School-Based Assessment', label: 'View SBA', description: 'View School-Based Assessment records.' },
   { key: 'sba.manage', module: 'sba', moduleLabel: 'School-Based Assessment', label: 'Enter & Manage SBA', description: 'Enter, correct and manage SBA records within assigned scope.' },
+  // Guardian / parent portal accounts
+  { key: 'guardians.view', module: 'guardians', moduleLabel: 'Parent Accounts', label: 'View Guardians', description: 'View guardian records and their parent portal account status.' },
+  { key: 'guardians.manage', module: 'guardians', moduleLabel: 'Parent Accounts', label: 'Manage Parent Accounts', description: 'Provision, resend invitations for and deactivate guardian parent portal accounts.' },
   // System administration — OWNER only. Never grantable to any other role.
   { key: 'owner.manage', module: 'owner', moduleLabel: 'System Administration', label: 'Manage Owner Account', description: 'OWNER only. Not grantable to other roles.' },
   { key: 'owner.create', module: 'owner', moduleLabel: 'System Administration', label: 'Create Owner', description: 'OWNER only. Not grantable to other roles.' },
@@ -186,6 +189,8 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       'assignments.manage',
       'sba.view',
       'sba.manage',
+      'guardians.view',
+      'guardians.manage',
     ],
   },
   {

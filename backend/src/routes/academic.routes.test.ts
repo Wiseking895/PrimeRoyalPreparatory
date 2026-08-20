@@ -197,6 +197,22 @@ describe('academic routes (Phase 6 — auth + RBAC enforcement)', () => {
     expect(res.body.success).toBe(false)
   })
 
+  it('rejects unauthenticated access to every Phase 6 resource with 401', async () => {
+    const unauthenticated = [
+      request(app).get('/api/academic/teachers'),
+      request(app).get('/api/academic/assignments'),
+      request(app).get('/api/academic/classes/cls-1/class-teacher'),
+      request(app).get('/api/sba'),
+      request(app).get('/api/sba/rec-1'),
+      request(app).post('/api/sba/bulk').send({}),
+      request(app).post('/api/academic/assignments').send({}),
+    ]
+    for (const attempt of unauthenticated) {
+      const res = await attempt
+      expect(res.status).toBe(401)
+    }
+  })
+
   it('rejects a user without subjects.view from listing subjects with 403', async () => {
     prismaMock.user.findUnique.mockResolvedValue(baseUser({ roles: [roleEntry('CLASS_TEACHER', ['academic.view'])] }))
     const res = await request(app).get('/api/subjects').set('Authorization', 'Bearer token')
@@ -276,6 +292,30 @@ describe('academic routes (Phase 6 — auth + RBAC enforcement)', () => {
     expect(res.status).toBe(200)
     expect(res.body.data).toHaveLength(1)
     expect(res.body.data[0].positionLabel).toBeTruthy()
+  })
+
+  it('does not expose passwordHash or other secrets in the teacher detail response', async () => {
+    prismaMock.user.findUnique.mockResolvedValue({
+      id: 'user-2',
+      fullName: 'Kofi Mensah',
+      email: 'kofi@school.edu',
+      phone: null,
+      passwordHash: '$2b$12$hashedcredentialmaterial',
+      status: 'ACTIVE',
+      staffProfile: { staffId: 'STF-0002', position: 'CLASS_TEACHER', category: 'TEACHING' },
+      roles: [{ role: { name: 'CLASS_TEACHER', rolePermissions: [{ permission: { key: 'teachers.view' } }] } }],
+      classTeachers: [],
+      teachingAssignments: [],
+      _count: { sbaRecords: 0 },
+      createdAt: new Date('2026-01-01T00:00:00.000Z'),
+    })
+    prismaMock.sbaRecord.groupBy.mockResolvedValue([])
+
+    const res = await request(app).get('/api/academic/teachers/user-2').set('Authorization', 'Bearer token')
+    expect(res.status).toBe(200)
+    expect(res.body.data.passwordHash).toBeUndefined()
+    expect(res.body.data.fullName).toBe('Kofi Mensah')
+    expect(JSON.stringify(res.body.data)).not.toContain('hashedcredentialmaterial')
   })
 
   // ----- Teaching assignments ------------------------------------------------

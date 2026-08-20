@@ -4,6 +4,7 @@ import { HttpStatus } from '../config/enums'
 import type { AuthenticatedUser } from '../types/auth'
 import {
   getSbaEntryData,
+  getSbaRecord,
   listSba,
   updateSbaRecord,
   upsertSbaBulk,
@@ -58,7 +59,7 @@ function term() {
   return { id: 't-1', name: 'First Term', session: { name: '2025/2026 Academic Year' } }
 }
 
-function sbaRecord() {
+function sbaRecord(overrides: Record<string, unknown> = {}) {
   return {
     id: 'rec-1',
     pupilId: 'p-1',
@@ -76,6 +77,7 @@ function sbaRecord() {
     class: { id: 'cls-1', name: 'Class 1' },
     term: { id: 't-1', name: 'First Term', termNumber: 1, session: { id: 's-1', name: '2025/2026 Academic Year' } },
     teacher: { id: 'user-1', fullName: 'Ama Mensah' },
+    ...overrides,
   }
 }
 
@@ -228,6 +230,40 @@ describe('sba.service (Phase 6 — teacher access control + score bounds)', () =
       await expect(
         updateSbaRecord(actor(), 'rec-1', { score: 90, maxScore: 100 }),
       ).rejects.toMatchObject({ statusCode: HttpStatus.Forbidden })
+    })
+
+    it('forbids IDOR: a teacher assigned to class/subject A cannot update a record for class/subject B', async () => {
+      const otherClassRecord = sbaRecord({
+        subjectId: 'sub-2',
+        classId: 'cls-2',
+        subject: { id: 'sub-2', code: 'ENG', name: 'English' },
+        class: { id: 'cls-2', name: 'Class 2' },
+      })
+      prismaMock.sbaRecord.findUnique.mockResolvedValue(otherClassRecord)
+      prismaMock.teachingAssignment.findFirst.mockResolvedValue(null)
+      prismaMock.classTeacher.findFirst.mockResolvedValue(null)
+      prismaMock.sbaRecord.count.mockResolvedValue(0)
+
+      await expect(
+        updateSbaRecord(actor(), 'rec-1', { score: 90, maxScore: 100 }),
+      ).rejects.toMatchObject({ statusCode: HttpStatus.Forbidden })
+      expect(prismaMock.sbaRecord.update).not.toHaveBeenCalled()
+    })
+
+    it('forbids IDOR: a class teacher of class A cannot read class B records (scope uses the record classId)', async () => {
+      const foreignRecord = sbaRecord({
+        subjectId: 'sub-2',
+        classId: 'cls-2',
+        teacherId: 'user-99',
+        subject: { id: 'sub-2', code: 'ENG', name: 'English' },
+        class: { id: 'cls-2', name: 'Class 2' },
+      })
+      prismaMock.sbaRecord.findUnique.mockResolvedValue(foreignRecord)
+      prismaMock.teachingAssignment.findFirst.mockResolvedValue(null)
+      prismaMock.classTeacher.findFirst.mockResolvedValue(null)
+      prismaMock.sbaRecord.count.mockResolvedValue(0)
+
+      await expect(getSbaRecord(actor(), 'rec-1')).rejects.toMatchObject({ statusCode: HttpStatus.Forbidden })
     })
 
     it('updates and audits when the teacher manages the subject/class', async () => {

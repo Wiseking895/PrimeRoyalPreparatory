@@ -88,4 +88,28 @@ describe('require-auth', () => {
 
     expect(outcome.error).toMatchObject({ statusCode: HttpStatus.Unauthorized })
   })
+
+  it('blocks a deactivated account from every protected endpoint with 403', async () => {
+    prismaMock.user.findUnique.mockResolvedValue(
+      baseUser({ status: 'INACTIVE', roles: [{ role: { name: 'SUBJECT_TEACHER', rolePermissions: [] } }] }),
+    )
+
+    const outcome = await invoke('/api/sba')
+
+    expect(outcome.error).toMatchObject({
+      statusCode: HttpStatus.Forbidden,
+      message: expect.stringMatching(/deactivated/),
+    })
+  })
+
+  it('resolves permissions fresh from the database on every request', async () => {
+    prismaMock.user.findUnique.mockResolvedValue(
+      baseUser({ roles: [{ role: { name: 'HEADTEACHER', rolePermissions: [{ permission: { key: 'sba.manage' } }] } }] }),
+    )
+
+    const outcome = await invoke('/api/sba/bulk')
+
+    expect(outcome.nextCalled).toBe(true)
+    expect(prismaMock.user.findUnique).toHaveBeenCalledTimes(1)
+  })
 })

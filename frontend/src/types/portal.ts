@@ -766,3 +766,113 @@ export interface SbaUpdateInput {
   maxScore: number
   comment?: string | null
 }
+
+// =============================================================================
+// Phase 7 — Terminal reports & Parent Portal
+// =============================================================================
+
+export interface ParentProfileView {
+  id: string
+  fullName: string
+  email: string
+  phone: string | null
+  status: 'ACTIVE' | 'INACTIVE'
+  mustChangePassword: boolean
+  linkedPupilCount: number
+}
+
+export interface ParentLoginResult {
+  token: string
+  user: ParentProfileView
+}
+
+export interface ParentChildView {
+  id: string
+  pupilId: string
+  fullName: string
+  className: string
+  gender: 'MALE' | 'FEMALE'
+  status: 'ACTIVE' | 'INACTIVE'
+  dateOfBirth: string
+  relationship: string | null
+  isPrimary: boolean
+}
+
+export interface ReportSubjectResult {
+  subjectId: string
+  subjectCode: string
+  subjectName: string
+  classId: string
+  className: string
+  score: string
+  maxScore: string
+  percentage: number
+  grade: string
+  gradeLabel: string
+  remark: string | null
+}
+
+export interface TerminalReportView {
+  pupil: { id: string; pupilId: string; fullName: string; className: string }
+  session: { id: string; name: string }
+  term: { id: string; termNumber: number; name: string }
+  class: { id: string; name: string } | null
+  subjects: ReportSubjectResult[]
+  totalScore: string
+  totalMaxScore: string
+  averagePercentage: number
+  overallGrade: string
+  overallGradeLabel: string
+  complete: boolean
+  generatedAt: string
+}
+
+export interface ReportTermOption {
+  id: string
+  name: string
+  termNumber: number
+  sessionId: string
+  sessionName: string
+  hasReport: boolean
+}
+
+export interface ReportSessionOption {
+  id: string
+  name: string
+  termCount: number
+}
+
+export interface ReportPupilRow {
+  id: string
+  pupilId: string
+  fullName: string
+  className: string
+  status: 'ACTIVE' | 'INACTIVE'
+}
+
+export interface ReportPupilListResult {
+  items: ReportPupilRow[]
+  total: number
+}
+
+export interface GuardianAccountView extends GuardianView {
+  accountEmail: string | null
+  accountStatus: 'ACTIVE' | 'INACTIVE'
+  hasAccount: boolean
+  mustChangePassword: boolean
+  lastLoginAt: string | null
+  linkedPupilCount: number
+}
+
+export interface GuardianListResult {
+  items: GuardianAccountView[]
+  total: number
+}
+
+export interface ParentAccountResult {
+  guardian: GuardianAccountView
+  invitation: {
+    status: string
+    transport: string | null
+  }
+}
