@@ -1,7 +1,7 @@
 import { PrismaClient } from '@prisma/client'
 import { SCHOOL } from '../src/config/constants'
 import { DEFAULT_CLASSES } from '../src/config/constants'
-import { PERMISSIONS, ROLE_DEFINITIONS } from '../src/rbac/catalog'
+import { OWNER_ROLE, PERMISSIONS, ROLE_DEFINITIONS, permissionByKey } from '../src/rbac/catalog'
 
 const prisma = new PrismaClient()
 
@@ -68,17 +68,41 @@ async function main(): Promise<void> {
   }
   console.log(`[seed] Roles ready: ${ROLE_DEFINITIONS.length}`)
 
-  // Default role → permission assignments. Only applied for roles that do not
-  // yet have any permissions so that Owner-adjusted Headteacher permissions
-  // survive re-seeding.
+  // Default role → permission assignments. Add-only sync so Owner-adjusted
+  // Headteacher permissions on pre-existing modules survive re-seeding:
+  //   - roles with no permissions yet receive their full catalog defaults,
+  //   - roles that already hold permissions only receive defaults from modules
+  //     that are brand-new to the database (e.g. `finance` in phase 5).
+  const assignedPermissions = await prisma.rolePermission.findMany({
+    select: { permissionId: true },
+  })
+  const assignedPermissionIds = new Set(assignedPermissions.map((row) => row.permissionId))
+  const modulesInUse = new Set<string>()
+  for (const permission of PERMISSIONS) {
+    const permissionId = permissionIds.get(permission.key)
+    if (permissionId && assignedPermissionIds.has(permissionId)) modulesInUse.add(permission.module)
+  }
+
   for (const role of ROLE_DEFINITIONS) {
     const roleId = roleIds.get(role.name)
     if (!roleId) continue
-    const existing = await prisma.rolePermission.count({ where: { roleId } })
-    if (existing > 0) continue
-    const keys = role.name === 'OWNER' ? PERMISSIONS.map((p) => p.key) : role.permissions
+    const existingRows = await prisma.rolePermission.findMany({
+      where: { roleId },
+      include: { permission: { select: { key: true } } },
+    })
+    const existingKeys = new Set(existingRows.map((row) => row.permission.key))
+    const defaults = role.name === OWNER_ROLE ? PERMISSIONS.map((p) => p.key) : role.permissions
+    const missing = defaults.filter((key) => {
+      if (existingKeys.has(key)) return false
+      const definition = permissionByKey(key)
+      if (!definition) return false
+      if (existingKeys.size === 0) return true
+      if (role.name === OWNER_ROLE) return true
+      return !modulesInUse.has(definition.module)
+    })
+    if (missing.length === 0) continue
     await prisma.rolePermission.createMany({
-      data: keys
+      data: missing
         .map((key) => permissionIds.get(key))
         .filter((permissionId): permissionId is string => Boolean(permissionId))
         .map((permissionId) => ({ roleId, permissionId })),

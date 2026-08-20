@@ -4,13 +4,16 @@ import {
   CircleUserRound,
   Eye,
   LayoutDashboard,
+  ListChecks,
   LogOut,
   Menu,
+  Receipt,
   ScrollText,
   Settings,
   ShieldCheck,
   Users,
   UserCog,
+  Wallet,
   X,
 } from 'lucide-react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
@@ -35,6 +38,7 @@ const ownerNav: NavItem[] = [
   { label: 'Headteacher', to: '/owner/headteacher', icon: UserCog },
   { label: 'Staff', to: '/owner/staff', icon: Users },
   { label: 'Roles & Permissions', to: '/owner/roles', icon: ShieldCheck },
+  { label: 'Finance', to: '/owner/finance', icon: Wallet, permission: 'finance.view' },
   { label: 'Audit Activity', to: '/owner/audit', icon: ScrollText },
   { label: 'My Profile', to: '/owner/profile', icon: CircleUserRound },
   { label: 'Settings', to: '/owner/settings', icon: Settings },
@@ -46,7 +50,19 @@ const headteacherNav: NavItem[] = [
   { label: 'Classes', to: '/headteacher/classes', icon: BookOpenCheck, permission: 'classes.view' },
   { label: 'Staff', to: '/headteacher/staff', icon: Users },
   { label: 'Roles', to: '/headteacher/roles', icon: ShieldCheck },
+  { label: 'Finance', to: '/headteacher/finance', icon: Wallet, permission: 'finance.view' },
   { label: 'My Profile', to: '/headteacher/profile', icon: CircleUserRound },
+]
+
+const accountantNav: NavItem[] = [
+  { label: 'Dashboard', to: '/accountant/dashboard', icon: LayoutDashboard, end: true },
+  { label: 'Sessions & Terms', to: '/accountant/sessions', icon: BookOpenCheck, permission: 'finance.view' },
+  { label: 'Fee Structures', to: '/accountant/fees', icon: Receipt, permission: 'finance.view' },
+  { label: 'Charge Generation', to: '/accountant/charges', icon: ListChecks, permission: 'finance.view' },
+  { label: 'Payments', to: '/accountant/payments', icon: Wallet, permission: 'finance.view' },
+  { label: 'Pupil Finance', to: '/accountant/pupils', icon: Users, permission: 'finance.view' },
+  { label: 'Summary', to: '/accountant/summary', icon: ScrollText, permission: 'finance.view' },
+  { label: 'My Profile', to: '/accountant/profile', icon: CircleUserRound },
 ]
 
 function NavList({
@@ -109,12 +125,15 @@ function SidebarFooter({ onLogout }: { onLogout: () => void }) {
 }
 
 export function DashboardLayout() {
-  const { isOwner, logout, hasPermission } = useAuth()
+  const { user, logout, hasPermission } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const [drawerOpen, setDrawerOpen] = useState(false)
 
-  const basePath = isOwner ? 'owner' : 'headteacher'
+  const isAccountant = user?.roles.includes('ACCOUNTANT') ?? false
+  const isOwner = user?.roles.includes('OWNER') ?? false
+
+  const basePath = isOwner ? 'owner' : isAccountant ? 'accountant' : 'headteacher'
 
   useEffect(() => {
     setDrawerOpen(false)
@@ -127,7 +146,10 @@ export function DashboardLayout() {
     }
   }, [drawerOpen])
 
-  const items = useMemo(() => (isOwner ? ownerNav : headteacherNav), [isOwner])
+  const items = useMemo(
+    () => (isOwner ? ownerNav : isAccountant ? accountantNav : headteacherNav),
+    [isOwner, isAccountant],
+  )
 
   const handleLogout = () => {
     logout()
@@ -137,6 +159,10 @@ export function DashboardLayout() {
   const roleBadge = isOwner ? (
     <Badge tone="gold" className="bg-gold-400/20 text-gold-400 ring-gold-500/30">
       Owner
+    </Badge>
+  ) : isAccountant ? (
+    <Badge tone="royal" className="bg-white/10 text-cream-100 ring-white/20">
+      Accountant
     </Badge>
   ) : (
     <Badge tone="magenta">Headteacher</Badge>

@@ -9,6 +9,7 @@
 
 export const OWNER_ROLE = 'OWNER'
 export const HEADTEACHER_ROLE = 'HEADTEACHER'
+export const ACCOUNTANT_ROLE = 'ACCOUNTANT'
 
 /** Permission keys that may only ever belong to the OWNER role. */
 export const OWNER_ONLY_PERMISSIONS = [
@@ -17,6 +18,13 @@ export const OWNER_ONLY_PERMISSIONS = [
   'owner.change',
   'owner.delete',
 ] as const
+
+/** Fees & Finance permissions (phase 5). */
+export const FINANCE_VIEW = 'finance.view'
+export const FINANCE_MANAGE = 'finance.manage'
+export const FEES_MANAGE = 'fees.manage'
+export const PAYMENTS_RECORD = 'payments.record'
+export const ACADEMIC_VIEW = 'academic.view'
 
 /** Roles a Headteacher (never the Owner or another Headteacher) may assign. */
 export const ASSIGNABLE_STAFF_ROLES: string[] = [
@@ -67,4 +75,15 @@ export function staffPositionByKey(key?: string | null): StaffPosition | undefin
 
 export function positionLabel(key?: string | null): string {
   return staffPositionByKey(key)?.label ?? 'Staff'
+}
+
+/**
+ * Portal base path for the highest applicable role. Shared pages (e.g. the
+ * finance module) use this to build cross-portal links.
+ */
+export function portalBasePath(roles: string[]): string {
+  if (roles.includes(OWNER_ROLE)) return '/owner'
+  if (roles.includes(HEADTEACHER_ROLE)) return '/headteacher'
+  if (roles.includes(ACCOUNTANT_ROLE)) return '/accountant'
+  return '/login'
 }

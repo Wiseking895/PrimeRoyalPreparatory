@@ -207,3 +207,103 @@ export const staffUpdateSchema = z.object({
 export const roleAssignSchema = z.object({
   roleName: z.string().trim().min(1, 'Role is required.'),
 })
+
+const accountStatusEnum = z.enum(['ACTIVE', 'INACTIVE'], {
+  errorMap: () => ({ message: 'Select a valid status.' }),
+})
+
+const moneyField = z
+  .string()
+  .trim()
+  .regex(/^\d+(\.\d{1,2})?$/, 'Enter a valid amount with up to 2 decimal places.')
+  .refine((value) => Number(value) > 0, { message: 'Amount must be greater than zero.' })
+
+const feeTypeEnum = z.enum(['TERMLY', 'DAILY', 'OTHER'], {
+  errorMap: () => ({ message: 'Select a valid fee type.' }),
+})
+
+const paymentMethodEnum = z.enum(['CASH', 'BANK_TRANSFER', 'MOBILE_MONEY', 'CHEQUE'], {
+  errorMap: () => ({ message: 'Select a valid payment method.' }),
+})
+
+export const sessionCreateSchema = z.object({
+  name: z.string().trim().min(2, 'Session name must be at least 2 characters.').max(120),
+  startDate: dateField,
+  endDate: dateField,
+  status: accountStatusEnum.default('ACTIVE'),
+})
+
+export const sessionUpdateSchema = z.object({
+  name: z.string().trim().min(2).max(120).optional(),
+  startDate: dateField.optional(),
+  endDate: dateField.optional(),
+  status: accountStatusEnum.optional(),
+})
+
+export const termCreateSchema = z.object({
+  sessionId: z.string().trim().min(1, 'Select a session.').max(100),
+  name: z.string().trim().min(1, 'Term name is required.').max(80),
+  termNumber: z.number().int().min(1, 'Term number must be at least 1.').max(12, 'Term number is too large.'),
+  startDate: dateField,
+  endDate: dateField,
+  schoolDays: z.number().int().min(0).max(366).optional(),
+  status: accountStatusEnum.default('ACTIVE'),
+})
+
+export const termUpdateSchema = z.object({
+  name: z.string().trim().min(1).max(80).optional(),
+  termNumber: z.number().int().min(1).max(12).optional(),
+  startDate: dateField.optional(),
+  endDate: dateField.optional(),
+  schoolDays: z.number().int().min(0).max(366).optional(),
+  status: accountStatusEnum.optional(),
+})
+
+export const feeCreateSchema = z.object({
+  sessionId: z.string().trim().min(1, 'Select a session.').max(100),
+  name: z.string().trim().min(2, 'Fee name must be at least 2 characters.').max(120),
+  feeType: feeTypeEnum,
+  amount: moneyField,
+  description: optionalLongText(300),
+  status: accountStatusEnum.default('ACTIVE'),
+})
+
+export const feeUpdateSchema = z.object({
+  name: z.string().trim().min(2).max(120).optional(),
+  feeType: feeTypeEnum.optional(),
+  amount: moneyField.optional(),
+  description: optionalLongText(300).nullable(),
+  status: accountStatusEnum.optional(),
+})
+
+export const feeAssignSchema = z.object({
+  pupilIds: z
+    .array(z.string().trim().min(1).max(100))
+    .min(1, 'Select at least one pupil.')
+    .max(500, 'A maximum of 500 pupils can be assigned at once.'),
+})
+
+export const paymentAllocationSchema = z.object({
+  chargeId: z.string().trim().min(1).max(100),
+  amount: moneyField,
+})
+
+export const paymentCreateSchema = z.object({
+  pupilId: z.string().trim().min(1, 'Select a pupil.').max(100),
+  amountPaid: moneyField,
+  paymentMethod: paymentMethodEnum,
+  paymentDate: dateField.optional(),
+  note: optionalLongText(500),
+  allocations: z
+    .array(paymentAllocationSchema)
+    .max(100, 'A maximum of 100 allocations is allowed.')
+    .optional(),
+})
+
+export const paymentVoidSchema = z.object({
+  reason: z.string().trim().min(3, 'Void reason must be at least 3 characters.').max(300),
+})
+
+export const chargeGenerateSchema = z.object({
+  sessionId: z.string().trim().min(1, 'Select a session.').max(100),
+})

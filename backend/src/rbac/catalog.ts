@@ -116,6 +116,11 @@ export const PERMISSIONS: PermissionDefinition[] = [
   { key: 'academic.manage', module: 'academic', moduleLabel: 'Academic Administration', label: 'Manage Academic Administration' },
   // Audit
   { key: 'audit.view', module: 'audit', moduleLabel: 'Audit Log', label: 'View Audit Log' },
+  // Fees & Finance
+  { key: 'finance.view', module: 'finance', moduleLabel: 'Fees & Finance', label: 'View Fees & Finance', description: 'Read fee structures, assignments, payments and balances.' },
+  { key: 'finance.manage', module: 'finance', moduleLabel: 'Fees & Finance', label: 'Manage Fees & Payments', description: 'Create fee structures, assign pupils, record and void payments.' },
+  { key: 'fees.manage', module: 'finance', moduleLabel: 'Fees & Finance', label: 'Manage Fee Structures', description: 'Create, update, activate and deactivate fee structures and assignments.' },
+  { key: 'payments.record', module: 'finance', moduleLabel: 'Fees & Finance', label: 'Record Payments', description: 'Record and void pupil payments.' },
   // System administration — OWNER only. Never grantable to any other role.
   { key: 'owner.manage', module: 'owner', moduleLabel: 'System Administration', label: 'Manage Owner Account', description: 'OWNER only. Not grantable to other roles.' },
   { key: 'owner.create', module: 'owner', moduleLabel: 'System Administration', label: 'Create Owner', description: 'OWNER only. Not grantable to other roles.' },
@@ -162,6 +167,7 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       'reports.manage',
       'academic.view',
       'academic.manage',
+      'finance.view',
     ],
   },
   {
@@ -193,9 +199,9 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
   },
   {
     name: 'ACCOUNTANT',
-    label: 'Accountant',
-    description: 'School finance role. Fee and billing scope arrives in later phases.',
-    permissions: [],
+    label: 'Accountant / Finance',
+    description: 'School finance role. Manages fee structures, assignments, billing and payments.',
+    permissions: ['finance.view', 'finance.manage', 'fees.manage', 'payments.record', 'academic.view'],
   },
   {
     name: 'NON_TEACHING_STAFF',

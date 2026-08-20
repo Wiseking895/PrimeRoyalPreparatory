@@ -18,6 +18,9 @@ import { pupilRouter } from './routes/pupil.routes'
 import { classRouter } from './routes/class.routes'
 import { rbacRouter } from './routes/rbac.routes'
 import { auditRouter } from './routes/audit.routes'
+import { financeRouter } from './routes/finance.routes'
+import { feesRouter } from './routes/fees.routes'
+import { paymentsRouter } from './routes/payments.routes'
 
 /**
  * Builds and configures the Express application. Kept separate from the HTTP
@@ -74,6 +77,11 @@ export function createApp(): Express {
   app.use('/api/classes', classRouter)
   app.use('/api', rbacRouter)
   app.use('/api/audit', auditRouter)
+
+  // Phase 5 — fees & finance management.
+  app.use('/api/finance', financeRouter)
+  app.use('/api/fees', feesRouter)
+  app.use('/api/payments', paymentsRouter)
 
   // 404 + centralized error handling (must be last)
   app.use(notFoundHandler)

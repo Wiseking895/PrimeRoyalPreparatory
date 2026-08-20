@@ -329,3 +329,240 @@ export interface ClassUpdateInput {
   sortOrder?: number
   status?: 'ACTIVE' | 'INACTIVE'
 }
+
+// ---------------------------------------------------------------------------
+// Phase 5 — Fees & Finance. Mirrors `backend/src/services/finance-mapper.ts`.
+// Money is always a fixed two-decimal-place string; the backend is the
+// authoritative source of financial truth.
+// ---------------------------------------------------------------------------
+
+export type FeeTypeValue = 'TERMLY' | 'DAILY' | 'OTHER'
+export type PaymentMethodValue = 'CASH' | 'BANK_TRANSFER' | 'MOBILE_MONEY' | 'CHEQUE'
+export type AccountStatusValue = 'ACTIVE' | 'INACTIVE'
+export type PaymentRecordStatusValue = 'ACTIVE' | 'VOIDED'
+
+export interface AcademicSessionView {
+  id: string
+  name: string
+  startDate: string
+  endDate: string
+  status: AccountStatusValue
+  termCount: number
+  feeCount: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AcademicTermView {
+  id: string
+  sessionId: string
+  name: string
+  termNumber: number
+  startDate: string
+  endDate: string
+  schoolDays: number
+  status: AccountStatusValue
+}
+
+export interface FeeView {
+  id: string
+  sessionId: string
+  sessionName: string
+  name: string
+  feeType: FeeTypeValue
+  amount: string
+  description: string | null
+  status: AccountStatusValue
+  assignmentCount: number
+  activeAssignmentCount: number
+  chargeCount: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface FeeAssignmentView {
+  id: string
+  pupilId: string
+  pupilCode: string
+  pupilName: string
+  className: string
+  feeId: string
+  feeName: string
+  status: AccountStatusValue
+  chargeCount: number
+  createdAt: string
+}
+
+export interface PaymentAllocationView {
+  id: string
+  chargeId: string
+  feeName: string
+  termName: string | null
+  amount: string
+}
+
+export interface PaymentView {
+  id: string
+  paymentReference: string
+  pupilId: string
+  pupilCode: string
+  pupilName: string
+  amountPaid: string
+  paymentMethod: PaymentMethodValue
+  paymentDate: string
+  note: string | null
+  receivedById: string
+  receivedByName: string
+  status: PaymentRecordStatusValue
+  voidedAt: string | null
+  voidedById: string | null
+  voidReason: string | null
+  allocations: PaymentAllocationView[]
+  createdAt: string
+}
+
+export interface PupilBalanceView {
+  id: string
+  pupilId: string
+  fullName: string
+  className: string
+  status: AccountStatusValue
+  totalDue: string
+  totalPaid: string
+  outstanding: string
+  chargeCount: number
+}
+
+export interface PupilChargeView {
+  id: string
+  feeId: string
+  feeName: string
+  termId: string | null
+  termName: string | null
+  amount: string
+  paid: string
+  balance: string
+}
+
+export interface PupilFinanceView {
+  pupil: { id: string; pupilId: string; fullName: string; className: string }
+  totalDue: string
+  totalPaid: string
+  outstanding: string
+  charges: PupilChargeView[]
+  payments: PaymentView[]
+}
+
+export interface FeeSummaryView {
+  total: number
+  active: number
+  byType: Record<FeeTypeValue, number>
+}
+
+export interface FinanceSummaryView {
+  session: AcademicSessionView | null
+  term: AcademicTermView | null
+  expectedFees: string
+  collected: string
+  outstanding: string
+  pupilsWithOutstanding: number
+  paymentsThisTerm: string
+  paymentsThisTermCount: number
+  feeSummary: FeeSummaryView
+  recentPayments: PaymentView[]
+}
+
+export interface AssignFeesResult {
+  assigned: number
+  skipped: number
+}
+
+export interface ChargeGenerateResult {
+  created: number
+}
+
+export interface FinancePupilListResult {
+  items: PupilBalanceView[]
+  total: number
+  page: number
+  pageSize: number
+  hasMore: boolean
+}
+
+export interface PaymentListResult {
+  items: PaymentView[]
+  total: number
+  page: number
+  pageSize: number
+  hasMore: boolean
+}
+
+// Input payloads — mirror the Zod schemas in `backend/src/schemas/index.ts`.
+
+export interface SessionCreateInput {
+  name: string
+  startDate: string
+  endDate: string
+  status?: AccountStatusValue
+}
+
+export interface SessionUpdateInput {
+  name?: string
+  startDate?: string
+  endDate?: string
+  status?: AccountStatusValue
+}
+
+export interface TermCreateInput {
+  sessionId: string
+  name: string
+  termNumber: number
+  startDate: string
+  endDate: string
+  schoolDays?: number
+  status?: AccountStatusValue
+}
+
+export interface TermUpdateInput {
+  name?: string
+  termNumber?: number
+  startDate?: string
+  endDate?: string
+  schoolDays?: number
+  status?: AccountStatusValue
+}
+
+export interface FeeCreateInput {
+  sessionId: string
+  name: string
+  feeType: FeeTypeValue
+  amount: string
+  description?: string
+  status?: AccountStatusValue
+}
+
+export interface FeeUpdateInput {
+  name?: string
+  feeType?: FeeTypeValue
+  amount?: string
+  description?: string | null
+  status?: AccountStatusValue
+}
+
+export interface PaymentAllocationInput {
+  chargeId: string
+  amount: string
+}
+
+export interface PaymentCreateInput {
+  pupilId: string
+  amountPaid: string
+  paymentMethod: PaymentMethodValue
+  paymentDate?: string
+  note?: string
+  allocations?: PaymentAllocationInput[]
+}
+
+export interface PaymentVoidInput {
+  reason: string
+}

@@ -1,5 +1,5 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom'
-import { HEADTEACHER_ROLE, OWNER_ROLE } from '@/auth/roles'
+import { ACCOUNTANT_ROLE, HEADTEACHER_ROLE, OWNER_ROLE } from '@/auth/roles'
 import { ProtectedRoute } from '@/auth/ProtectedRoute'
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout'
 import { PublicLayout } from '@/layouts/PublicLayout'
@@ -24,6 +24,16 @@ import { RolesPage } from '@/pages/portal/RolesPage'
 import { StaffManagementPage } from '@/pages/portal/StaffManagementPage'
 import { StaffProfilePage } from '@/pages/portal/StaffProfilePage'
 import { ChangePasswordPage } from '@/pages/portal/ChangePasswordPage'
+import { ChargeGenerationPage } from '@/pages/portal/finance/ChargeGenerationPage'
+import { FeeAssignmentsPage } from '@/pages/portal/finance/FeeAssignmentsPage'
+import { FeeStructuresPage } from '@/pages/portal/finance/FeeStructuresPage'
+import { FinanceDashboardPage } from '@/pages/portal/finance/FinanceDashboardPage'
+import { FinanceSummaryPage } from '@/pages/portal/finance/FinanceSummaryPage'
+import { PaymentDetailPage } from '@/pages/portal/finance/PaymentDetailPage'
+import { PaymentsPage } from '@/pages/portal/finance/PaymentsPage'
+import { PupilFinancePage } from '@/pages/portal/finance/PupilFinancePage'
+import { PupilFinanceProfilePage } from '@/pages/portal/finance/PupilFinanceProfilePage'
+import { SessionsPage } from '@/pages/portal/finance/SessionsPage'
 import { HeadteacherDashboardPage } from '@/pages/portal/headteacher/HeadteacherDashboardPage'
 import { OwnerDashboardPage } from '@/pages/portal/owner/OwnerDashboardPage'
 import { OwnerHeadteacherEditPage } from '@/pages/portal/owner/OwnerHeadteacherEditPage'
@@ -85,6 +95,17 @@ export const router = createBrowserRouter([
       { path: 'audit', element: <AuditPage /> },
       { path: 'profile', element: <ProfilePage /> },
       { path: 'settings', element: <SettingsPage /> },
+      { path: 'finance', element: <Navigate to="/owner/finance/dashboard" replace /> },
+      { path: 'finance/dashboard', element: <FinanceDashboardPage /> },
+      { path: 'finance/sessions', element: <SessionsPage /> },
+      { path: 'finance/fees', element: <FeeStructuresPage /> },
+      { path: 'finance/fees/:id/assignments', element: <FeeAssignmentsPage /> },
+      { path: 'finance/charges', element: <ChargeGenerationPage /> },
+      { path: 'finance/payments', element: <PaymentsPage /> },
+      { path: 'finance/payments/:id', element: <PaymentDetailPage /> },
+      { path: 'finance/pupils', element: <PupilFinancePage /> },
+      { path: 'finance/pupils/:id', element: <PupilFinanceProfilePage /> },
+      { path: 'finance/summary', element: <FinanceSummaryPage /> },
     ],
   },
   {
@@ -103,6 +124,39 @@ export const router = createBrowserRouter([
       { path: 'staff', element: <StaffManagementPage /> },
       { path: 'staff/:id', element: <StaffProfilePage /> },
       { path: 'roles', element: <RolesPage /> },
+      { path: 'profile', element: <ProfilePage /> },
+      { path: 'finance', element: <Navigate to="/headteacher/finance/dashboard" replace /> },
+      { path: 'finance/dashboard', element: <FinanceDashboardPage /> },
+      { path: 'finance/sessions', element: <SessionsPage /> },
+      { path: 'finance/fees', element: <FeeStructuresPage /> },
+      { path: 'finance/fees/:id/assignments', element: <FeeAssignmentsPage /> },
+      { path: 'finance/charges', element: <ChargeGenerationPage /> },
+      { path: 'finance/payments', element: <PaymentsPage /> },
+      { path: 'finance/payments/:id', element: <PaymentDetailPage /> },
+      { path: 'finance/pupils', element: <PupilFinancePage /> },
+      { path: 'finance/pupils/:id', element: <PupilFinanceProfilePage /> },
+      { path: 'finance/summary', element: <FinanceSummaryPage /> },
+    ],
+  },
+  {
+    path: '/accountant',
+    element: (
+      <ProtectedRoute roles={[ACCOUNTANT_ROLE]}>
+        <DashboardLayout />
+      </ProtectedRoute>
+    ),
+    children: [
+      { index: true, element: <Navigate to="/accountant/dashboard" replace /> },
+      { path: 'dashboard', element: <FinanceDashboardPage /> },
+      { path: 'sessions', element: <SessionsPage /> },
+      { path: 'fees', element: <FeeStructuresPage /> },
+      { path: 'fees/:id/assignments', element: <FeeAssignmentsPage /> },
+      { path: 'charges', element: <ChargeGenerationPage /> },
+      { path: 'payments', element: <PaymentsPage /> },
+      { path: 'payments/:id', element: <PaymentDetailPage /> },
+      { path: 'pupils', element: <PupilFinancePage /> },
+      { path: 'pupils/:id', element: <PupilFinanceProfilePage /> },
+      { path: 'summary', element: <FinanceSummaryPage /> },
       { path: 'profile', element: <ProfilePage /> },
     ],
   },

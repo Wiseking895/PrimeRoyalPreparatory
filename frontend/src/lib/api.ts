@@ -1,17 +1,32 @@
 import type {
+  AcademicSessionView,
+  AcademicTermView,
+  AssignFeesResult,
   AuditPage,
+  ChargeGenerateResult,
   ClassCreateInput,
   ClassUpdateInput,
   CreateHeadteacherInput,
   CreateHeadteacherResult,
   CreateStaffInput,
   CreateStaffResult,
+  FeeAssignmentView,
+  FeeCreateInput,
+  FeeUpdateInput,
+  FeeView,
+  FinancePupilListResult,
+  FinanceSummaryView,
   GroupedPermission,
   LoginResult,
   OwnerSetupInput,
   OwnerSummary,
+  PaymentCreateInput,
+  PaymentListResult,
+  PaymentVoidInput,
+  PaymentView,
   PublicUser,
   PupilCreateInput,
+  PupilFinanceView,
   PupilListQuery,
   PupilPage,
   PupilStats,
@@ -19,10 +34,14 @@ import type {
   PupilView,
   RoleDefinition,
   SchoolClassView,
+  SessionCreateInput,
+  SessionUpdateInput,
   SetupStatus,
   StaffListQuery,
   StaffStats,
   StaffView,
+  TermCreateInput,
+  TermUpdateInput,
   UpdateHeadteacherInput,
   UpdateStaffInput,
 } from '@/types/portal'
@@ -217,4 +236,93 @@ export const api = {
   // Audit
   listAudit: (limit = 50, offset = 0) =>
     request<AuditPage>(`/api/audit?limit=${limit}&offset=${offset}`),
+
+  // Finance
+  financeSummary: () => request<FinanceSummaryView>('/api/finance/summary'),
+  listFinancePupils: (params?: { q?: string; page?: number; pageSize?: number }) => {
+    const search = new URLSearchParams()
+    if (params?.q) search.set('q', params.q)
+    if (params?.page) search.set('page', String(params.page))
+    if (params?.pageSize) search.set('pageSize', String(params.pageSize))
+    const query = search.toString()
+    return request<FinancePupilListResult>(`/api/finance/pupils${query ? `?${query}` : ''}`)
+  },
+  getPupilFinance: (id: string) => request<PupilFinanceView>(`/api/finance/pupils/${id}`),
+
+  // Academic sessions & terms
+  listSessions: () => request<AcademicSessionView[]>('/api/finance/sessions'),
+  getSession: (id: string) => request<AcademicSessionView>(`/api/finance/sessions/${id}`),
+  createSession: (input: SessionCreateInput) =>
+    request<AcademicSessionView>('/api/finance/sessions', jsonBody(input)),
+  updateSession: (id: string, input: SessionUpdateInput) =>
+    request<AcademicSessionView>(`/api/finance/sessions/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
+  setSessionStatus: (id: string, status: 'ACTIVE' | 'INACTIVE') =>
+    request<AcademicSessionView>(`/api/finance/sessions/${id}/${status === 'ACTIVE' ? 'activate' : 'deactivate'}`, {
+      method: 'POST',
+    }),
+  listTerms: (sessionId?: string) => {
+    const query = sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : ''
+    return request<AcademicTermView[]>(`/api/finance/terms${query}`)
+  },
+  getTerm: (id: string) => request<AcademicTermView>(`/api/finance/terms/${id}`),
+  createTerm: (input: TermCreateInput) =>
+    request<AcademicTermView>('/api/finance/terms', jsonBody(input)),
+  updateTerm: (id: string, input: TermUpdateInput) =>
+    request<AcademicTermView>(`/api/finance/terms/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
+  setTermStatus: (id: string, status: 'ACTIVE' | 'INACTIVE') =>
+    request<AcademicTermView>(`/api/finance/terms/${id}/${status === 'ACTIVE' ? 'activate' : 'deactivate'}`, {
+      method: 'POST',
+    }),
+  generateSessionCharges: (sessionId: string) =>
+    request<ChargeGenerateResult>('/api/finance/generate-charges', jsonBody({ sessionId })),
+
+  // Fees
+  listFees: (params?: { sessionId?: string; status?: 'ACTIVE' | 'INACTIVE' }) => {
+    const search = new URLSearchParams()
+    if (params?.sessionId) search.set('sessionId', params.sessionId)
+    if (params?.status) search.set('status', params.status)
+    const query = search.toString()
+    return request<FeeView[]>(`/api/fees${query ? `?${query}` : ''}`)
+  },
+  getFee: (id: string) => request<FeeView>(`/api/fees/${id}`),
+  createFee: (input: FeeCreateInput) => request<FeeView>('/api/fees', jsonBody(input)),
+  updateFee: (id: string, input: FeeUpdateInput) =>
+    request<FeeView>(`/api/fees/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
+  setFeeStatus: (id: string, status: 'ACTIVE' | 'INACTIVE') =>
+    request<FeeView>(`/api/fees/${id}/${status === 'ACTIVE' ? 'activate' : 'deactivate'}`, { method: 'POST' }),
+  assignFee: (id: string, pupilIds: string[]) =>
+    request<AssignFeesResult>(`/api/fees/${id}/assign`, jsonBody({ pupilIds })),
+  listFeeAssignments: (id: string) => request<FeeAssignmentView[]>(`/api/fees/${id}/assignments`),
+  deactivateAssignment: (id: string) =>
+    request<FeeAssignmentView>(`/api/fees/assignments/${id}/deactivate`, { method: 'POST' }),
+  generateFeeCharges: (id: string) =>
+    request<ChargeGenerateResult>(`/api/fees/${id}/generate-charges`, { method: 'POST' }),
+
+  // Payments
+  listPayments: (params?: {
+    q?: string
+    pupilId?: string
+    status?: 'ACTIVE' | 'VOIDED'
+    paymentMethod?: 'CASH' | 'BANK_TRANSFER' | 'MOBILE_MONEY' | 'CHEQUE'
+    from?: string
+    to?: string
+    page?: number
+    pageSize?: number
+  }) => {
+    const search = new URLSearchParams()
+    if (params?.q) search.set('q', params.q)
+    if (params?.pupilId) search.set('pupilId', params.pupilId)
+    if (params?.status) search.set('status', params.status)
+    if (params?.paymentMethod) search.set('paymentMethod', params.paymentMethod)
+    if (params?.from) search.set('from', params.from)
+    if (params?.to) search.set('to', params.to)
+    if (params?.page) search.set('page', String(params.page))
+    if (params?.pageSize) search.set('pageSize', String(params.pageSize))
+    const query = search.toString()
+    return request<PaymentListResult>(`/api/payments${query ? `?${query}` : ''}`)
+  },
+  getPayment: (id: string) => request<PaymentView>(`/api/payments/${id}`),
+  createPayment: (input: PaymentCreateInput) => request<PaymentView>('/api/payments', jsonBody(input)),
+  voidPayment: (id: string, input: PaymentVoidInput) =>
+    request<PaymentView>(`/api/payments/${id}/void`, jsonBody(input)),
 }

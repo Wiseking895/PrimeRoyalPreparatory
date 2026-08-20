@@ -22,7 +22,8 @@ import { StatusBadge, Badge } from '@/components/dashboard/Badge'
 import { CardSkeleton, TableSkeleton } from '@/components/dashboard/Loaders'
 import { ErrorState, EmptyState } from '@/components/dashboard/States'
 import { api } from '@/lib/api'
-import type { AuditEntry, OwnerSummary } from '@/types/portal'
+import { formatMoney } from '@/lib/money'
+import type { AuditEntry, FinanceSummaryView, OwnerSummary } from '@/types/portal'
 import { formatDate } from '@/lib/date'
 
 function greeting(): string {
@@ -54,22 +55,27 @@ function activityLabel(action: string): string {
 export function OwnerDashboardPage() {
   const { hasPermission } = useAuth()
   const [summary, setSummary] = useState<OwnerSummary | null>(null)
+  const [finance, setFinance] = useState<FinanceSummaryView | null>(null)
   const [audit, setAudit] = useState<AuditEntry[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+
+  const canViewFinance = hasPermission('finance.view')
 
   const load = useCallback(async () => {
     setError(null)
     try {
-      const [summaryData, auditData] = await Promise.all([
+      const [summaryData, auditData, financeData] = await Promise.all([
         api.ownerSummary(),
         api.listAudit(5, 0),
+        canViewFinance ? api.financeSummary() : Promise.resolve(null),
       ])
       setSummary(summaryData)
       setAudit(auditData.entries)
+      setFinance(financeData)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load the dashboard.')
     }
-  }, [])
+  }, [canViewFinance])
 
   useEffect(() => {
     void load()
@@ -437,29 +443,49 @@ export function OwnerDashboardPage() {
           ) : null}
 
           {/* Finance overview */}
-          <Card className="p-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Wallet className="h-5 w-5 text-gold-500" aria-hidden="true" />
-                <h2 className="text-sm font-bold uppercase tracking-wider text-ink-500">Finance Overview</h2>
+          {canViewFinance ? (
+            <Card className="p-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Wallet className="h-5 w-5 text-gold-500" aria-hidden="true" />
+                  <h2 className="text-sm font-bold uppercase tracking-wider text-ink-500">Finance Overview</h2>
+                </div>
+                <Link
+                  to="/owner/finance"
+                  className="inline-flex items-center gap-1.5 text-sm font-semibold text-magenta-600 transition-colors hover:text-magenta-700"
+                >
+                  Open finance <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                </Link>
               </div>
-              <Badge tone="gold">Coming in a later phase</Badge>
-            </div>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <div className="rounded-xl border border-cream-200 bg-cream-50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-wider text-ink-500">Total Collected</p>
-                <p className="mt-1 text-lg font-bold text-ink-500">Not available yet</p>
-              </div>
-              <div className="rounded-xl border border-cream-200 bg-cream-50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-wider text-ink-500">Outstanding</p>
-                <p className="mt-1 text-lg font-bold text-ink-500">Not available yet</p>
-              </div>
-            </div>
-            <p className="mt-3 text-xs leading-relaxed text-ink-500">
-              The Accountant module arrives in a later phase. High-level financial summaries will appear
-              here once fee collection and payments are implemented.
-            </p>
-          </Card>
+              {finance === null ? (
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <CardSkeleton className="border-0 p-0" />
+                  <CardSkeleton className="border-0 p-0" />
+                </div>
+              ) : (
+                <>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                    <div className="rounded-xl border border-cream-200 bg-cream-50 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-ink-500">Expected Fees</p>
+                      <p className="mt-1 text-lg font-bold text-ink-900">{formatMoney(finance.expectedFees)}</p>
+                    </div>
+                    <div className="rounded-xl border border-cream-200 bg-cream-50 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-ink-500">Collected</p>
+                      <p className="mt-1 text-lg font-bold text-emerald-700">{formatMoney(finance.collected)}</p>
+                    </div>
+                    <div className="rounded-xl border border-cream-200 bg-cream-50 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-ink-500">Outstanding</p>
+                      <p className="mt-1 text-lg font-bold text-red-700">{formatMoney(finance.outstanding)}</p>
+                    </div>
+                  </div>
+                  <p className="mt-3 text-xs leading-relaxed text-ink-500">
+                    {finance.pupilsWithOutstanding} pupil(s) carry an outstanding balance across{' '}
+                    {finance.feeSummary.total} fee structures. The Accountant manages day-to-day collections.
+                  </p>
+                </>
+              )}
+            </Card>
+          ) : null}
 
           {/* Pending actions */}
           <Card className="p-6">

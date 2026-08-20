@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowRight, BookOpen, BookOpenCheck, Building2, ShieldCheck, UserRound, Users } from 'lucide-react'
+import { ArrowRight, BookOpen, BookOpenCheck, Building2, ShieldCheck, UserRound, Users, Wallet } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '@/auth/AuthContext'
 import { PageHeader } from '@/components/dashboard/PageHeader'
@@ -11,7 +11,8 @@ import { CardSkeleton, TableSkeleton } from '@/components/dashboard/Loaders'
 import { ErrorState, EmptyState } from '@/components/dashboard/States'
 import { api } from '@/lib/api'
 import { formatDate } from '@/lib/date'
-import type { PupilStats, StaffStats, StaffView } from '@/types/portal'
+import { formatMoney } from '@/lib/money'
+import type { FinanceSummaryView, PupilStats, StaffStats, StaffView } from '@/types/portal'
 
 function greeting(): string {
   const hour = new Date().getHours()
@@ -38,25 +39,29 @@ export function HeadteacherDashboardPage() {
   const [staff, setStaff] = useState<StaffView[] | null>(null)
   const [stats, setStats] = useState<StaffStats | null>(null)
   const [pupilStats, setPupilStats] = useState<PupilStats | null>(null)
+  const [finance, setFinance] = useState<FinanceSummaryView | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const canViewPupils = hasPermission('pupils.view')
+  const canViewFinance = hasPermission('finance.view')
 
   const load = useCallback(async () => {
     setError(null)
     try {
-      const [staffData, statsData, pupilData] = await Promise.all([
+      const [staffData, statsData, pupilData, financeData] = await Promise.all([
         api.listStaff(),
         api.staffStats(),
         canViewPupils ? api.pupilStats() : Promise.resolve(null),
+        canViewFinance ? api.financeSummary() : Promise.resolve(null),
       ])
       setStaff(staffData)
       setStats(statsData)
       setPupilStats(pupilData)
+      setFinance(financeData)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load the dashboard.')
     }
-  }, [canViewPupils])
+  }, [canViewPupils, canViewFinance])
 
   useEffect(() => {
     void load()
@@ -257,6 +262,51 @@ export function HeadteacherDashboardPage() {
                       {pupilStats.total} registered pupils across the classes you manage.
                     </p>
                   </div>
+                </>
+              )}
+            </Card>
+          ) : null}
+
+          {/* Finance overview (view-only for headteacher) */}
+          {canViewFinance ? (
+            <Card className="p-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Wallet className="h-5 w-5 text-gold-500" aria-hidden="true" />
+                  <h2 className="text-sm font-bold uppercase tracking-wider text-ink-500">Finance Overview</h2>
+                </div>
+                <Link
+                  to="/headteacher/finance"
+                  className="inline-flex items-center gap-1.5 text-sm font-semibold text-magenta-600 transition-colors hover:text-magenta-700"
+                >
+                  Open finance <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                </Link>
+              </div>
+              {finance === null ? (
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <CardSkeleton className="border-0 p-0" />
+                  <CardSkeleton className="border-0 p-0" />
+                </div>
+              ) : (
+                <>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                    <div className="rounded-xl border border-cream-200 bg-cream-50 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-ink-500">Expected Fees</p>
+                      <p className="mt-1 text-lg font-bold text-ink-900">{formatMoney(finance.expectedFees)}</p>
+                    </div>
+                    <div className="rounded-xl border border-cream-200 bg-cream-50 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-ink-500">Collected</p>
+                      <p className="mt-1 text-lg font-bold text-emerald-700">{formatMoney(finance.collected)}</p>
+                    </div>
+                    <div className="rounded-xl border border-cream-200 bg-cream-50 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-ink-500">Outstanding</p>
+                      <p className="mt-1 text-lg font-bold text-red-700">{formatMoney(finance.outstanding)}</p>
+                    </div>
+                  </div>
+                  <p className="mt-3 text-xs leading-relaxed text-ink-500">
+                    {finance.pupilsWithOutstanding} pupil(s) carry an outstanding balance. The Accountant manages
+                    fee structures, charges and payments — you can review this module read-only.
+                  </p>
                 </>
               )}
             </Card>
