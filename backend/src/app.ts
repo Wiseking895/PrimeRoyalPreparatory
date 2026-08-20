@@ -14,6 +14,7 @@ import { setupRouter } from './routes/setup.routes'
 import { authRouter } from './routes/auth.routes'
 import { ownerRouter } from './routes/owner.routes'
 import { staffRouter } from './routes/staff.routes'
+import { attendanceRouter } from './routes/attendance.routes'
 import { pupilRouter } from './routes/pupil.routes'
 import { classRouter } from './routes/class.routes'
 import { rbacRouter } from './routes/rbac.routes'
@@ -79,6 +80,7 @@ export function createApp(): Express {
   app.use('/api/auth', authRouter)
   app.use('/api/owner', ownerRouter)
   app.use('/api/staff', staffRouter)
+  app.use('/api/attendance', attendanceRouter)
   app.use('/api/pupils', pupilRouter)
   app.use('/api/classes', classRouter)
   app.use('/api', rbacRouter)

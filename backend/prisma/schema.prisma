@@ -111,6 +111,7 @@ model User {
   teachingAssignments  TeachingAssignment[] @relation("TeachingAssignmentTeacher")
   classTeachers        ClassTeacher[]       @relation("ClassTeacherTeacher")
   sbaRecords           SbaRecord[]          @relation("SbaRecordTeacher")
+  attendance           Attendance[]  @relation("AttendanceRecorder")
   createdAt            DateTime             @default(now())
   updatedAt            DateTime             @updatedAt
 
@@ -188,6 +189,7 @@ model SchoolClass {
   teachingAssignments TeachingAssignment[]
   classTeachers      ClassTeacher[]
   sbaRecords         SbaRecord[]
+  attendance         Attendance[]
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
 
@@ -267,6 +269,7 @@ model Pupil {
   feeAssignments    FeeAssignment[]
   payments          Payment[]
   sbaRecords        SbaRecord[]
+  attendance        Attendance[]
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
 
@@ -332,6 +335,7 @@ model AcademicSession {
   status    AccountStatus  @default(ACTIVE)
   terms     AcademicTerm[]
   fees      FinanceFee[]
+  attendance    Attendance[]
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
 
@@ -576,4 +580,33 @@ model SbaRecord {
   @@index([termId])
   @@index([teacherId])
   @@map("sba_records")
+}
+
+// =============================================================================
+// PHASE 8 — GPS Staff Attendance.
+// =============================================================================
+
+model Attendance {
+  id         String     @id @default(cuid())
+  pupilId    String
+  staffId    String
+  date       DateTime
+  status     String
+  sessionId  String?
+  classId    String?
+  notes      String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([pupilId, date, staffId])
+  @@index([pupilId])
+  @@index([date])
+  @@index([status])
+  @@index([staffId])
+  @@map("attendance")
+
+  pupil      Pupil       @relation(fields: [pupilId], references: [id], onDelete: Cascade)
+  staff      User        @relation("AttendanceRecorder", fields: [staffId], references: [id], onDelete: SetNull)
+  session    AcademicSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  class      SchoolClass? @relation(fields: [classId], references: [id], onDelete: SetNull)
 }

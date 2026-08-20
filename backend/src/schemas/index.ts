@@ -422,3 +422,34 @@ export const parentFirstPasswordChangeSchema = z
 export const parentAccountCreateSchema = z.object({
   accountEmail: optionalEmail,
 })
+
+// =============================================================================
+// Phase 8 — GPS Staff Attendance
+// =============================================================================
+
+export const attendanceStatusEnum = z.enum(['PRESENT', 'ABSENT', 'LATE', 'EXCUSED'], {
+  errorMap: () => ({ message: 'Select a valid attendance status.' }),
+})
+
+const attendanceDateField = z
+  .string()
+  .trim()
+  .min(1, 'Date is required.')
+  .refine((value) => !Number.isNaN(new Date(value).getTime()), {
+    message: 'Enter a valid date.',
+  })
+
+export const attendanceCreateSchema = z.object({
+  pupilId: z.string().trim().min(1, 'Select a pupil.').max(100),
+  status: attendanceStatusEnum,
+  date: attendanceDateField,
+  sessionId: z.string().trim().min(1, 'Select a session.').max(100).optional(),
+  classId: z.string().trim().min(1, 'Select a class.').max(100).optional(),
+  notes: z.string().trim().max(500).optional(),
+})
+
+export const attendanceUpdateSchema = z.object({
+  status: attendanceStatusEnum.optional(),
+  date: attendanceDateField.optional(),
+  notes: z.string().trim().max(500).optional(),
+})
