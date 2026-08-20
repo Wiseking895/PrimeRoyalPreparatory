@@ -1,10 +1,13 @@
 import type {
   AcademicSessionView,
+  AcademicStatsView,
   AcademicTermView,
   AssignFeesResult,
   AuditPage,
   ChargeGenerateResult,
   ClassCreateInput,
+  ClassTeacherAssignInput,
+  ClassTeacherView,
   ClassUpdateInput,
   CreateHeadteacherInput,
   CreateHeadteacherResult,
@@ -33,6 +36,12 @@ import type {
   PupilUpdateInput,
   PupilView,
   RoleDefinition,
+  SbaBulkResult,
+  SbaBulkUpsertInput,
+  SbaEntryDataView,
+  SbaListQuery,
+  SbaRecordView,
+  SbaUpdateInput,
   SchoolClassView,
   SessionCreateInput,
   SessionUpdateInput,
@@ -40,6 +49,15 @@ import type {
   StaffListQuery,
   StaffStats,
   StaffView,
+  SubjectCreateInput,
+  SubjectUpdateInput,
+  SubjectView,
+  TeacherAssignmentView,
+  TeachingAssignmentCreateInput,
+  TeachingAssignmentListQuery,
+  TeacherListRow,
+  TeacherPortalView,
+  TeacherView,
   TermCreateInput,
   TermUpdateInput,
   UpdateHeadteacherInput,
@@ -325,4 +343,79 @@ export const api = {
   createPayment: (input: PaymentCreateInput) => request<PaymentView>('/api/payments', jsonBody(input)),
   voidPayment: (id: string, input: PaymentVoidInput) =>
     request<PaymentView>(`/api/payments/${id}/void`, jsonBody(input)),
+
+  // Phase 6 — Subjects
+  listSubjects: (params?: { q?: string; status?: 'ACTIVE' | 'INACTIVE' }) => {
+    const search = new URLSearchParams()
+    if (params?.q) search.set('q', params.q)
+    if (params?.status) search.set('status', params.status)
+    const query = search.toString()
+    return request<SubjectView[]>(`/api/subjects${query ? `?${query}` : ''}`)
+  },
+  getSubject: (id: string) => request<SubjectView>(`/api/subjects/${id}`),
+  createSubject: (input: SubjectCreateInput) => request<SubjectView>('/api/subjects', jsonBody(input)),
+  updateSubject: (id: string, input: SubjectUpdateInput) =>
+    request<SubjectView>(`/api/subjects/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
+  setSubjectStatus: (id: string, status: 'ACTIVE' | 'INACTIVE') =>
+    request<SubjectView>(`/api/subjects/${id}/${status === 'ACTIVE' ? 'activate' : 'deactivate'}`, {
+      method: 'POST',
+    }),
+
+  // Phase 6 — Teachers & assignments
+  academicStats: () => request<AcademicStatsView>('/api/academic/stats'),
+  academicMe: () => request<TeacherPortalView>('/api/academic/me'),
+  listTeachers: (params?: { q?: string; status?: 'ACTIVE' | 'INACTIVE' }) => {
+    const search = new URLSearchParams()
+    if (params?.q) search.set('q', params.q)
+    if (params?.status) search.set('status', params.status)
+    const query = search.toString()
+    return request<TeacherListRow[]>(`/api/academic/teachers${query ? `?${query}` : ''}`)
+  },
+  getTeacher: (id: string) => request<TeacherView>(`/api/academic/teachers/${id}`),
+  listTeachingAssignments: (params?: TeachingAssignmentListQuery) => {
+    const search = new URLSearchParams()
+    if (params?.teacherId) search.set('teacherId', params.teacherId)
+    if (params?.subjectId) search.set('subjectId', params.subjectId)
+    if (params?.classId) search.set('classId', params.classId)
+    if (params?.status) search.set('status', params.status)
+    const query = search.toString()
+    return request<TeacherAssignmentView[]>(`/api/academic/assignments${query ? `?${query}` : ''}`)
+  },
+  assignTeachingAssignment: (input: TeachingAssignmentCreateInput) =>
+    request<TeacherAssignmentView>('/api/academic/assignments', jsonBody(input)),
+  deactivateTeachingAssignment: (id: string) =>
+    request<TeacherAssignmentView>(`/api/academic/assignments/${id}/deactivate`, { method: 'POST' }),
+  getClassTeacher: (classId: string) =>
+    request<ClassTeacherView | null>(`/api/academic/classes/${classId}/class-teacher`),
+  assignClassTeacher: (classId: string, teacherId: string) =>
+    request<ClassTeacherView>(`/api/academic/classes/${classId}/class-teacher`, {
+      method: 'PUT',
+      body: JSON.stringify({ teacherId } satisfies ClassTeacherAssignInput),
+    }),
+  removeClassTeacher: (classId: string) =>
+    request<null>(`/api/academic/classes/${classId}/class-teacher`, { method: 'DELETE' }),
+
+  // Phase 6 — SBA
+  listSba: (params?: SbaListQuery) => {
+    const search = new URLSearchParams()
+    if (params?.sessionId) search.set('sessionId', params.sessionId)
+    if (params?.termId) search.set('termId', params.termId)
+    if (params?.classId) search.set('classId', params.classId)
+    if (params?.subjectId) search.set('subjectId', params.subjectId)
+    if (params?.pupilId) search.set('pupilId', params.pupilId)
+    if (params?.teacherId) search.set('teacherId', params.teacherId)
+    const query = search.toString()
+    return request<SbaRecordView[]>(`/api/sba${query ? `?${query}` : ''}`)
+  },
+  getSbaRecord: (id: string) => request<SbaRecordView>(`/api/sba/${id}`),
+  sbaEntryData: (params: { classId: string; subjectId: string; termId: string }) => {
+    const search = new URLSearchParams()
+    search.set('classId', params.classId)
+    search.set('subjectId', params.subjectId)
+    search.set('termId', params.termId)
+    return request<SbaEntryDataView>(`/api/sba/entry-data?${search.toString()}`)
+  },
+  sbaBulk: (input: SbaBulkUpsertInput) => request<SbaBulkResult>('/api/sba/bulk', jsonBody(input)),
+  updateSbaRecord: (id: string, input: SbaUpdateInput) =>
+    request<SbaRecordView>(`/api/sba/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
 }

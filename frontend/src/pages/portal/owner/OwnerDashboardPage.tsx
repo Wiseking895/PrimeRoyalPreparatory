@@ -23,7 +23,7 @@ import { CardSkeleton, TableSkeleton } from '@/components/dashboard/Loaders'
 import { ErrorState, EmptyState } from '@/components/dashboard/States'
 import { api } from '@/lib/api'
 import { formatMoney } from '@/lib/money'
-import type { AuditEntry, FinanceSummaryView, OwnerSummary } from '@/types/portal'
+import type { AcademicStatsView, AuditEntry, FinanceSummaryView, OwnerSummary } from '@/types/portal'
 import { formatDate } from '@/lib/date'
 
 function greeting(): string {
@@ -56,6 +56,7 @@ export function OwnerDashboardPage() {
   const { hasPermission } = useAuth()
   const [summary, setSummary] = useState<OwnerSummary | null>(null)
   const [finance, setFinance] = useState<FinanceSummaryView | null>(null)
+  const [academic, setAcademic] = useState<AcademicStatsView | null>(null)
   const [audit, setAudit] = useState<AuditEntry[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -64,14 +65,16 @@ export function OwnerDashboardPage() {
   const load = useCallback(async () => {
     setError(null)
     try {
-      const [summaryData, auditData, financeData] = await Promise.all([
+      const [summaryData, auditData, financeData, academicData] = await Promise.all([
         api.ownerSummary(),
         api.listAudit(5, 0),
         canViewFinance ? api.financeSummary() : Promise.resolve(null),
+        api.academicStats(),
       ])
       setSummary(summaryData)
       setAudit(auditData.entries)
       setFinance(financeData)
+      setAcademic(academicData)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load the dashboard.')
     }
@@ -274,6 +277,54 @@ export function OwnerDashboardPage() {
           </div>
 
           <div className="grid gap-6 lg:grid-cols-2">
+            {/* Academic overview */}
+            <Card className="p-6">
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-bold uppercase tracking-wider text-ink-500">Academic Overview</h2>
+                <Link
+                  to="/owner/academic/teachers"
+                  className="inline-flex items-center gap-1.5 text-sm font-semibold text-magenta-600 transition-colors hover:text-magenta-700"
+                >
+                  Manage academic <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                </Link>
+              </div>
+              {academic === null ? (
+                <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  {Array.from({ length: 4 }).map((_, index) => (
+                    <CardSkeleton key={index} className="border-0 p-0" />
+                  ))}
+                </div>
+              ) : (
+                <>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    <div className="rounded-xl border border-cream-200 bg-cream-50 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-ink-500">Teachers</p>
+                      <p className="mt-1 text-lg font-bold text-ink-900">{academic.teachers.total}</p>
+                      <p className="text-xs text-ink-500">{academic.teachers.active} active</p>
+                    </div>
+                    <div className="rounded-xl border border-cream-200 bg-cream-50 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-ink-500">Subjects</p>
+                      <p className="mt-1 text-lg font-bold text-ink-900">{academic.subjects.total}</p>
+                      <p className="text-xs text-ink-500">{academic.subjects.active} active</p>
+                    </div>
+                    <div className="rounded-xl border border-cream-200 bg-cream-50 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-ink-500">Assignments</p>
+                      <p className="mt-1 text-lg font-bold text-ink-900">{academic.assignments.total}</p>
+                      <p className="text-xs text-ink-500">{academic.assignments.active} active</p>
+                    </div>
+                    <div className="rounded-xl border border-cream-200 bg-cream-50 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-ink-500">SBA Records</p>
+                      <p className="mt-1 text-lg font-bold text-ink-900">{academic.sba.total}</p>
+                      <p className="text-xs text-ink-500">{academic.sba.recordsCurrentTerm} this term</p>
+                    </div>
+                  </div>
+                  <p className="mt-3 text-xs leading-relaxed text-ink-500">
+                    {academic.classTeachersAssigned} of {academic.classes} class(es) have a class teacher assigned.
+                  </p>
+                </>
+              )}
+            </Card>
+
             {/* Headteacher overview */}
             <Card className="p-6">
               <div className="flex items-center justify-between">

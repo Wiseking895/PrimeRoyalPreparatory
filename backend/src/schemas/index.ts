@@ -307,3 +307,90 @@ export const paymentVoidSchema = z.object({
 export const chargeGenerateSchema = z.object({
   sessionId: z.string().trim().min(1, 'Select a session.').max(100),
 })
+
+// =============================================================================
+// Phase 6 — academic domain (subjects, teaching assignments, SBA)
+// =============================================================================
+
+const idField = z.string().trim().min(1, 'Required.').max(100)
+
+const subjectCodeField = z
+  .string()
+  .trim()
+  .min(1, 'Subject code is required.')
+  .max(20, 'Subject code is too long.')
+  .toUpperCase()
+  .regex(/^[A-Z0-9_-]+$/, 'Use only uppercase letters, numbers, hyphens and underscores.')
+
+const subjectNameField = z
+  .string()
+  .trim()
+  .min(2, 'Subject name must be at least 2 characters.')
+  .max(120, 'Subject name is too long.')
+
+export const subjectCreateSchema = z.object({
+  code: subjectCodeField,
+  name: subjectNameField,
+  description: optionalLongText(300),
+  status: accountStatusEnum.default('ACTIVE'),
+})
+
+export const subjectUpdateSchema = z.object({
+  code: subjectCodeField.optional(),
+  name: subjectNameField.optional(),
+  description: optionalLongText(300).nullable(),
+  status: accountStatusEnum.optional(),
+})
+
+export const classTeacherAssignSchema = z.object({
+  teacherId: idField,
+})
+
+export const teachingAssignmentCreateSchema = z.object({
+  teacherId: idField,
+  subjectId: idField,
+  classId: idField,
+})
+
+const scoreField = z
+  .number({ invalid_type_error: 'Enter a valid score.' })
+  .min(0, 'Score cannot be negative.')
+  .max(999.99, 'Score is too large.')
+
+const maxScoreField = z
+  .number({ invalid_type_error: 'Enter a valid maximum score.' })
+  .min(0.01, 'Maximum score must be greater than zero.')
+  .max(999.99, 'Maximum score is too large.')
+
+const sbaEntrySchema = z
+  .object({
+    pupilId: idField,
+    score: scoreField,
+    maxScore: maxScoreField,
+    comment: optionalLongText(500).nullable(),
+  })
+  .refine((entry) => entry.score <= entry.maxScore, {
+    message: 'Score cannot exceed the maximum score.',
+    path: ['score'],
+  })
+
+export const sbaBulkUpsertSchema = z.object({
+  subjectId: idField,
+  classId: idField,
+  termId: idField,
+  entries: z
+    .array(sbaEntrySchema)
+    .min(1, 'Add at least one pupil score.')
+    .max(200, 'A maximum of 200 entries is allowed.'),
+})
+
+export const sbaUpdateSchema = z
+  .object({
+    score: scoreField,
+    maxScore: maxScoreField,
+    comment: optionalLongText(500).nullable(),
+  })
+  .refine((data) => data.score <= data.maxScore, {
+    message: 'Score cannot exceed the maximum score.',
+    path: ['score'],
+  })

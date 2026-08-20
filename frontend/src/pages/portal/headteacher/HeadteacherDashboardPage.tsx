@@ -12,7 +12,7 @@ import { ErrorState, EmptyState } from '@/components/dashboard/States'
 import { api } from '@/lib/api'
 import { formatDate } from '@/lib/date'
 import { formatMoney } from '@/lib/money'
-import type { FinanceSummaryView, PupilStats, StaffStats, StaffView } from '@/types/portal'
+import type { AcademicStatsView, FinanceSummaryView, PupilStats, StaffStats, StaffView } from '@/types/portal'
 
 function greeting(): string {
   const hour = new Date().getHours()
@@ -40,28 +40,32 @@ export function HeadteacherDashboardPage() {
   const [stats, setStats] = useState<StaffStats | null>(null)
   const [pupilStats, setPupilStats] = useState<PupilStats | null>(null)
   const [finance, setFinance] = useState<FinanceSummaryView | null>(null)
+  const [academic, setAcademic] = useState<AcademicStatsView | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const canViewPupils = hasPermission('pupils.view')
   const canViewFinance = hasPermission('finance.view')
+  const canViewAcademic = hasPermission('academic.view')
 
   const load = useCallback(async () => {
     setError(null)
     try {
-      const [staffData, statsData, pupilData, financeData] = await Promise.all([
+      const [staffData, statsData, pupilData, financeData, academicData] = await Promise.all([
         api.listStaff(),
         api.staffStats(),
         canViewPupils ? api.pupilStats() : Promise.resolve(null),
         canViewFinance ? api.financeSummary() : Promise.resolve(null),
+        canViewAcademic ? api.academicStats() : Promise.resolve(null),
       ])
       setStaff(staffData)
       setStats(statsData)
       setPupilStats(pupilData)
       setFinance(financeData)
+      setAcademic(academicData)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load the dashboard.')
     }
-  }, [canViewPupils, canViewFinance])
+  }, [canViewPupils, canViewFinance, canViewAcademic])
 
   useEffect(() => {
     void load()
@@ -306,6 +310,59 @@ export function HeadteacherDashboardPage() {
                   <p className="mt-3 text-xs leading-relaxed text-ink-500">
                     {finance.pupilsWithOutstanding} pupil(s) carry an outstanding balance. The Accountant manages
                     fee structures, charges and payments — you can review this module read-only.
+                  </p>
+                </>
+              )}
+            </Card>
+          ) : null}
+
+          {/* Academic overview */}
+          {canViewAcademic ? (
+            <Card className="p-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <BookOpenCheck className="h-5 w-5 text-royal-500" aria-hidden="true" />
+                  <h2 className="text-sm font-bold uppercase tracking-wider text-ink-500">Academic Overview</h2>
+                </div>
+                <Link
+                  to="/headteacher/academic/teachers"
+                  className="inline-flex items-center gap-1.5 text-sm font-semibold text-magenta-600 transition-colors hover:text-magenta-700"
+                >
+                  Manage academic <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                </Link>
+              </div>
+              {academic === null ? (
+                <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  {Array.from({ length: 4 }).map((_, index) => (
+                    <CardSkeleton key={index} className="border-0 p-0" />
+                  ))}
+                </div>
+              ) : (
+                <>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    <div className="rounded-xl border border-cream-200 bg-cream-50 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-ink-500">Teachers</p>
+                      <p className="mt-1 text-lg font-bold text-ink-900">{academic.teachers.total}</p>
+                      <p className="text-xs text-ink-500">{academic.teachers.active} active</p>
+                    </div>
+                    <div className="rounded-xl border border-cream-200 bg-cream-50 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-ink-500">Subjects</p>
+                      <p className="mt-1 text-lg font-bold text-ink-900">{academic.subjects.total}</p>
+                      <p className="text-xs text-ink-500">{academic.subjects.active} active</p>
+                    </div>
+                    <div className="rounded-xl border border-cream-200 bg-cream-50 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-ink-500">Assignments</p>
+                      <p className="mt-1 text-lg font-bold text-ink-900">{academic.assignments.total}</p>
+                      <p className="text-xs text-ink-500">{academic.assignments.active} active</p>
+                    </div>
+                    <div className="rounded-xl border border-cream-200 bg-cream-50 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-ink-500">SBA Records</p>
+                      <p className="mt-1 text-lg font-bold text-ink-900">{academic.sba.total}</p>
+                      <p className="text-xs text-ink-500">{academic.sba.recordsCurrentTerm} this term</p>
+                    </div>
+                  </div>
+                  <p className="mt-3 text-xs leading-relaxed text-ink-500">
+                    {academic.classTeachersAssigned} of {academic.classes} class(es) have a class teacher assigned.
                   </p>
                 </>
               )}

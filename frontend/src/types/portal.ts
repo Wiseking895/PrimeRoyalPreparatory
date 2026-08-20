@@ -566,3 +566,203 @@ export interface PaymentCreateInput {
 export interface PaymentVoidInput {
   reason: string
 }
+
+// ---------------------------------------------------------------------------
+// Phase 6 — Academic domain (teachers, subjects, teaching assignments, SBA).
+// Mirrors `backend/src/services/subject.service.ts`, `academic.service.ts` and
+// `sba.service.ts`. SBA scores are fixed two-decimal-place strings.
+// ---------------------------------------------------------------------------
+
+export interface SubjectView {
+  id: string
+  code: string
+  name: string
+  description: string | null
+  status: AccountStatusValue
+  assignmentCount: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface SubjectCreateInput {
+  code: string
+  name: string
+  description?: string
+  status?: AccountStatusValue
+}
+
+export interface SubjectUpdateInput {
+  code?: string
+  name?: string
+  description?: string | null
+  status?: AccountStatusValue
+}
+
+export interface TeacherAssignmentView {
+  id: string
+  teacherId: string
+  subjectId: string
+  subjectCode: string
+  subjectName: string
+  classId: string
+  className: string
+  status: AccountStatusValue
+  pupilCount: number
+  sbaEnteredCount: number
+  createdAt: string
+}
+
+export interface TeacherListRow {
+  id: string
+  fullName: string
+  email: string
+  phone: string | null
+  status: AccountStatusValue
+  staffId: string
+  position: string | null
+  positionLabel: string
+  roleNames: string[]
+  assignmentCount: number
+  classTeacherClassCount: number
+  sbaRecordCount: number
+}
+
+export interface TeacherView extends TeacherListRow {
+  category: string | null
+  classesAsClassTeacher: Array<{ classId: string; className: string; pupilCount: number }>
+  teachingAssignments: TeacherAssignmentView[]
+  createdAt: string
+}
+
+export interface ClassTeacherView {
+  id: string
+  classId: string
+  className: string
+  teacherId: string
+  teacherName: string
+  createdAt: string
+}
+
+export interface TeachingAssignmentCreateInput {
+  teacherId: string
+  subjectId: string
+  classId: string
+}
+
+export interface ClassTeacherAssignInput {
+  teacherId: string
+}
+
+export interface TeachingAssignmentListQuery {
+  teacherId?: string
+  subjectId?: string
+  classId?: string
+  status?: AccountStatusValue
+}
+
+export interface TeacherPortalView {
+  teacher: {
+    id: string
+    fullName: string
+    email: string
+    phone: string | null
+    staffId: string
+    position: string | null
+    positionLabel: string
+  }
+  classesAsClassTeacher: Array<{ classId: string; className: string; pupilCount: number }>
+  teachingAssignments: TeacherAssignmentView[]
+  sba: { totalEntered: number; recordsCurrentTerm: number }
+  recentSba: Array<{
+    id: string
+    pupilName: string
+    subjectName: string
+    className: string
+    termName: string
+    score: string
+    maxScore: string
+    updatedAt: string
+  }>
+}
+
+export interface AcademicStatsView {
+  teachers: { total: number; active: number; inactive: number }
+  classes: number
+  subjects: { total: number; active: number }
+  assignments: { total: number; active: number }
+  classTeachersAssigned: number
+  sba: { total: number; recordsCurrentTerm: number }
+}
+
+export interface SbaRecordView {
+  id: string
+  pupilId: string
+  pupilCode: string
+  pupilName: string
+  pupilStatus: AccountStatusValue
+  subjectId: string
+  subjectCode: string
+  subjectName: string
+  classId: string
+  className: string
+  sessionId: string
+  sessionName: string
+  termId: string
+  termName: string
+  termNumber: number
+  teacherId: string
+  teacherName: string
+  score: string
+  maxScore: string
+  comment: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface SbaEntryDataView {
+  subject: { id: string; code: string; name: string }
+  class: { id: string; name: string }
+  term: { id: string; name: string; sessionName: string }
+  access: 'view' | 'manage'
+  pupils: Array<{
+    id: string
+    pupilId: string
+    fullName: string
+    status: AccountStatusValue
+    record: SbaRecordView | null
+  }>
+}
+
+export interface SbaListQuery {
+  sessionId?: string
+  termId?: string
+  classId?: string
+  subjectId?: string
+  pupilId?: string
+  teacherId?: string
+}
+
+export interface SbaEntryInput {
+  pupilId: string
+  score: number
+  maxScore: number
+  comment?: string | null
+}
+
+export interface SbaBulkUpsertInput {
+  subjectId: string
+  classId: string
+  termId: string
+  entries: SbaEntryInput[]
+}
+
+export interface SbaBulkResult {
+  upserted: number
+  records: SbaRecordView[]
+}
+
+export interface SbaUpdateInput {
+  score: number
+  maxScore: number
+  comment?: string | null
+}

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   BookOpenCheck,
   CircleUserRound,
+  ClipboardList,
   Eye,
   LayoutDashboard,
   ListChecks,
@@ -35,6 +36,9 @@ const ownerNav: NavItem[] = [
   { label: 'Dashboard', to: '/owner/dashboard', icon: LayoutDashboard, end: true },
   { label: 'Pupils', to: '/owner/pupils', icon: Users, permission: 'pupils.view' },
   { label: 'Classes', to: '/owner/classes', icon: BookOpenCheck, permission: 'classes.view' },
+  { label: 'Teachers', to: '/owner/academic/teachers', icon: Users, permission: 'teachers.view' },
+  { label: 'Subjects', to: '/owner/academic/subjects', icon: BookOpenCheck, permission: 'subjects.view' },
+  { label: 'Assignments', to: '/owner/academic/assignments', icon: UserCog, permission: 'assignments.manage' },
   { label: 'Headteacher', to: '/owner/headteacher', icon: UserCog },
   { label: 'Staff', to: '/owner/staff', icon: Users },
   { label: 'Roles & Permissions', to: '/owner/roles', icon: ShieldCheck },
@@ -48,6 +52,9 @@ const headteacherNav: NavItem[] = [
   { label: 'Dashboard', to: '/headteacher/dashboard', icon: LayoutDashboard, end: true },
   { label: 'Pupils', to: '/headteacher/pupils', icon: Users, permission: 'pupils.view' },
   { label: 'Classes', to: '/headteacher/classes', icon: BookOpenCheck, permission: 'classes.view' },
+  { label: 'Teachers', to: '/headteacher/academic/teachers', icon: Users, permission: 'teachers.view' },
+  { label: 'Subjects', to: '/headteacher/academic/subjects', icon: BookOpenCheck, permission: 'subjects.view' },
+  { label: 'Assignments', to: '/headteacher/academic/assignments', icon: UserCog, permission: 'assignments.manage' },
   { label: 'Staff', to: '/headteacher/staff', icon: Users },
   { label: 'Roles', to: '/headteacher/roles', icon: ShieldCheck },
   { label: 'Finance', to: '/headteacher/finance', icon: Wallet, permission: 'finance.view' },
@@ -63,6 +70,14 @@ const accountantNav: NavItem[] = [
   { label: 'Pupil Finance', to: '/accountant/pupils', icon: Users, permission: 'finance.view' },
   { label: 'Summary', to: '/accountant/summary', icon: ScrollText, permission: 'finance.view' },
   { label: 'My Profile', to: '/accountant/profile', icon: CircleUserRound },
+]
+
+const teacherNav: NavItem[] = [
+  { label: 'Dashboard', to: '/teacher/dashboard', icon: LayoutDashboard, end: true },
+  { label: 'My Classes', to: '/teacher/classes', icon: BookOpenCheck, permission: 'sba.view' },
+  { label: 'SBA Records', to: '/teacher/sba', icon: ClipboardList, permission: 'sba.view' },
+  { label: 'Enter Scores', to: '/teacher/sba/entry', icon: ListChecks, permission: 'sba.manage' },
+  { label: 'My Profile', to: '/teacher/profile', icon: CircleUserRound },
 ]
 
 function NavList({
@@ -132,8 +147,9 @@ export function DashboardLayout() {
 
   const isAccountant = user?.roles.includes('ACCOUNTANT') ?? false
   const isOwner = user?.roles.includes('OWNER') ?? false
+  const isTeacher = user?.roles.some((role) => role === 'CLASS_TEACHER' || role === 'SUBJECT_TEACHER') ?? false
 
-  const basePath = isOwner ? 'owner' : isAccountant ? 'accountant' : 'headteacher'
+  const basePath = isOwner ? 'owner' : isAccountant ? 'accountant' : isTeacher ? 'teacher' : 'headteacher'
 
   useEffect(() => {
     setDrawerOpen(false)
@@ -147,8 +163,8 @@ export function DashboardLayout() {
   }, [drawerOpen])
 
   const items = useMemo(
-    () => (isOwner ? ownerNav : isAccountant ? accountantNav : headteacherNav),
-    [isOwner, isAccountant],
+    () => (isOwner ? ownerNav : isAccountant ? accountantNav : isTeacher ? teacherNav : headteacherNav),
+    [isOwner, isAccountant, isTeacher],
   )
 
   const handleLogout = () => {
@@ -163,6 +179,10 @@ export function DashboardLayout() {
   ) : isAccountant ? (
     <Badge tone="royal" className="bg-white/10 text-cream-100 ring-white/20">
       Accountant
+    </Badge>
+  ) : isTeacher ? (
+    <Badge tone="magenta" className="bg-magenta-500/20 text-magenta-300 ring-magenta-500/30">
+      Teacher
     </Badge>
   ) : (
     <Badge tone="magenta">Headteacher</Badge>

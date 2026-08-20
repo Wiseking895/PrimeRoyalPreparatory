@@ -21,6 +21,9 @@ import { auditRouter } from './routes/audit.routes'
 import { financeRouter } from './routes/finance.routes'
 import { feesRouter } from './routes/fees.routes'
 import { paymentsRouter } from './routes/payments.routes'
+import { subjectRouter } from './routes/subject.routes'
+import { academicRouter } from './routes/academic.routes'
+import { sbaRouter } from './routes/sba.routes'
 
 /**
  * Builds and configures the Express application. Kept separate from the HTTP
@@ -82,6 +85,11 @@ export function createApp(): Express {
   app.use('/api/finance', financeRouter)
   app.use('/api/fees', feesRouter)
   app.use('/api/payments', paymentsRouter)
+
+  // Phase 6 — academic domain (teachers, subjects, teaching assignments, SBA).
+  app.use('/api/subjects', subjectRouter)
+  app.use('/api/academic', academicRouter)
+  app.use('/api/sba', sbaRouter)
 
   // 404 + centralized error handling (must be last)
   app.use(notFoundHandler)

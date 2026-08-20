@@ -121,6 +121,17 @@ export const PERMISSIONS: PermissionDefinition[] = [
   { key: 'finance.manage', module: 'finance', moduleLabel: 'Fees & Finance', label: 'Manage Fees & Payments', description: 'Create fee structures, assign pupils, record and void payments.' },
   { key: 'fees.manage', module: 'finance', moduleLabel: 'Fees & Finance', label: 'Manage Fee Structures', description: 'Create, update, activate and deactivate fee structures and assignments.' },
   { key: 'payments.record', module: 'finance', moduleLabel: 'Fees & Finance', label: 'Record Payments', description: 'Record and void pupil payments.' },
+  // Teachers
+  { key: 'teachers.view', module: 'teachers', moduleLabel: 'Teacher Management', label: 'View Teaching Staff', description: 'View teaching staff and their academic assignments.' },
+  { key: 'teachers.manage', module: 'teachers', moduleLabel: 'Teacher Management', label: 'Manage Teaching Staff', description: 'Manage teaching staff academic oversight.' },
+  // Subjects
+  { key: 'subjects.view', module: 'subjects', moduleLabel: 'Subject Management', label: 'View Subjects', description: 'View the subject catalogue.' },
+  { key: 'subjects.manage', module: 'subjects', moduleLabel: 'Subject Management', label: 'Manage Subjects', description: 'Create, update, activate and deactivate subjects.' },
+  // Teacher assignments
+  { key: 'assignments.manage', module: 'assignments', moduleLabel: 'Teacher Assignments', label: 'Manage Teacher Assignments', description: 'Assign class teachers and subject teachers to classes.' },
+  // SBA
+  { key: 'sba.view', module: 'sba', moduleLabel: 'School-Based Assessment', label: 'View SBA', description: 'View School-Based Assessment records.' },
+  { key: 'sba.manage', module: 'sba', moduleLabel: 'School-Based Assessment', label: 'Enter & Manage SBA', description: 'Enter, correct and manage SBA records within assigned scope.' },
   // System administration — OWNER only. Never grantable to any other role.
   { key: 'owner.manage', module: 'owner', moduleLabel: 'System Administration', label: 'Manage Owner Account', description: 'OWNER only. Not grantable to other roles.' },
   { key: 'owner.create', module: 'owner', moduleLabel: 'System Administration', label: 'Create Owner', description: 'OWNER only. Not grantable to other roles.' },
@@ -168,6 +179,13 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       'academic.view',
       'academic.manage',
       'finance.view',
+      'teachers.view',
+      'teachers.manage',
+      'subjects.view',
+      'subjects.manage',
+      'assignments.manage',
+      'sba.view',
+      'sba.manage',
     ],
   },
   {
@@ -183,19 +201,22 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       'attendance.view',
       'reports.view',
       'academic.view',
+      'teachers.view',
+      'subjects.view',
+      'sba.view',
     ],
   },
   {
     name: 'CLASS_TEACHER',
     label: 'Class Teacher',
-    description: 'Teaching staff responsible for a class. Academic scope arrives in later phases.',
-    permissions: [],
+    description: 'Teaching staff responsible for a class. Academic scope is enforced by teaching assignments in the service layer.',
+    permissions: ['academic.view', 'sba.view', 'sba.manage'],
   },
   {
     name: 'SUBJECT_TEACHER',
     label: 'Subject Teacher',
-    description: 'Teaching staff responsible for specific subjects. Academic scope arrives in later phases.',
-    permissions: [],
+    description: 'Teaching staff responsible for specific subjects. Academic scope is enforced by teaching assignments in the service layer.',
+    permissions: ['academic.view', 'sba.view', 'sba.manage'],
   },
   {
     name: 'ACCOUNTANT',

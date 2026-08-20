@@ -10,6 +10,12 @@
 export const OWNER_ROLE = 'OWNER'
 export const HEADTEACHER_ROLE = 'HEADTEACHER'
 export const ACCOUNTANT_ROLE = 'ACCOUNTANT'
+export const CLASS_TEACHER_ROLE = 'CLASS_TEACHER'
+export const SUBJECT_TEACHER_ROLE = 'SUBJECT_TEACHER'
+export const ASSISTANT_HEADTEACHER_ROLE = 'ASSISTANT_HEADTEACHER'
+
+/** Roles that use the teacher portal (`/teacher`). */
+export const TEACHER_ROLES = [CLASS_TEACHER_ROLE, SUBJECT_TEACHER_ROLE] as const
 
 /** Permission keys that may only ever belong to the OWNER role. */
 export const OWNER_ONLY_PERMISSIONS = [
@@ -25,6 +31,15 @@ export const FINANCE_MANAGE = 'finance.manage'
 export const FEES_MANAGE = 'fees.manage'
 export const PAYMENTS_RECORD = 'payments.record'
 export const ACADEMIC_VIEW = 'academic.view'
+
+/** Academic (phase 6) permissions. */
+export const TEACHERS_VIEW = 'teachers.view'
+export const TEACHERS_MANAGE = 'teachers.manage'
+export const SUBJECTS_VIEW = 'subjects.view'
+export const SUBJECTS_MANAGE = 'subjects.manage'
+export const ASSIGNMENTS_MANAGE = 'assignments.manage'
+export const SBA_VIEW = 'sba.view'
+export const SBA_MANAGE = 'sba.manage'
 
 /** Roles a Headteacher (never the Owner or another Headteacher) may assign. */
 export const ASSIGNABLE_STAFF_ROLES: string[] = [
@@ -85,5 +100,6 @@ export function portalBasePath(roles: string[]): string {
   if (roles.includes(OWNER_ROLE)) return '/owner'
   if (roles.includes(HEADTEACHER_ROLE)) return '/headteacher'
   if (roles.includes(ACCOUNTANT_ROLE)) return '/accountant'
+  if (TEACHER_ROLES.some((role) => roles.includes(role))) return '/teacher'
   return '/login'
 }

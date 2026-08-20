@@ -104,11 +104,14 @@ model User {
   status             AccountStatus @default(ACTIVE)
   lastLoginAt        DateTime?
   mustChangePassword Boolean       @default(false)
-  roles              UserRole[]
-  staffProfile       StaffProfile?
-  auditLogs          AuditLog[]
-  createdAt          DateTime      @default(now())
-  updatedAt          DateTime      @updatedAt
+  roles                UserRole[]
+  staffProfile         StaffProfile?
+  auditLogs            AuditLog[]
+  teachingAssignments  TeachingAssignment[] @relation("TeachingAssignmentTeacher")
+  classTeachers        ClassTeacher[]       @relation("ClassTeacherTeacher")
+  sbaRecords           SbaRecord[]          @relation("SbaRecordTeacher")
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
 
   @@index([status])
   @@index([createdAt])
@@ -174,15 +177,18 @@ model AuditLog {
 /// current class; a future academic-year history table can build on this
 /// without rewriting the pupil model.
 model SchoolClass {
-  id          String        @id @default(cuid())
-  key         String        @unique
-  name        String        @unique
-  description String?
-  sortOrder   Int           @default(0)
-  status      AccountStatus @default(ACTIVE)
-  pupils      Pupil[]
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  id                 String              @id @default(cuid())
+  key                String              @unique
+  name               String              @unique
+  description        String?
+  sortOrder          Int                 @default(0)
+  status             AccountStatus       @default(ACTIVE)
+  pupils             Pupil[]
+  teachingAssignments TeachingAssignment[]
+  classTeachers      ClassTeacher[]
+  sbaRecords         SbaRecord[]
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
 
   @@index([status])
   @@index([sortOrder])
@@ -241,6 +247,7 @@ model Pupil {
   guardians         PupilGuardian[]
   feeAssignments    FeeAssignment[]
   payments          Payment[]
+  sbaRecords        SbaRecord[]
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
 
@@ -329,6 +336,7 @@ model AcademicTerm {
   status     AccountStatus   @default(ACTIVE)
   session    AcademicSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   charges    FeeCharge[]
+  sbaRecords SbaRecord[]
   createdAt  DateTime        @default(now())
   updatedAt  DateTime        @updatedAt
 
@@ -444,4 +452,109 @@ model PaymentAllocation {
   @@unique([paymentId, chargeId])
   @@index([chargeId])
   @@map("payment_allocations")
+}
+
+// =============================================================================
+// PHASE 6 — Teachers, subjects & School-Based Assessment (SBA).
+// The academic model is built on the existing staff/user architecture: a
+// teacher is an existing staff member (StaffProfile → User) holding a teaching
+// position. Subjects form the reusable catalogue; teaching assignments link a
+// teacher + subject + class; a class may have one designated class teacher.
+//
+// SBA records are deliberately NOT linked to a teaching assignment so that
+// deactivating or removing an assignment never destroys historical assessment
+// data. Records pin the pupil/subject/class/term at entry time, which keeps
+// them available for Phase 7 terminal-report aggregation.
+// =============================================================================
+
+/// A subject in the school's academic catalogue. Reusable across classes.
+/// Deactivation is preferred over deletion so historical records survive.
+model Subject {
+  id          String              @id @default(cuid())
+  code        String              @unique
+  name        String              @unique
+  description String?
+  status      AccountStatus       @default(ACTIVE)
+  assignments TeachingAssignment[]
+  sbaRecords  SbaRecord[]
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  @@index([status])
+  @@map("subjects")
+}
+
+/// A teaching assignment: teacher + subject + class. This is the subject
+/// teacher model. Deactivation (never deletion) is used to revoke an
+/// assignment so the assignment history and any audit trail remain intact.
+model TeachingAssignment {
+  id        String        @id @default(cuid())
+  teacherId String
+  subjectId String
+  classId   String
+  status    AccountStatus @default(ACTIVE)
+  teacher   User          @relation("TeachingAssignmentTeacher", fields: [teacherId], references: [id], onDelete: Cascade)
+  subject   Subject       @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  class     SchoolClass   @relation(fields: [classId], references: [id], onDelete: Cascade)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@unique([teacherId, subjectId, classId])
+  @@index([teacherId])
+  @@index([subjectId])
+  @@index([classId])
+  @@index([status])
+  @@map("teaching_assignments")
+}
+
+/// The designated class teacher of a class. A class has at most one class
+/// teacher (`classId` is unique); changing the class teacher updates the row,
+/// and removing one deletes it with an audited trail. No assessment data
+/// depends on this record.
+model ClassTeacher {
+  id         String      @id @default(cuid())
+  classId    String      @unique
+  teacherId  String
+  assignedBy String?
+  class      SchoolClass @relation(fields: [classId], references: [id], onDelete: Cascade)
+  teacher    User        @relation("ClassTeacherTeacher", fields: [teacherId], references: [id], onDelete: Cascade)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  @@index([teacherId])
+  @@index([classId])
+  @@map("class_teachers")
+}
+
+/// A School-Based Assessment record for one pupil in one subject for one term.
+/// One aggregate record per (pupil, subject, class, term) — the natural unit
+/// for Phase 7 terminal-report aggregation. Scores are stored as Decimal so
+/// fractional marks (e.g. 18.5 / 20) are preserved. Records reference the
+/// recording teacher (`teacherId`) for attribution but remain independent of
+/// teaching assignments so history survives assignment changes.
+model SbaRecord {
+  id        String      @id @default(cuid())
+  pupilId   String
+  subjectId String
+  classId   String
+  termId    String
+  teacherId String
+  score     Decimal     @db.Decimal(5, 2)
+  maxScore  Decimal     @db.Decimal(5, 2)
+  comment   String?
+  pupil     Pupil       @relation(fields: [pupilId], references: [id], onDelete: Restrict)
+  subject   Subject     @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+  class     SchoolClass @relation(fields: [classId], references: [id], onDelete: Restrict)
+  term      AcademicTerm @relation(fields: [termId], references: [id], onDelete: Restrict)
+  teacher   User        @relation("SbaRecordTeacher", fields: [teacherId], references: [id], onDelete: Restrict)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@unique([pupilId, subjectId, classId, termId])
+  @@index([pupilId])
+  @@index([subjectId])
+  @@index([classId])
+  @@index([termId])
+  @@index([teacherId])
+  @@map("sba_records")
 }
