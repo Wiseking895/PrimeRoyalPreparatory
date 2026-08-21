@@ -453,3 +453,22 @@ export const attendanceUpdateSchema = z.object({
   date: attendanceDateField.optional(),
   notes: z.string().trim().max(500).optional(),
 })
+
+// GPS Staff Check-In Schema
+export const staffCheckInSchema = z.object({
+  latitude: z.number().refine((val) => !isNaN(val) && val >= -90 && val <= 90, {
+    message: 'Invalid latitude.',
+  }),
+  longitude: z.number().refine((val) => !isNaN(val) && val >= -180 && val <= 180, {
+    message: 'Invalid longitude.',
+  }),
+  accuracy: z.number().int().positive('Accuracy must be a positive integer.'),
+  capturedAt: z.string().refine((val) => !isNaN(new Date(val).getTime()), {
+    message: 'Invalid capture timestamp.',
+  }),
+})
+
+// Today's attendance lookup schema
+export const todayAttendanceSchema = z.object({
+  staffId: z.string().trim().min(1, 'Staff ID is required.').max(100),
+})

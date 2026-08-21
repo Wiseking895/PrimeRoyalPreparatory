@@ -10,11 +10,15 @@ import {
   resendStaffInvitationHandler,
   staffStatsHandler,
   updateStaffHandler,
-} from '../controllers/staff.controller'
+  checkInStaffHandler,
+  getStaffTodayAttendanceHandler,
+  listAttendanceRecordsAdminHandler,
+} from '../controllers/attendance.controller'
 import { requireAuth } from '../middleware/require-auth'
 import { requirePermission } from '../middleware/require-permission'
 import { validate } from '../middleware/validate'
-import { roleAssignSchema, staffCreateSchema, staffUpdateSchema } from '../schemas'
+import { staffCreateSchema, staffUpdateSchema } from '../schemas'
+import { staffCheckInSchema } from '../schemas'
 
 const router = Router()
 
@@ -35,5 +39,26 @@ router.put(
   assignRoleHandler,
 )
 router.delete('/:id/role', requirePermission('staff.remove_role'), removeRoleHandler)
+
+// GPS Staff Attendance Check-In
+router.post(
+  '/:id/check-in',
+  requireAuth,
+  requirePermission('attendance.checkin'),
+  validate(staffCheckInSchema),
+  checkInStaffHandler,
+)
+router.get(
+  '/:id/today-attendance',
+  requireAuth,
+  getStaffTodayAttendanceHandler,
+)
+
+// Admin can list attendance records
+router.get(
+  '/admin',
+  requirePermission('attendance.manage'),
+  listAttendanceRecordsAdminHandler,
+)
 
 export const staffRouter = router

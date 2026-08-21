@@ -10,6 +10,27 @@ function toNumber(value: string | undefined, fallback: number): number {
   return Number.isFinite(parsed) ? parsed : fallback
 }
 
+/**
+ * GPS and attendance configuration.
+ * These values control the GPS-based staff attendance check-in behavior.
+ * School coordinates are the authoritative PRPS school reference point.
+ */
+function toGpsLatitude(value: string | undefined): number {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed >= -90 && parsed <= 90 ? parsed : 6.76049
+}
+
+function toGpsLongitude(value: string | undefined): number {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed >= -180 && parsed <= 180 ? parsed : -1.60950
+}
+
+function toNumberDefault(value: string | undefined, fallback: number): number {
+  if (!value) return fallback
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : fallback
+}
+
 function toEnvironment(value: string | undefined): Environment {
   if (value === Environment.Production || value === Environment.Test) {
     return value
@@ -40,4 +61,10 @@ export const env = {
   emailPassword: process.env.EMAIL_PASSWORD ?? '',
   emailFrom: process.env.EMAIL_FROM ?? '',
   emailEnabled: process.env.EMAIL_ENABLED === 'true',
+  // GPS Attendance Configuration
+  attendanceSchoolLatitude: toGpsLatitude(process.env.ATTENDANCE_SCHOOL_LATITUDE),
+  attendanceSchoolLongitude: toGpsLongitude(process.env.ATTENDANCE_SCHOOL_LONGITUDE),
+  attendanceRadiusMeters: toNumberDefault(process.env.ATTENDANCE_RADIUS_METERS, 100),
+  attendanceMaxAccuracyMeters: toNumberDefault(process.env.ATTENDANCE_MAX_ACCURACY_METERS, 50),
+  attendanceMaxLocationAgeSeconds: toNumberDefault(process.env.ATTENDANCE_MAX_LOCATION_AGE_SECONDS, 120),
 } as const

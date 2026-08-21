@@ -203,3 +203,5 @@ export async function updateAttendance(
     createdAt: record.createdAt,
   }
 }
+
+export { checkInStaff, getStaffTodayAttendance, listAttendanceRecordsAdmin }
