@@ -112,6 +112,8 @@ model User {
   classTeachers        ClassTeacher[]       @relation("ClassTeacherTeacher")
   sbaRecords           SbaRecord[]          @relation("SbaRecordTeacher")
   attendance           Attendance[]  @relation("AttendanceRecorder")
+  notifications        Notification[]
+  announcements        Announcement[]
   createdAt            DateTime             @default(now())
   updatedAt            DateTime             @updatedAt
 
@@ -586,27 +588,98 @@ model SbaRecord {
 // PHASE 8 — GPS Staff Attendance.
 // =============================================================================
 
+/// Phase 1–7: pupil attendance recorded by staff.
+/// Phase 8: GPS-based staff check-in attendance.
+/// Both record types coexist in this table. GPS columns are NULL for
+/// pupil attendance and populated for staff check-in records.
 model Attendance {
   id         String     @id @default(cuid())
-  pupilId    String
+  pupilId    String?                                   // nullable — NULL for staff check-in
   staffId    String
   date       DateTime
   status     String
   sessionId  String?
   classId    String?
   notes      String?
+
+  // Phase 8 — GPS Staff Attendance fields.
+  // Nullable because pupil attendance records do not carry GPS data.
+  latitude   Decimal?   @db.Decimal(10, 7)
+  longitude  Decimal?   @db.Decimal(10, 7)
+  accuracy   Int?                                      // metres
+  capturedAt DateTime?                                 // when the browser captured the position
+
   createdAt  DateTime  @default(now())
   updatedAt  DateTime @updatedAt
 
-  @@unique([pupilId, date, staffId])
+  @@unique([pupilId, date, staffId])                    // one pupil attendance record per pupil/date/staff
   @@index([pupilId])
   @@index([date])
   @@index([status])
   @@index([staffId])
   @@map("attendance")
 
-  pupil      Pupil       @relation(fields: [pupilId], references: [id], onDelete: Cascade)
-  staff      User        @relation("AttendanceRecorder", fields: [staffId], references: [id], onDelete: SetNull)
+  pupil      Pupil?        @relation(fields: [pupilId], references: [id], onDelete: SetNull)
+  staff      User          @relation("AttendanceRecorder", fields: [staffId], references: [id], onDelete: Restrict)
   session    AcademicSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
-  class      SchoolClass? @relation(fields: [classId], references: [id], onDelete: SetNull)
+  class      SchoolClass?  @relation(fields: [classId], references: [id], onDelete: SetNull)
+}
+
+// =============================================================================
+// PHASE 9 — Notifications & Announcements.
+// =============================================================================
+
+/// A persistent in-app notification delivered to a specific recipient.
+/// Notifications are created by the system for meaningful school events and
+/// are scoped to the authenticated recipient — users cannot see others' data.
+model Notification {
+  id            String   @id @default(cuid())
+  recipientId   String
+  type          String   // e.g. "staff_invitation", "payment_received", "report_published", "announcement", "attendance_alert", "password_change", "fee_reminder"
+  title         String
+  message       String
+  read          Boolean  @default(false)
+  link          String?  // optional URL path for deep-linking (e.g. "/owner/pupils/abc123")
+  resourceType  String?  // optional resource type for audit/reference
+  resourceId    String?  // optional resource ID for audit/reference
+  metadata      Json?    // optional additional context (e.g. { pupilName, amount })
+  createdAt     DateTime @default(now())
+  recipient     User     @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+
+  @@index([recipientId])
+  @@index([recipientId, read])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+/// School-wide or targeted announcements published by administrative staff.
+model Announcement {
+  id            String   @id @default(cuid())
+  title         String
+  body          String
+  audience      String   // "ALL_STAFF", "TEACHING_STAFF", "NON_TEACHING_STAFF", "PARENTS", "ALL"
+  status        String   @default("DRAFT") // "DRAFT", "PUBLISHED"
+  publishedAt   DateTime?
+  createdById   String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  createdBy     User     @relation(fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([status])
+  @@index([audience])
+  @@index([createdAt])
+  @@map("announcements")
+}
+
+/// Per-user notification channel preferences. Defaults are applied when the
+/// first notification is created; users can customise their preferences.
+model NotificationPreference {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  emailEnabled  Boolean  @default(true)
+  inAppEnabled  Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("notification_preferences")
 }

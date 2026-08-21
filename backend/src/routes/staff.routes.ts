@@ -10,6 +10,8 @@ import {
   resendStaffInvitationHandler,
   staffStatsHandler,
   updateStaffHandler,
+} from '../controllers/staff.controller'
+import {
   checkInStaffHandler,
   getStaffTodayAttendanceHandler,
   listAttendanceRecordsAdminHandler,
@@ -17,8 +19,7 @@ import {
 import { requireAuth } from '../middleware/require-auth'
 import { requirePermission } from '../middleware/require-permission'
 import { validate } from '../middleware/validate'
-import { staffCreateSchema, staffUpdateSchema } from '../schemas'
-import { staffCheckInSchema } from '../schemas'
+import { roleAssignSchema, staffCreateSchema, staffUpdateSchema, staffCheckInSchema } from '../schemas'
 
 const router = Router()
 
@@ -27,6 +28,14 @@ router.use(requireAuth)
 router.get('/', requirePermission('staff.view'), listStaffHandler)
 router.post('/', requirePermission('staff.create'), validate(staffCreateSchema), createStaffHandler)
 router.get('/stats', requirePermission('staff.view'), staffStatsHandler)
+
+// Admin attendance listing — placed BEFORE /:id to avoid route conflicts
+router.get(
+  '/admin',
+  requirePermission('attendance.manage'),
+  listAttendanceRecordsAdminHandler,
+)
+
 router.get('/:id', requirePermission('staff.view'), getStaffHandler)
 router.patch('/:id', requirePermission('staff.update'), validate(staffUpdateSchema), updateStaffHandler)
 router.post('/:id/resend-invitation', requirePermission('staff.update'), resendStaffInvitationHandler)
@@ -43,22 +52,13 @@ router.delete('/:id/role', requirePermission('staff.remove_role'), removeRoleHan
 // GPS Staff Attendance Check-In
 router.post(
   '/:id/check-in',
-  requireAuth,
   requirePermission('attendance.checkin'),
   validate(staffCheckInSchema),
   checkInStaffHandler,
 )
 router.get(
   '/:id/today-attendance',
-  requireAuth,
   getStaffTodayAttendanceHandler,
-)
-
-// Admin can list attendance records
-router.get(
-  '/admin',
-  requirePermission('attendance.manage'),
-  listAttendanceRecordsAdminHandler,
 )
 
 export const staffRouter = router

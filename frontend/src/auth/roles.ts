@@ -49,6 +49,12 @@ export const REPORTS_VIEW = 'reports.view'
 export const GUARDIANS_VIEW = 'guardians.view'
 export const GUARDIANS_MANAGE = 'guardians.manage'
 
+/** Phase 9 — notifications & announcements permissions. */
+export const NOTIFICATIONS_VIEW = 'notifications.view'
+export const NOTIFICATIONS_MANAGE = 'notifications.manage'
+export const ANNOUNCEMENTS_VIEW = 'announcements.view'
+export const ANNOUNCEMENTS_MANAGE = 'announcements.manage'
+
 /** Roles a Headteacher (never the Owner or another Headteacher) may assign. */
 export const ASSIGNABLE_STAFF_ROLES: string[] = [
   'ASSISTANT_HEADTEACHER',

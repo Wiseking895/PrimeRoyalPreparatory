@@ -229,3 +229,32 @@ export async function sendGuardianInvitation(
 
   return sendMail({ to: input.to, subject, text })
 }
+
+/**
+ * Composes a notification summary email for a user. Used when email
+ * notifications are enabled and the user has opted in.
+ */
+export async function sendNotificationEmail(input: {
+  to: string
+  fullName: string
+  title: string
+  message: string
+  link?: string
+}): Promise<MailResult> {
+  const subject = `${SCHOOL.abbreviation} — ${input.title}`
+  const portalUrl = `${env.clientUrl}${input.link ?? ''}`
+
+  const text = [
+    `Hello ${input.fullName},`,
+    '',
+    input.title,
+    '',
+    input.message,
+    '',
+    `View in the portal: ${portalUrl}`,
+    '',
+    SCHOOL.tagline,
+  ].join('\n')
+
+  return sendMail({ to: input.to, subject, text })
+}

@@ -108,6 +108,7 @@ export const PERMISSIONS: PermissionDefinition[] = [
   // Attendance
   { key: 'attendance.view', module: 'attendance', moduleLabel: 'Attendance', label: 'View Attendance' },
   { key: 'attendance.manage', module: 'attendance', moduleLabel: 'Attendance', label: 'Manage Attendance' },
+  { key: 'attendance.checkin', module: 'attendance', moduleLabel: 'Attendance', label: 'GPS Staff Check-In', description: 'Check in staff attendance via GPS location.' },
   // Reports
   { key: 'reports.view', module: 'reports', moduleLabel: 'Reports', label: 'View Reports' },
   { key: 'reports.manage', module: 'reports', moduleLabel: 'Reports', label: 'Manage Reports' },
@@ -140,6 +141,11 @@ export const PERMISSIONS: PermissionDefinition[] = [
   { key: 'owner.create', module: 'owner', moduleLabel: 'System Administration', label: 'Create Owner', description: 'OWNER only. Not grantable to other roles.' },
   { key: 'owner.change', module: 'owner', moduleLabel: 'System Administration', label: 'Change Owner', description: 'OWNER only. Not grantable to other roles.' },
   { key: 'owner.delete', module: 'owner', moduleLabel: 'System Administration', label: 'Delete Owner', description: 'OWNER only. Not grantable to other roles.' },
+  // Notifications & Announcements (Phase 9)
+  { key: 'notifications.view', module: 'notifications', moduleLabel: 'Notifications', label: 'View Notifications', description: 'View own in-app notifications.' },
+  { key: 'notifications.manage', module: 'notifications', moduleLabel: 'Notifications', label: 'Manage Notifications', description: 'Create, send and manage notifications for other users.' },
+  { key: 'announcements.view', module: 'announcements', moduleLabel: 'Announcements', label: 'View Announcements', description: 'View published school announcements.' },
+  { key: 'announcements.manage', module: 'announcements', moduleLabel: 'Announcements', label: 'Manage Announcements', description: 'Create, edit, publish and manage school announcements.' },
 ]
 
 /**
@@ -177,6 +183,7 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       'admissions.manage',
       'attendance.view',
       'attendance.manage',
+      'attendance.checkin',
       'reports.view',
       'reports.manage',
       'academic.view',
@@ -191,6 +198,10 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       'sba.manage',
       'guardians.view',
       'guardians.manage',
+      'notifications.view',
+      'notifications.manage',
+      'announcements.view',
+      'announcements.manage',
     ],
   },
   {
@@ -204,48 +215,51 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       'classes.view',
       'admissions.view',
       'attendance.view',
+      'attendance.checkin',
       'reports.view',
       'academic.view',
       'teachers.view',
       'subjects.view',
       'sba.view',
+      'notifications.view',
+      'announcements.view',
     ],
   },
   {
     name: 'CLASS_TEACHER',
     label: 'Class Teacher',
     description: 'Teaching staff responsible for a class. Academic scope is enforced by teaching assignments in the service layer.',
-    permissions: ['academic.view', 'sba.view', 'sba.manage'],
+    permissions: ['academic.view', 'sba.view', 'sba.manage', 'attendance.checkin', 'notifications.view', 'announcements.view'],
   },
   {
     name: 'SUBJECT_TEACHER',
     label: 'Subject Teacher',
     description: 'Teaching staff responsible for specific subjects. Academic scope is enforced by teaching assignments in the service layer.',
-    permissions: ['academic.view', 'sba.view', 'sba.manage'],
+    permissions: ['academic.view', 'sba.view', 'sba.manage', 'attendance.checkin', 'notifications.view', 'announcements.view'],
   },
   {
     name: 'ACCOUNTANT',
     label: 'Accountant / Finance',
     description: 'School finance role. Manages fee structures, assignments, billing and payments.',
-    permissions: ['finance.view', 'finance.manage', 'fees.manage', 'payments.record', 'academic.view'],
+    permissions: ['finance.view', 'finance.manage', 'fees.manage', 'payments.record', 'academic.view', 'notifications.view', 'announcements.view'],
   },
   {
     name: 'NON_TEACHING_STAFF',
     label: 'Non-Teaching Staff',
     description: 'General non-teaching staff account.',
-    permissions: [],
+    permissions: ['attendance.checkin', 'notifications.view', 'announcements.view'],
   },
   {
     name: 'ADMINISTRATIVE_STAFF',
     label: 'Administrative Staff',
     description: 'Non-teaching staff focused on administrative duties.',
-    permissions: [],
+    permissions: ['attendance.checkin', 'notifications.view', 'announcements.view'],
   },
   {
     name: 'SUPPORT_STAFF',
     label: 'Support Staff',
     description: 'Non-teaching staff focused on school support duties.',
-    permissions: [],
+    permissions: ['attendance.checkin', 'notifications.view', 'announcements.view'],
   },
 ]
 

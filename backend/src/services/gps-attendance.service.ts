@@ -1,52 +1,27 @@
-import { HttpStatus } from '../config/enums'
 import { prisma } from '../lib/prisma'
+import { env } from '../config/env'
 import { recordAudit } from './audit.service'
 
 /**
- * Geographic constants for PRPS school attendance validation.
- * School coordinates: Atimatim, Afigya Kwabre, Ashanti Region, Ghana
- * Latitude: 6.76049, Longitude: -1.60950
+ * School coordinates for GPS attendance validation.
+ * Source of truth: env config (fallback to PRPS school in Atimatim, Ashanti, Ghana).
  */
 export const SCHOOL_COORDINATES = {
-  latitude: 6.76049,
-  longitude: -1.60950,
+  latitude: env.attendanceSchoolLatitude,
+  longitude: env.attendanceSchoolLongitude,
 }
 
 /**
- * Default attendance configuration values.
- * These can be overridden via environment variables:
- *   - ATTENDANCE_RADIUS_METERS
- *   - ATTENDANCE_MAX_ACCURACY_METERS
- *   - ATTENDANCE_MAX_LOCATION_AGE_SECONDS
+ * Attendance configuration. Source of truth: env config.
  */
 export const DEFAULT_ATTENDANCE_CONFIG = {
-  radiusMeters: Number(process.env.ATTENDANCE_RADIUS_METERS) || 100,
-  maxAccuracyMeters: Number(process.env.ATTENDANCE_MAX_ACCURACY_METERS) || 50,
-  maxLocationAgeSeconds: Number(process.env.ATTENDANCE_MAX_LOCATION_AGE_SECONDS) || 120,
+  radiusMeters: env.attendanceRadiusMeters,
+  maxAccuracyMeters: env.attendanceMaxAccuracyMeters,
+  maxLocationAgeSeconds: env.attendanceMaxLocationAgeSeconds,
 }
 
-/**
- * Calculates the great-circle distance between two points on Earth using the Haversine formula.
- * Returns distance in meters.
- */
-function haversineDistance(
-  lat1: number,
-  lon1: number,
-  lat2: number,
-  lon2: number,
-): number {
-  const R = 6371e3 // Earth radius in meters
-  const φ1 = (lat1 * Math.PI) / 180
-  const φ2 = (lat2 * Math.PI) / 180
-  const Δφ = ((lat2 - lat1) * Math.PI) / 180
-  const Δλ = ((lon2 - lon1) * Math.PI) / 180
-
-  const a =
-    Math.sin(Δφ / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-
-  return R * c
-}
+/** Clock-skew tolerance in milliseconds (60 seconds). */
+const CLOCK_SKEW_TOLERANCE_MS = 60 * 1000
 
 /**
  * Validates a GPS check-in payload and returns distance info.
@@ -57,6 +32,7 @@ interface GpsValidationResult {
   reason?: string
   accuracyTooPoor: boolean
   staleLocation: boolean
+  futureTimestamp: boolean
 }
 
 export function validateGpsPayload(
@@ -71,6 +47,7 @@ export function validateGpsPayload(
     distanceMeters: 0,
     accuracyTooPoor: false,
     staleLocation: false,
+    futureTimestamp: false,
   }
 
   // 1. Validate latitude
@@ -116,7 +93,7 @@ export function validateGpsPayload(
     return result
   }
 
-  // 5. Check timestamp freshness
+  // 5. Check timestamp freshness (stale)
   const now = Date.now()
   const locationAge = now - capturedTime
   if (locationAge > config.maxLocationAgeSeconds * 1000) {
@@ -125,14 +102,14 @@ export function validateGpsPayload(
     return result
   }
 
-  // For the distance calculation, we use the school coordinates as the reference point.
-  // The result.distanceMeters will be computed below.
+  // 6. Check for future timestamp (beyond clock-skew tolerance)
+  if (capturedTime > now + CLOCK_SKEW_TOLERANCE_MS) {
+    result.reason = 'GPS capture timestamp is in the future.'
+    result.futureTimestamp = true
+    return result
+  }
 
-  // 6. Calculate distance from school (will be checked against radius in caller)
-  // We compute this even if we return early, so the caller has the value.
-  // Note: We'll compute distance after this function with the school coordinates.
-  // For now, set a placeholder; the caller will recompute or we'll compute it below.
-  // Actually, let's compute it here since we have the school coordinates.
+  // 7. Calculate distance from school
   const R = 6371e3
   const φ1 = (latitude * Math.PI) / 180
   const φ2 = (SCHOOL_COORDINATES.latitude * Math.PI) / 180
@@ -144,7 +121,7 @@ export function validateGpsPayload(
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
   result.distanceMeters = R * c
 
-  // 7. Check if accuracy meets threshold
+  // 8. Check if accuracy meets threshold
   if (accuracy > config.maxAccuracyMeters) {
     result.accuracyTooPoor = true
     result.reason = `GPS accuracy (${accuracy}m) exceeds maximum allowed (${config.maxAccuracyMeters}m).`
@@ -184,7 +161,7 @@ export interface StaffCheckInResponse {
  * 1. Validate GPS payload (coordinates, accuracy, timestamp)
  * 2. Calculate distance from school coordinates
  * 3. Check if within configured radius
- * 4. Check for duplicate same-day check-in (database unique constraint)
+ * 4. Check for duplicate same-day check-in (database partial unique index)
  * 5. Record the attendance check-in
  * 6. Log the action via audit
  *
@@ -222,17 +199,18 @@ export async function checkInStaff(
     }
   }
 
-  // Step 3: Check for duplicate same-day check-in
-  // The database unique constraint on (staffId, date) prevents duplicates,
-  // but we check first to provide a better error message.
+  // Step 3: Check for duplicate same-day staff check-in
+  // The database partial unique index on (staffId, date) WHERE pupilId IS NULL
+  // prevents duplicates, but we check first to provide a better error message.
   const todayStart = new Date()
-  todayStart.setHours(0, 0, 0, 0) // Start of today in server time
+  todayStart.setHours(0, 0, 0, 0)
   const todayEnd = new Date(todayStart)
-  todayEnd.setHours(23, 59, 59, 999) // End of today
+  todayEnd.setHours(23, 59, 59, 999)
 
-  const existingAttendance = await prisma.attendance.findFirst({
+  const existingCheckIn = await prisma.attendance.findFirst({
     where: {
       staffId: staffUserId,
+      pupilId: null,
       date: {
         gte: todayStart,
         lte: todayEnd,
@@ -240,25 +218,25 @@ export async function checkInStaff(
     },
   })
 
-  if (existingAttendance) {
+  if (existingCheckIn) {
     return {
       success: false,
       message: 'You have already checked in today.',
-      attendanceId: existingAttendance.id,
+      attendanceId: existingCheckIn.id,
       distanceMeters,
       withinRadius: true,
     }
   }
 
   // Step 4: Record the attendance check-in
-  // The attendance date is based on the server's current time,
-  // NOT the client-supplied timestamp.
-  const attendanceDate = new Date() // Server's current time determines the date
+  // The attendance date is based on the server's current time.
+  const attendanceDate = new Date()
 
   try {
     const attendanceRecord = await prisma.attendance.create({
       data: {
         staffId: staffUserId,
+        pupilId: null,
         latitude,
         longitude,
         accuracy,
@@ -281,7 +259,7 @@ export async function checkInStaff(
         longitude,
         accuracy,
       },
-      ip: undefined, // Will be filled by the caller if available
+      ip: undefined,
     })
 
     return {
@@ -291,9 +269,13 @@ export async function checkInStaff(
       distanceMeters: Math.round(distanceMeters),
       withinRadius: true,
     }
-  } catch (error: any) {
-    // Handle database unique constraint violation (duplicate check-in)
-    if (error.code === 'P2003' || error.message?.includes('unique constraint')) {
+  } catch (error: unknown) {
+    // Handle database unique constraint violation (duplicate check-in race condition)
+    if (
+      error instanceof Object &&
+      'code' in error &&
+      (error as { code: string }).code === 'P2002'
+    ) {
       return {
         success: false,
         message: 'You have already checked in today.',
@@ -304,13 +286,24 @@ export async function checkInStaff(
 }
 
 /**
- * Gets the attendance record for a staff member for the current day.
+ * Gets the staff GPS check-in attendance record for the current day.
+ * Only returns staff check-in records (pupilId IS NULL).
  */
 export async function getStaffTodayAttendance(
   staffUserId: string,
 ): Promise<{
   success: boolean
-  attendance?: any
+  attendance?: {
+    id: string
+    date: Date
+    status: string
+    staffId: string
+    staffFullName: string
+    latitude: unknown
+    longitude: unknown
+    accuracy: number | null
+    capturedAt: Date | null
+  }
   message?: string
 }> {
   const todayStart = new Date()
@@ -321,6 +314,7 @@ export async function getStaffTodayAttendance(
   const attendance = await prisma.attendance.findFirst({
     where: {
       staffId: staffUserId,
+      pupilId: null,
       date: {
         gte: todayStart,
         lte: todayEnd,
@@ -330,7 +324,6 @@ export async function getStaffTodayAttendance(
       staff: {
         select: {
           fullName: true,
-          staffId: true,
         },
       },
     },
@@ -346,6 +339,8 @@ export async function getStaffTodayAttendance(
       id: attendance.id,
       date: attendance.date,
       status: attendance.status,
+      staffId: attendance.staffId,
+      staffFullName: attendance.staff.fullName,
       latitude: attendance.latitude,
       longitude: attendance.longitude,
       accuracy: attendance.accuracy,
@@ -355,7 +350,8 @@ export async function getStaffTodayAttendance(
 }
 
 /**
- * Lists attendance records for administrative review.
+ * Lists staff GPS check-in attendance records for administrative review.
+ * Only returns staff check-in records (pupilId IS NULL).
  */
 export async function listAttendanceRecordsAdmin(
   options: {
@@ -363,8 +359,21 @@ export async function listAttendanceRecordsAdmin(
     dateFrom?: string
     dateTo?: string
   } = {},
-): Promise<any[]> {
-  const where: any = {}
+): Promise<Array<{
+  id: string
+  staffId: string
+  staffFullName: string
+  position: string | null
+  date: Date
+  status: string
+  latitude: unknown
+  longitude: unknown
+  accuracy: number | null
+  capturedAt: Date | null
+}>> {
+  const where: { staffId?: string; pupilId: null; date?: { gte?: Date; lte?: Date } } = {
+    pupilId: null,
+  }
 
   if (options.staffId) {
     where.staffId = options.staffId
@@ -385,18 +394,18 @@ export async function listAttendanceRecordsAdmin(
       staff: {
         select: {
           fullName: true,
-          staffId: true,
-          position: true,
+          staffProfile: { select: { staffId: true, position: true } },
         },
       },
     },
     orderBy: { date: 'desc' },
   })
 
-  return records.map((r: any) => ({
+  return records.map((r) => ({
     id: r.id,
     staffId: r.staffId,
     staffFullName: r.staff?.fullName ?? 'Unknown',
+    position: r.staff?.staffProfile?.position ?? null,
     date: r.date,
     status: r.status,
     latitude: r.latitude,

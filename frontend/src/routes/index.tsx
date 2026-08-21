@@ -49,6 +49,9 @@ import { TeacherClassesPage } from '@/pages/portal/teacher/TeacherClassesPage'
 import { TeacherDashboardPage } from '@/pages/portal/teacher/TeacherDashboardPage'
 import { TeacherManagementPage } from '@/pages/portal/teacher/TeacherManagementPage'
 import { TeacherProfilePage } from '@/pages/portal/teacher/TeacherProfilePage'
+import { NotificationsPage } from '@/pages/portal/NotificationsPage'
+import { AnnouncementsPage } from '@/pages/portal/AnnouncementsPage'
+import { NotificationPreferencesPage } from '@/pages/portal/NotificationPreferencesPage'
 
 export const router = createBrowserRouter([
   {
@@ -120,6 +123,9 @@ export const router = createBrowserRouter([
       { path: 'finance/pupils', element: <PupilFinancePage /> },
       { path: 'finance/pupils/:id', element: <PupilFinanceProfilePage /> },
       { path: 'finance/summary', element: <FinanceSummaryPage /> },
+      { path: 'notifications', element: <NotificationsPage /> },
+      { path: 'announcements', element: <AnnouncementsPage /> },
+      { path: 'notification-preferences', element: <NotificationPreferencesPage /> },
     ],
   },
   {
@@ -155,6 +161,9 @@ export const router = createBrowserRouter([
       { path: 'finance/pupils', element: <PupilFinancePage /> },
       { path: 'finance/pupils/:id', element: <PupilFinanceProfilePage /> },
       { path: 'finance/summary', element: <FinanceSummaryPage /> },
+      { path: 'notifications', element: <NotificationsPage /> },
+      { path: 'announcements', element: <AnnouncementsPage /> },
+      { path: 'notification-preferences', element: <NotificationPreferencesPage /> },
     ],
   },
   {
@@ -177,6 +186,9 @@ export const router = createBrowserRouter([
       { path: 'pupils/:id', element: <PupilFinanceProfilePage /> },
       { path: 'summary', element: <FinanceSummaryPage /> },
       { path: 'profile', element: <ProfilePage /> },
+      { path: 'notifications', element: <NotificationsPage /> },
+      { path: 'announcements', element: <AnnouncementsPage /> },
+      { path: 'notification-preferences', element: <NotificationPreferencesPage /> },
     ],
   },
   {
@@ -193,6 +205,9 @@ export const router = createBrowserRouter([
       { path: 'sba', element: <SbaRecordsPage /> },
       { path: 'sba/entry', element: <SbaEntryPage /> },
       { path: 'profile', element: <ProfilePage /> },
+      { path: 'notifications', element: <NotificationsPage /> },
+      { path: 'announcements', element: <AnnouncementsPage /> },
+      { path: 'notification-preferences', element: <NotificationPreferencesPage /> },
     ],
   },
   {

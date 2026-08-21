@@ -12,20 +12,21 @@ export interface AttendanceListOptions {
 
 export interface AttendanceView {
   id: string
-  pupilId: string
-  pupilFullName: string
+  pupilId: string | null
+  pupilFullName: string | null
   staffId: string
   staffFullName: string
   date: Date
   status: string
-  sessionId?: string
-  classId?: string
-  notes?: string
+  sessionId?: string | null
+  classId?: string | null
+  notes?: string | null
   createdAt: Date
 }
 
 export interface AttendanceCreateInput {
-  pupilId: string
+  pupilId?: string
+  staffId: string
   status: string
   date: string
   sessionId?: string
@@ -80,16 +81,16 @@ export async function listAttendance(options: AttendanceListOptions = {}): Promi
   const records = await prisma.attendance.findMany({
     where,
     include: {
-      pupil: { select: { fullName: true, pupilId: true } },
-      staff: { select: { fullName: true, staffProfile: { select: { staffId: true } } } },
+      pupil: { select: { firstName: true, lastName: true, pupilId: true } },
+      staff: { select: { fullName: true } },
     },
     orderBy: { date: 'desc' },
   })
 
-  return records.map((r: any) => ({
+  return records.map((r) => ({
     id: r.id,
     pupilId: r.pupilId,
-    pupilFullName: r.pupil.fullName,
+    pupilFullName: r.pupil ? `${r.pupil.firstName} ${r.pupil.lastName}` : null,
     staffId: r.staffId,
     staffFullName: r.staff.fullName,
     date: r.date,
@@ -105,8 +106,8 @@ export async function getAttendance(id: string): Promise<AttendanceView> {
   const record = await prisma.attendance.findUnique({
     where: { id },
     include: {
-      pupil: { select: { fullName: true, pupilId: true } },
-      staff: { select: { fullName: true, staffProfile: { select: { staffId: true } } } },
+      pupil: { select: { firstName: true, lastName: true, pupilId: true } },
+      staff: { select: { fullName: true } },
     },
   })
   if (!record) {
@@ -115,7 +116,7 @@ export async function getAttendance(id: string): Promise<AttendanceView> {
   return {
     id: record.id,
     pupilId: record.pupilId,
-    pupilFullName: record.pupil.fullName,
+    pupilFullName: record.pupil ? `${record.pupil.firstName} ${record.pupil.lastName}` : null,
     staffId: record.staffId,
     staffFullName: record.staff.fullName,
     date: record.date,
@@ -128,32 +129,35 @@ export async function getAttendance(id: string): Promise<AttendanceView> {
 }
 
 export async function createAttendance(input: AttendanceCreateInput): Promise<AttendanceView> {
-  const { pupilId, status, date, sessionId, classId, notes } = input
+  const { pupilId, staffId, status, date, sessionId, classId, notes } = input
 
-  const pupilExists = await prisma.user.findUnique({ where: { id: pupilId } })
-  if (!pupilExists || pupilExists.status !== 'ACTIVE') {
-    throw new Error('Invalid pupil.')
+  if (pupilId) {
+    const pupilExists = await prisma.pupil.findUnique({ where: { id: pupilId } })
+    if (!pupilExists || pupilExists.status !== 'ACTIVE') {
+      throw new Error('Invalid pupil.')
+    }
   }
 
   const record = await prisma.attendance.create({
     data: {
-      pupilId,
+      pupilId: pupilId ?? null,
+      staffId,
       status,
       date: new Date(date),
-      sessionId,
-      classId,
-      notes,
+      sessionId: sessionId ?? null,
+      classId: classId ?? null,
+      notes: notes ?? null,
     },
     include: {
-      pupil: { select: { fullName: true, pupilId: true } },
-      staff: { select: { fullName: true, staffProfile: { select: { staffId: true } } } },
+      pupil: { select: { firstName: true, lastName: true, pupilId: true } },
+      staff: { select: { fullName: true } },
     },
   })
 
   return {
     id: record.id,
     pupilId: record.pupilId,
-    pupilFullName: record.pupil.fullName,
+    pupilFullName: record.pupil ? `${record.pupil.firstName} ${record.pupil.lastName}` : null,
     staffId: record.staffId,
     staffFullName: record.staff.fullName,
     date: record.date,
@@ -184,15 +188,15 @@ export async function updateAttendance(
       ...(notes !== undefined ? { notes } : {}),
     },
     include: {
-      pupil: { select: { fullName: true, pupilId: true } },
-      staff: { select: { fullName: true, staffProfile: { select: { staffId: true } } } },
+      pupil: { select: { firstName: true, lastName: true, pupilId: true } },
+      staff: { select: { fullName: true } },
     },
   })
 
   return {
     id: record.id,
     pupilId: record.pupilId,
-    pupilFullName: record.pupil.fullName,
+    pupilFullName: record.pupil ? `${record.pupil.firstName} ${record.pupil.lastName}` : null,
     staffId: record.staffId,
     staffFullName: record.staff.fullName,
     date: record.date,
@@ -203,5 +207,3 @@ export async function updateAttendance(
     createdAt: record.createdAt,
   }
 }
-
-export { checkInStaff, getStaffTodayAttendance, listAttendanceRecordsAdmin }

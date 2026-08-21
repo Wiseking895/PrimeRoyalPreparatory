@@ -2,6 +2,10 @@ import type {
   AcademicSessionView,
   AcademicStatsView,
   AcademicTermView,
+  AnnouncementCreateInput,
+  AnnouncementListResult,
+  AnnouncementUpdateInput,
+  AnnouncementView,
   AssignFeesResult,
   AuditPage,
   ChargeGenerateResult,
@@ -23,6 +27,10 @@ import type {
   GuardianAccountView,
   GuardianListResult,
   LoginResult,
+  NotificationListResult,
+  NotificationPreferenceUpdateInput,
+  NotificationPreferenceView,
+  NotificationView,
   OwnerSetupInput,
   OwnerSummary,
   ParentAccountResult,
@@ -70,6 +78,7 @@ import type {
   TermCreateInput,
   TermUpdateInput,
   TerminalReportView,
+  UnreadCountResult,
   UpdateHeadteacherInput,
   UpdateStaffInput,
 } from '@/types/portal'
@@ -504,4 +513,45 @@ export const api = {
       `/api/guardians/${guardianId}/parent-account/${status === 'ACTIVE' ? 'activate' : 'deactivate'}`,
       { method: 'POST' },
     ),
+
+  // Phase 9 — Notifications
+  listNotifications: (params?: { limit?: number; offset?: number; unread?: boolean }) => {
+    const search = new URLSearchParams()
+    if (params?.limit) search.set('limit', String(params.limit))
+    if (params?.offset) search.set('offset', String(params.offset))
+    if (params?.unread) search.set('unread', 'true')
+    const query = search.toString()
+    return request<NotificationListResult>(`/api/notifications${query ? `?${query}` : ''}`)
+  },
+  unreadNotificationCount: () => request<UnreadCountResult>('/api/notifications/unread-count'),
+  markNotificationRead: (id: string) =>
+    request<NotificationView>(`/api/notifications/${id}/read`, { method: 'PATCH' }),
+  markAllNotificationsRead: () =>
+    request<{ updated: number }>('/api/notifications/read-all', { method: 'PATCH' }),
+
+  // Phase 9 — Notification preferences
+  getNotificationPreferences: () => request<NotificationPreferenceView>('/api/notification-preferences'),
+  updateNotificationPreferences: (input: NotificationPreferenceUpdateInput) =>
+    request<NotificationPreferenceView>('/api/notification-preferences', {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    }),
+
+  // Phase 9 — Announcements
+  listAnnouncements: (params?: { status?: string; audience?: string; limit?: number; offset?: number }) => {
+    const search = new URLSearchParams()
+    if (params?.status) search.set('status', params.status)
+    if (params?.audience) search.set('audience', params.audience)
+    if (params?.limit) search.set('limit', String(params.limit))
+    if (params?.offset) search.set('offset', String(params.offset))
+    const query = search.toString()
+    return request<AnnouncementListResult>(`/api/announcements${query ? `?${query}` : ''}`)
+  },
+  getAnnouncement: (id: string) => request<AnnouncementView>(`/api/announcements/${id}`),
+  createAnnouncement: (input: AnnouncementCreateInput) =>
+    request<AnnouncementView>('/api/announcements', jsonBody(input)),
+  updateAnnouncement: (id: string, input: AnnouncementUpdateInput) =>
+    request<AnnouncementView>(`/api/announcements/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
+  deleteAnnouncement: (id: string) =>
+    request<null>(`/api/announcements/${id}`, { method: 'DELETE' }),
 }

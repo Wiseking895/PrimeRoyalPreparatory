@@ -876,3 +876,77 @@ export interface ParentAccountResult {
     transport: string | null
   }
 }
+
+// =============================================================================
+// Phase 9 — Notifications & Announcements
+// =============================================================================
+
+export interface NotificationView {
+  id: string
+  recipientId: string
+  type: string
+  title: string
+  message: string
+  read: boolean
+  link: string | null
+  resourceType: string | null
+  resourceId: string | null
+  metadata: Record<string, unknown> | null
+  createdAt: string
+}
+
+export interface NotificationListResult {
+  items: NotificationView[]
+  total: number
+  unreadCount: number
+}
+
+export interface UnreadCountResult {
+  count: number
+}
+
+export interface AnnouncementView {
+  id: string
+  title: string
+  body: string
+  audience: string
+  status: string
+  publishedAt: string | null
+  createdById: string
+  createdByName: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AnnouncementListResult {
+  items: AnnouncementView[]
+  total: number
+}
+
+export interface AnnouncementCreateInput {
+  title: string
+  body: string
+  audience: 'ALL' | 'ALL_STAFF' | 'TEACHING_STAFF' | 'NON_TEACHING_STAFF' | 'PARENTS'
+  status?: 'DRAFT' | 'PUBLISHED'
+}
+
+export interface AnnouncementUpdateInput {
+  title?: string
+  body?: string
+  audience?: 'ALL' | 'ALL_STAFF' | 'TEACHING_STAFF' | 'NON_TEACHING_STAFF' | 'PARENTS'
+  status?: 'DRAFT' | 'PUBLISHED'
+}
+
+export interface NotificationPreferenceView {
+  id: string
+  userId: string
+  emailEnabled: boolean
+  inAppEnabled: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface NotificationPreferenceUpdateInput {
+  emailEnabled?: boolean
+  inAppEnabled?: boolean
+}

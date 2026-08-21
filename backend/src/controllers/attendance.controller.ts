@@ -46,6 +46,14 @@ export const checkInStaffHandler = asyncHandler(async (req: any, res) => {
     throw new Error('Authentication required.')
   }
 
+  // Security: The :id parameter must match the authenticated user.
+  // A staff member must only check in themselves.
+  const requestedId = req.params.id
+  if (requestedId && requestedId !== staffUserId) {
+    res.status(HttpStatus.Forbidden).json(ok(null, 'You can only check in yourself.'))
+    return
+  }
+
   if (latitude === undefined || longitude === undefined || accuracy === undefined || capturedAt === undefined) {
     throw new Error('Missing required GPS parameters.')
   }

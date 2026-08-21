@@ -28,6 +28,9 @@ import { sbaRouter } from './routes/sba.routes'
 import { parentRouter } from './routes/parent.routes'
 import { guardiansRouter } from './routes/guardians.routes'
 import { reportsRouter } from './routes/reports.routes'
+import { notificationRouter } from './routes/notification.routes'
+import { announcementRouter } from './routes/announcement.routes'
+import { notificationPreferenceRouter } from './routes/notification-preference.routes'
 
 /**
  * Builds and configures the Express application. Kept separate from the HTTP
@@ -100,6 +103,11 @@ export function createApp(): Express {
   app.use('/api/reports', reportsRouter)
   app.use('/api/guardians', guardiansRouter)
   app.use('/api/parent', parentRouter)
+
+  // Phase 9 — notifications, announcements and preferences.
+  app.use('/api/notifications', notificationRouter)
+  app.use('/api/announcements', announcementRouter)
+  app.use('/api/notification-preferences', notificationPreferenceRouter)
 
   // 404 + centralized error handling (must be last)
   app.use(notFoundHandler)

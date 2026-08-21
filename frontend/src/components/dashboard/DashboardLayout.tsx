@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
+  Bell,
   BookOpenCheck,
   CircleUserRound,
   ClipboardList,
@@ -7,6 +8,7 @@ import {
   LayoutDashboard,
   ListChecks,
   LogOut,
+  Megaphone,
   Menu,
   Receipt,
   ScrollText,
@@ -22,6 +24,7 @@ import { useAuth } from '@/auth/AuthContext'
 import { Logo } from '@/components/common/Logo'
 import { Avatar } from '@/components/dashboard/Avatar'
 import { Badge } from '@/components/dashboard/Badge'
+import { NotificationBell } from '@/components/dashboard/NotificationBell'
 import { cn } from '@/lib/cn'
 
 interface NavItem {
@@ -44,6 +47,8 @@ const ownerNav: NavItem[] = [
   { label: 'Roles & Permissions', to: '/owner/roles', icon: ShieldCheck },
   { label: 'Finance', to: '/owner/finance', icon: Wallet, permission: 'finance.view' },
   { label: 'Audit Activity', to: '/owner/audit', icon: ScrollText },
+  { label: 'Announcements', to: '/owner/announcements', icon: Megaphone, permission: 'announcements.view' },
+  { label: 'Notifications', to: '/owner/notifications', icon: Bell, permission: 'notifications.view' },
   { label: 'My Profile', to: '/owner/profile', icon: CircleUserRound },
   { label: 'Settings', to: '/owner/settings', icon: Settings },
 ]
@@ -58,6 +63,8 @@ const headteacherNav: NavItem[] = [
   { label: 'Staff', to: '/headteacher/staff', icon: Users },
   { label: 'Roles', to: '/headteacher/roles', icon: ShieldCheck },
   { label: 'Finance', to: '/headteacher/finance', icon: Wallet, permission: 'finance.view' },
+  { label: 'Announcements', to: '/headteacher/announcements', icon: Megaphone, permission: 'announcements.view' },
+  { label: 'Notifications', to: '/headteacher/notifications', icon: Bell, permission: 'notifications.view' },
   { label: 'My Profile', to: '/headteacher/profile', icon: CircleUserRound },
 ]
 
@@ -69,6 +76,8 @@ const accountantNav: NavItem[] = [
   { label: 'Payments', to: '/accountant/payments', icon: Wallet, permission: 'finance.view' },
   { label: 'Pupil Finance', to: '/accountant/pupils', icon: Users, permission: 'finance.view' },
   { label: 'Summary', to: '/accountant/summary', icon: ScrollText, permission: 'finance.view' },
+  { label: 'Announcements', to: '/accountant/announcements', icon: Megaphone, permission: 'announcements.view' },
+  { label: 'Notifications', to: '/accountant/notifications', icon: Bell, permission: 'notifications.view' },
   { label: 'My Profile', to: '/accountant/profile', icon: CircleUserRound },
 ]
 
@@ -77,6 +86,8 @@ const teacherNav: NavItem[] = [
   { label: 'My Classes', to: '/teacher/classes', icon: BookOpenCheck, permission: 'sba.view' },
   { label: 'SBA Records', to: '/teacher/sba', icon: ClipboardList, permission: 'sba.view' },
   { label: 'Enter Scores', to: '/teacher/sba/entry', icon: ListChecks, permission: 'sba.manage' },
+  { label: 'Announcements', to: '/teacher/announcements', icon: Megaphone, permission: 'announcements.view' },
+  { label: 'Notifications', to: '/teacher/notifications', icon: Bell, permission: 'notifications.view' },
   { label: 'My Profile', to: '/teacher/profile', icon: CircleUserRound },
 ]
 
@@ -194,7 +205,10 @@ export function DashboardLayout() {
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-72 flex-col bg-royal-800 lg:flex">
         <div className="flex items-center justify-between gap-3 border-b border-white/10 px-5 py-5">
           <Logo dark />
-          {roleBadge}
+          <div className="flex items-center gap-2">
+            {roleBadge}
+            <NotificationBell />
+          </div>
         </div>
         <NavList items={items} hasPermission={hasPermission} />
         <div className="px-5 pb-3">
@@ -215,15 +229,18 @@ export function DashboardLayout() {
           <Logo />
           {roleBadge}
         </span>
-        <button
-          type="button"
-          onClick={() => setDrawerOpen(true)}
-          className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-royal-700 transition-colors hover:bg-cream-100"
-          aria-label="Open dashboard menu"
-          aria-expanded={drawerOpen}
-        >
-          <Menu className="h-6 w-6" aria-hidden="true" />
-        </button>
+        <div className="flex items-center gap-1">
+          <NotificationBell />
+          <button
+            type="button"
+            onClick={() => setDrawerOpen(true)}
+            className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-royal-700 transition-colors hover:bg-cream-100"
+            aria-label="Open dashboard menu"
+            aria-expanded={drawerOpen}
+          >
+            <Menu className="h-6 w-6" aria-hidden="true" />
+          </button>
+        </div>
       </header>
 
       {/* Mobile drawer */}

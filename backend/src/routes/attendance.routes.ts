@@ -30,6 +30,20 @@ router.post(
   requirePermission('attendance.checkin'),
   checkInStaffHandler,
 )
+
+// Staff self-service: today's attendance — placed BEFORE /:id to avoid route conflicts
+router.get(
+  '/today/me',
+  getStaffTodayAttendanceHandler,
+)
+
+// Admin attendance listing — placed BEFORE /:id to avoid route conflicts
+router.get(
+  '/admin',
+  requirePermission('attendance.manage'),
+  listAttendanceRecordsAdminHandler,
+)
+
 router.get(
   '/:id',
   requirePermission('attendance.view'),
@@ -39,20 +53,6 @@ router.patch(
   '/:id',
   requirePermission('attendance.manage'),
   updateAttendanceHandler,
-)
-
-// Headteacher/Owner can view today's attendance for their staff
-router.get(
-  '/today/me',
-  requireAuth,
-  getStaffTodayAttendanceHandler,
-)
-
-// Admin can list attendance records
-router.get(
-  '/admin',
-  requirePermission('attendance.manage'),
-  listAttendanceRecordsAdminHandler,
 )
 
 export const attendanceRouter = router
