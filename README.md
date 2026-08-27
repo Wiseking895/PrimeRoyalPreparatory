@@ -50,18 +50,22 @@ the system design.
 
 ## Deployment
 
-- **Frontend → Vercel:** `vercel.json` at the repo root points Vercel at the
-  `frontend/` app (`root: "frontend"`); Vercel installs from the single root
-  npm workspace lockfile for reproducible builds. Set `VITE_API_URL` to your
-  production backend URL (e.g. `https://api.your-school.example`) in the
-  Vercel project settings. The frontend build needs **no** PostgreSQL and
-  **no** `DATABASE_URL`.
-- **Backend → any Node-compatible host:** build with `npm run build -w @prps/backend`,
-  apply migrations with `npm run db:deploy`, then start with `npm start`
-  (from `backend/`). Configure `DATABASE_URL`, `JWT_SECRET`, `CLIENT_URL` and
-  `PORT` in the host's environment.
+The frontend and backend are deployed as **separate Vercel projects**:
+
+- **Frontend → Vercel:** deploy from the `frontend/` root. Set `VITE_API_URL`
+  to your production backend URL (e.g. `https://prps-backend-xxxxx.vercel.app`)
+  in the Vercel project settings. The frontend build needs **no** PostgreSQL
+  and **no** `DATABASE_URL`.
+
+- **Backend → Vercel:** deploy from the `backend/` root. Configure
+  `DATABASE_URL`, `JWT_SECRET`, `CLIENT_URL` (the frontend origin for CORS)
+  and `NODE_ENV=production` in the Vercel project settings. Run
+  `npx prisma migrate deploy` to apply database migrations.
+
 - **Database → PostgreSQL:** Prisma schema, migrations and seed live under
   `backend/prisma/`. The backend owns all database access.
+
+See `docs/deployment.md` for the full step-by-step deployment guide.
 
 ## What the Project Includes
 
