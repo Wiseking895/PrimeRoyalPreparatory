@@ -5,6 +5,7 @@ import { asyncHandler } from '../utils/async-handler'
 import {
   createHeadteacher,
   getHeadteacher,
+  getOwnerFinanceOverview,
   getOwnerSummary,
   listHeadteachers,
   resendHeadteacherInvitation,
@@ -16,6 +17,11 @@ import {
 export const ownerSummaryHandler = asyncHandler(async (_req, res) => {
   const summary = await getOwnerSummary()
   res.json(ok(summary))
+})
+
+export const ownerFinanceOverviewHandler = asyncHandler(async (_req, res) => {
+  const overview = await getOwnerFinanceOverview()
+  res.json(ok(overview))
 })
 
 export const listHeadteachersHandler = asyncHandler(async (_req, res) => {

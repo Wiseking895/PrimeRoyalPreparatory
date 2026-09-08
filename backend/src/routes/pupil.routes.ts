@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import {
   activatePupilHandler,
+  admissionFeeHandler,
   createPupilHandler,
   deactivatePupilHandler,
   getPupilHandler,
@@ -20,6 +21,7 @@ router.use(requireAuth)
 router.get('/', requirePermission('pupils.view'), listPupilsHandler)
 router.post('/', requirePermission('pupils.create'), validate(pupilCreateSchema), createPupilHandler)
 router.get('/stats', requirePermission('pupils.view'), pupilStatsHandler)
+router.get('/admission-fee', requirePermission('pupils.view'), admissionFeeHandler)
 router.get('/:id', requirePermission('pupils.view'), getPupilHandler)
 router.patch('/:id', requirePermission('pupils.update'), validate(pupilUpdateSchema), updatePupilHandler)
 router.post('/:id/activate', requirePermission('pupils.update'), activatePupilHandler)

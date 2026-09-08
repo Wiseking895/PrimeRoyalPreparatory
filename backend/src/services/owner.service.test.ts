@@ -181,8 +181,10 @@ describe('owner.service', () => {
           where?.status === 'ACTIVE' ? 6 : where?.status === 'INACTIVE' ? 4 : 10,
       )
       prismaMock.pupil.groupBy.mockResolvedValue([
-        { classId: 'class-1', _count: { _all: 4 } },
-        { classId: 'class-2', _count: { _all: 6 } },
+        { classId: 'class-1', gender: 'MALE', _count: { _all: 2 } },
+        { classId: 'class-1', gender: 'FEMALE', _count: { _all: 2 } },
+        { classId: 'class-2', gender: 'MALE', _count: { _all: 3 } },
+        { classId: 'class-2', gender: 'FEMALE', _count: { _all: 3 } },
       ])
       prismaMock.schoolClass.count.mockResolvedValue(8)
       prismaMock.schoolClass.findMany.mockResolvedValue([
@@ -197,8 +199,8 @@ describe('owner.service', () => {
       expect(summary.totals.inactivePupils).toBe(4)
       expect(summary.totals.classes).toBe(8)
       expect(summary.pupilsByClass).toEqual([
-        { classId: 'class-1', className: 'Primary 1', count: 4 },
-        { classId: 'class-2', className: 'Primary 2', count: 6 },
+        { classId: 'class-1', className: 'Primary 1', boys: 2, girls: 2, total: 4 },
+        { classId: 'class-2', className: 'Primary 2', boys: 3, girls: 3, total: 6 },
       ])
     })
   })

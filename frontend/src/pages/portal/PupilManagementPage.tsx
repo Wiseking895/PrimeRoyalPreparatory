@@ -25,7 +25,7 @@ import { StatCard } from '@/components/dashboard/StatCard'
 import { useToast } from '@/components/dashboard/Toast'
 import { api } from '@/lib/api'
 import { formatDate } from '@/lib/date'
-import type { PupilCreateInput, PupilGender, PupilStats, PupilView, SchoolClassView } from '@/types/portal'
+import type { PupilCreateInput, PupilGender, PupilStats, PupilView, SchoolClassView, AdmissionFeeView } from '@/types/portal'
 
 interface GuardianRow {
   id: string
@@ -34,6 +34,7 @@ interface GuardianRow {
   phone: string
   email: string
   address: string
+  occupation: string
   isPrimary: boolean
   isEmergency: boolean
 }
@@ -49,6 +50,11 @@ interface CreateForm {
   classId: string
   dateAdmitted: string
   address: string
+  nationality: string
+  religion: string
+  admissionReason: string
+  otherReason: string
+  declarationAcknowledged: boolean
   guardians: GuardianRow[]
 }
 
@@ -62,6 +68,7 @@ function newGuardian(): GuardianRow {
     phone: '',
     email: '',
     address: '',
+    occupation: '',
     isPrimary: false,
     isEmergency: false,
   }
@@ -78,6 +85,11 @@ const emptyCreate: CreateForm = {
   classId: '',
   dateAdmitted: '',
   address: '',
+  nationality: '',
+  religion: '',
+  admissionReason: '',
+  otherReason: '',
+  declarationAcknowledged: false,
   guardians: [newGuardian()],
 }
 
@@ -105,6 +117,7 @@ export function PupilManagementPage() {
   const [form, setForm] = useState<CreateForm>(emptyCreate)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [submitting, setSubmitting] = useState(false)
+  const [admissionFee, setAdmissionFee] = useState<AdmissionFeeView | null>(null)
 
   const debounceRef = useRef<number | null>(null)
 
@@ -172,6 +185,21 @@ export function PupilManagementPage() {
     }
   }, [])
 
+  useEffect(() => {
+    let active = true
+    api
+      .admissionFee()
+      .then((fee) => {
+        if (active) setAdmissionFee(fee)
+      })
+      .catch(() => {
+        if (active) setAdmissionFee(null)
+      })
+    return () => {
+      active = false
+    }
+  }, [])
+
   const set = (field: Exclude<keyof CreateForm, 'guardians'>, value: string) => {
     setForm((current) => ({ ...current, [field]: value }))
     setFieldErrors((current) => {
@@ -221,6 +249,12 @@ export function PupilManagementPage() {
     if (!form.dateOfBirth) errors.dateOfBirth = 'Date of birth is required.'
     if (!form.gender) errors.gender = 'Select a gender.'
     if (!form.classId) errors.classId = 'Select a class.'
+    if (form.admissionReason === 'Other' && !form.otherReason.trim()) {
+      errors.otherReason = 'Please specify the reason.'
+    }
+    if (!form.declarationAcknowledged) {
+      errors.declarationAcknowledged = 'You must agree to the Guardian\'s Declaration.'
+    }
     if (form.guardians.length === 0) {
       errors.guardians = 'At least one guardian is required.'
     } else {
@@ -247,12 +281,17 @@ export function PupilManagementPage() {
       classId: form.classId,
       dateAdmitted: form.dateAdmitted || undefined,
       address: form.address.trim() || undefined,
+      nationality: form.nationality.trim() || undefined,
+      religion: form.religion.trim() || undefined,
+      admissionReason: form.admissionReason === 'Other' ? form.otherReason.trim() : form.admissionReason || undefined,
+      declarationAcknowledged: form.declarationAcknowledged,
       guardians: form.guardians.map((guardian) => ({
         fullName: guardian.fullName.trim(),
         relationship: guardian.relationship.trim(),
         phone: guardian.phone.trim() || undefined,
         email: guardian.email.trim() || undefined,
         address: guardian.address.trim() || undefined,
+        occupation: guardian.occupation.trim() || undefined,
         isPrimary: guardian.isPrimary,
         isEmergency: guardian.isEmergency,
       })),
@@ -430,7 +469,7 @@ export function PupilManagementPage() {
                     <tr key={pupil.id} className="transition-colors hover:bg-cream-50">
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-3">
-                          <Avatar name={pupil.fullName} size="sm" />
+                          <Avatar name={pupil.fullName} imageUrl={pupil.profilePictureUrl} size="sm" />
                           <div className="min-w-0">
                             <p className="truncate font-bold text-ink-900">{pupil.fullName}</p>
                             <p className="truncate text-xs text-ink-500">{pupil.pupilId}</p>
@@ -459,7 +498,7 @@ export function PupilManagementPage() {
               <li key={pupil.id}>
                 <Card className="p-4">
                   <div className="flex items-center gap-3">
-                    <Avatar name={pupil.fullName} size="md" />
+                    <Avatar name={pupil.fullName} imageUrl={pupil.profilePictureUrl} size="md" />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-bold text-ink-900">{pupil.fullName}</p>
                       <p className="truncate text-xs text-ink-500">
@@ -619,6 +658,22 @@ export function PupilManagementPage() {
               error={fieldErrors.address}
             />
           </div>
+          <TextField
+            label="Nationality"
+            name="nationality"
+            value={form.nationality}
+            onChange={(event) => set('nationality', event.target.value)}
+            error={fieldErrors.nationality}
+            placeholder="e.g. Ghanaian"
+          />
+          <TextField
+            label="Religion"
+            name="religion"
+            value={form.religion}
+            onChange={(event) => set('religion', event.target.value)}
+            error={fieldErrors.religion}
+            placeholder="e.g. Christianity, Islam"
+          />
 
           <div className="sm:col-span-2">
             <div className="flex items-center justify-between">
@@ -698,6 +753,14 @@ export function PupilManagementPage() {
                     error={fieldErrors[`guardians.${guardian.id}.address`]}
                   />
                 </div>
+                <TextField
+                  label="Occupation"
+                  name={`guardian-${guardian.id}-occupation`}
+                  value={guardian.occupation}
+                  onChange={(event) => setGuardian(guardian.id, 'occupation', event.target.value)}
+                  error={fieldErrors[`guardians.${guardian.id}.occupation`]}
+                  placeholder="e.g. Teacher, Trader"
+                />
                 <label className="flex items-center gap-2 text-sm font-semibold text-ink-900">
                   <input
                     type="checkbox"
@@ -719,6 +782,83 @@ export function PupilManagementPage() {
               </div>
             </div>
           ))}
+
+          <div className="sm:col-span-2">
+            <p className="text-xs font-bold uppercase tracking-wider text-ink-500">Admission information</p>
+          </div>
+          <SelectField
+            label="Reason for choosing Prime Royal Preparatory School"
+            name="admissionReason"
+            value={form.admissionReason}
+            onChange={(event) => set('admissionReason', event.target.value)}
+            options={[
+              { value: 'Recommended by a friend or family member', label: 'Recommended by a friend or family member' },
+              { value: 'Good academic performance/results', label: 'Good academic performance/results' },
+              { value: 'Good reputation of the school', label: 'Good reputation of the school' },
+              { value: 'Qualified and experienced teachers', label: 'Qualified and experienced teachers' },
+              { value: 'Discipline and good school environment', label: 'Discipline and good school environment' },
+              { value: 'Proximity to home', label: 'Proximity to home' },
+              { value: 'Affordable school fees', label: 'Affordable school fees' },
+              { value: 'Religious/moral education', label: 'Religious/moral education' },
+              { value: 'Extracurricular activities and facilities', label: 'Extracurricular activities and facilities' },
+              { value: 'Personal recommendation from another parent', label: 'Personal recommendation from another parent' },
+              { value: 'Other', label: 'Other' },
+            ]}
+            placeholder="Select a reason"
+            error={fieldErrors.admissionReason}
+          />
+          {form.admissionReason === 'Other' && (
+            <TextField
+              label="Please specify"
+              name="otherReason"
+              value={form.otherReason}
+              onChange={(event) => set('otherReason', event.target.value)}
+              error={fieldErrors.otherReason}
+              required
+            />
+          )}
+
+          {admissionFee && (
+            <div className="sm:col-span-2 rounded-xl border border-cream-200 bg-cream-50 p-4">
+              <p className="text-xs font-bold uppercase tracking-wider text-ink-500">Admission Fee</p>
+              <p className="mt-1 text-lg font-extrabold text-ink-900">GH₵ {admissionFee.amount}</p>
+              {admissionFee.description && (
+                <p className="mt-0.5 text-xs text-ink-500">{admissionFee.description}</p>
+              )}
+            </div>
+          )}
+
+          <div className="sm:col-span-2">
+            <p className="text-xs font-bold uppercase tracking-wider text-ink-500">Guardian&apos;s Declaration</p>
+          </div>
+          <div className="sm:col-span-2 rounded-xl border border-cream-200 bg-cream-50 p-4">
+            <p className="text-sm leading-relaxed text-ink-700">
+              &quot;I, {form.guardians[0]?.fullName || '[Guardian Name]'}, the undersigned, have read through the
+              school&apos;s information carefully. I hope my ward abides by all regulations of the school.
+              I also wish to pay my ward&apos;s fees as stated.&quot;
+            </p>
+            <label className="mt-3 flex items-start gap-2 text-sm font-semibold text-ink-900">
+              <input
+                type="checkbox"
+                checked={form.declarationAcknowledged}
+                onChange={(event) => {
+                  setForm((current) => ({ ...current, declarationAcknowledged: event.target.checked }))
+                  setFieldErrors((current) => {
+                    const next = { ...current }
+                    delete next.declarationAcknowledged
+                    return next
+                  })
+                }}
+                className="mt-0.5 h-4 w-4 rounded border-cream-300 text-magenta-600 focus:ring-magenta-500"
+              />
+              I agree to the Guardian&apos;s Declaration
+            </label>
+            {fieldErrors.declarationAcknowledged && (
+              <p role="alert" className="mt-1.5 text-xs font-medium text-red-600">
+                {fieldErrors.declarationAcknowledged}
+              </p>
+            )}
+          </div>
 
           <div className="flex flex-wrap items-center justify-end gap-2 sm:col-span-2">
             <Button variant="cream" type="button" onClick={() => setCreateOpen(false)}>

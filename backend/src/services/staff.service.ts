@@ -8,7 +8,7 @@ import { prisma } from '../lib/prisma'
 import type { AuthenticatedUser } from '../types/auth'
 import { AppError } from '../utils/app-error'
 import { recordAudit } from './audit.service'
-import { assertNoEscalation, assertRoleAssignable, isOwner } from './rbac-guards'
+import { assertNoEscalation, assertRoleAssignable } from './rbac-guards'
 import { maskEmail, sendStaffInvitation, type MailResult } from './mail.service'
 import { toStaffView, type StaffView } from './user-mapper'
 
@@ -16,8 +16,6 @@ const staffInclude = {
   staffProfile: true,
   roles: { include: { role: { include: { rolePermissions: { include: { permission: true } } } } } },
 } as const
-
-const DEFAULT_STAFF_ROLE = 'NON_TEACHING_STAFF'
 
 export interface StaffCreateInput {
   firstName: string
@@ -165,10 +163,6 @@ export async function createStaff(
   }
   const roleName = definition.role
   assertRoleAssignable(roleName)
-  if (!isOwner(actor) && roleName !== DEFAULT_STAFF_ROLE && !actor.permissionKeys.includes('staff.assign_role')) {
-    throw new AppError('Forbidden: you do not have permission to assign staff roles.', HttpStatus.Forbidden)
-  }
-  assertNoEscalation(actor, await resolveRolePermissions(roleName))
 
   const email = input.email.toLowerCase().trim()
   await assertEmailAvailable(email)
@@ -281,7 +275,6 @@ export async function updateStaff(
     const currentRoleName = user.roles[0]?.role?.name
     if (currentRoleName !== definition.role) {
       assertRoleAssignable(definition.role)
-      assertNoEscalation(actor, await resolveRolePermissions(definition.role))
       const role = await prisma.role.findUnique({ where: { name: definition.role } })
       if (!role) {
         throw new AppError('The assigned role is not configured.', HttpStatus.InternalServerError)

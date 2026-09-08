@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { HttpStatus } from '../config/enums'
-import { HEADTEACHER_ROLE, OWNER_ROLE } from '../rbac/catalog'
+import { HEADTEACHER_ROLE, OWNER_ROLE, STAFF_POSITIONS } from '../rbac/catalog'
 import type { AuthenticatedUser } from '../types/auth'
 import {
   assignRole,
@@ -261,25 +261,44 @@ describe('staff.service', () => {
       })
     })
 
-    it('rejects a Headteacher without assign_role creating an elevated position', async () => {
+    it('allows Headteacher to create any assignable position (automatic role provisioning)', async () => {
+      prismaMock.role.findUnique.mockResolvedValue({ id: 'role-assistant', name: 'ASSISTANT_HEADTEACHER', rolePermissions: [] })
+      const assistantRecord = {
+        ...staffRecord(),
+        roles: [{ role: { id: 'role-assistant', name: 'ASSISTANT_HEADTEACHER', rolePermissions: [] } }],
+      }
+      prismaMock.user.findUnique.mockImplementation(async ({ where }: { where: { id?: string; email?: string } }) => {
+        if (where.email) return null
+        if (where.id === 'st-1') return assistantRecord
+        return null
+      })
       const restricted: AuthenticatedUser = { ...headteacher, permissionKeys: ['staff.view', 'staff.create'] }
 
-      await expect(createStaff(restricted, { ...input, position: 'ASSISTANT_HEADTEACHER' })).rejects.toMatchObject({
-        statusCode: HttpStatus.Forbidden,
-      })
+      const result = await createStaff(restricted, { ...input, position: 'ASSISTANT_HEADTEACHER' })
+
+      expect(result.staff.roles).toContain('ASSISTANT_HEADTEACHER')
+      expect(result.staff.category).toBe('NON_TEACHING')
     })
 
-    it('rejects a Headteacher creating a position whose role exceeds their authority', async () => {
+    it('creates staff with the predefined role from position mapping regardless of database permissions', async () => {
       prismaMock.role.findUnique.mockResolvedValue({
         id: 'role-assistant',
         name: 'ASSISTANT_HEADTEACHER',
         rolePermissions: [{ permission: { key: 'pupils.manage' } }],
       })
-
-      await expect(createStaff(headteacher, { ...input, position: 'ASSISTANT_HEADTEACHER' })).rejects.toMatchObject({
-        statusCode: HttpStatus.Forbidden,
-        message: expect.stringMatching(/exceeding your own authority/),
+      const assistantRecord = {
+        ...staffRecord(),
+        roles: [{ role: { id: 'role-assistant', name: 'ASSISTANT_HEADTEACHER', rolePermissions: [{ permission: { key: 'pupils.manage' } }] } }],
+      }
+      prismaMock.user.findUnique.mockImplementation(async ({ where }: { where: { id?: string; email?: string } }) => {
+        if (where.email) return null
+        if (where.id === 'st-1') return assistantRecord
+        return null
       })
+
+      const result = await createStaff(headteacher, { ...input, position: 'ASSISTANT_HEADTEACHER' })
+
+      expect(result.staff.roles).toContain('ASSISTANT_HEADTEACHER')
     })
 
     it('never returns or persists the temporary password', async () => {
@@ -304,6 +323,133 @@ describe('staff.service', () => {
       expect(prismaMock.staffProfile.create).toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ staffId: 'PRPS-STF-0005' }) }),
       )
+    })
+
+    describe('automatic role provisioning — every staff position', () => {
+      for (const position of STAFF_POSITIONS) {
+        it(`maps ${position.key} → ${position.role} (${position.category})`, async () => {
+          const roleRecord = { id: `role-${position.role.toLowerCase()}`, name: position.role, rolePermissions: [] }
+          prismaMock.role.findUnique.mockResolvedValue(roleRecord)
+          const userRecord = {
+            ...staffRecord(),
+            staffProfile: { ...staffRecord().staffProfile, category: position.category, position: position.key },
+            roles: [{ role: { id: roleRecord.id, name: position.role, rolePermissions: [] } }],
+          }
+          prismaMock.user.findUnique.mockImplementation(async ({ where }: { where: { id?: string; email?: string } }) => {
+            if (where.email) return null
+            if (where.id === 'st-1') return userRecord
+            return null
+          })
+
+          const result = await createStaff(headteacher, { ...input, position: position.key })
+
+          expect(prismaMock.userRole.create).toHaveBeenCalledWith({
+            data: { userId: 'st-1', roleId: roleRecord.id },
+          })
+          expect(prismaMock.staffProfile.create).toHaveBeenCalledWith(
+            expect.objectContaining({
+              data: expect.objectContaining({
+                category: position.category,
+                position: position.key,
+              }),
+            }),
+          )
+          expect(result.staff.roles).toContain(position.role)
+          expect(result.staff.category).toBe(position.category)
+          expect(result.staff.position).toBe(position.key)
+        })
+      }
+    })
+
+    describe('automatic role provisioning — permission derivation', () => {
+      it('grants CLASS_TEACHER its predefined permissions', async () => {
+        const perms = ['academic.view', 'sba.view', 'sba.manage', 'attendance.checkin', 'notifications.view', 'announcements.view']
+        const roleRecord = { id: 'role-ct', name: 'CLASS_TEACHER', rolePermissions: perms.map((key) => ({ permission: { key } })) }
+        prismaMock.role.findUnique.mockResolvedValue(roleRecord)
+        const userRecord = {
+          ...staffRecord(),
+          roles: [{ role: { id: 'role-ct', name: 'CLASS_TEACHER', rolePermissions: perms.map((key) => ({ permission: { key } })) } }],
+        }
+        prismaMock.user.findUnique.mockImplementation(async ({ where }: { where: { id?: string; email?: string } }) => {
+          if (where.email) return null
+          if (where.id === 'st-1') return userRecord
+          return null
+        })
+
+        const result = await createStaff(headteacher, { ...input, position: 'CLASS_TEACHER' })
+
+        expect(result.staff.roles).toContain('CLASS_TEACHER')
+      })
+
+      it('grants ACCOUNTANT its predefined permissions', async () => {
+        const perms = ['finance.view', 'finance.manage', 'fees.manage', 'payments.record', 'academic.view', 'notifications.view', 'announcements.view']
+        const roleRecord = { id: 'role-acct', name: 'ACCOUNTANT', rolePermissions: perms.map((key) => ({ permission: { key } })) }
+        prismaMock.role.findUnique.mockResolvedValue(roleRecord)
+        const userRecord = {
+          ...staffRecord(),
+          roles: [{ role: { id: 'role-acct', name: 'ACCOUNTANT', rolePermissions: perms.map((key) => ({ permission: { key } })) } }],
+        }
+        prismaMock.user.findUnique.mockImplementation(async ({ where }: { where: { id?: string; email?: string } }) => {
+          if (where.email) return null
+          if (where.id === 'st-1') return userRecord
+          return null
+        })
+
+        const result = await createStaff(headteacher, { ...input, position: 'ACCOUNTANT' })
+
+        expect(result.staff.roles).toContain('ACCOUNTANT')
+      })
+
+      it('grants SUPPORT_STAFF its predefined permissions', async () => {
+        const perms = ['attendance.checkin', 'notifications.view', 'announcements.view']
+        const roleRecord = { id: 'role-support', name: 'SUPPORT_STAFF', rolePermissions: perms.map((key) => ({ permission: { key } })) }
+        prismaMock.role.findUnique.mockResolvedValue(roleRecord)
+        const userRecord = {
+          ...staffRecord(),
+          roles: [{ role: { id: 'role-support', name: 'SUPPORT_STAFF', rolePermissions: perms.map((key) => ({ permission: { key } })) } }],
+        }
+        prismaMock.user.findUnique.mockImplementation(async ({ where }: { where: { id?: string; email?: string } }) => {
+          if (where.email) return null
+          if (where.id === 'st-1') return userRecord
+          return null
+        })
+
+        const result = await createStaff(headteacher, { ...input, position: 'CLEANER' })
+
+        expect(result.staff.roles).toContain('SUPPORT_STAFF')
+      })
+    })
+
+    describe('security — role escalation prevention', () => {
+      it('rejects OWNER role through assertRoleAssignable', async () => {
+        await expect(
+          createStaff(headteacher, { ...input, position: 'CLASS_TEACHER' }, undefined),
+        ).resolves.toBeDefined()
+
+        // Verify OWNER is in ASSIGNABLE_STAFF_ROLES exclusion list
+        const { ASSIGNABLE_STAFF_ROLES } = await import('../rbac/catalog')
+        expect(ASSIGNABLE_STAFF_ROLES).not.toContain(OWNER_ROLE)
+        expect(ASSIGNABLE_STAFF_ROLES).not.toContain(HEADTEACHER_ROLE)
+      })
+
+      it('client cannot override the server-determined role', async () => {
+        prismaMock.role.findUnique.mockResolvedValue({ id: 'role-support', name: 'SUPPORT_STAFF', rolePermissions: [] })
+
+        const result = await createStaff(headteacher, { ...input, position: 'CLEANER' })
+
+        expect(prismaMock.userRole.create).toHaveBeenCalledWith({
+          data: { userId: 'st-1', roleId: 'role-support' },
+        })
+        expect(result.staff.roles).toContain('SUPPORT_STAFF')
+        expect(result.staff.roles).not.toContain(OWNER_ROLE)
+        expect(result.staff.roles).not.toContain(HEADTEACHER_ROLE)
+      })
+
+      it('createStaff input has no role field — position determines role', async () => {
+        const createInput = { firstName: 'A', lastName: 'B', email: 'a@b.com', position: 'ACCOUNTANT' }
+        expect(createInput).not.toHaveProperty('role')
+        expect(createInput).not.toHaveProperty('permissions')
+      })
     })
   })
 

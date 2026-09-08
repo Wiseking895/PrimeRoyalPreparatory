@@ -7,6 +7,8 @@ import type {
   AnnouncementUpdateInput,
   AnnouncementView,
   AssignFeesResult,
+  AttendanceAdminRecord,
+  AttendanceView,
   AuditPage,
   ChargeGenerateResult,
   ClassCreateInput,
@@ -31,6 +33,7 @@ import type {
   NotificationPreferenceUpdateInput,
   NotificationPreferenceView,
   NotificationView,
+  OwnerFinanceOverviewView,
   OwnerSetupInput,
   OwnerSummary,
   ParentAccountResult,
@@ -49,6 +52,7 @@ import type {
   PupilStats,
   PupilUpdateInput,
   PupilView,
+  AdmissionFeeView,
   ReportPupilListResult,
   ReportSessionOption,
   ReportTermOption,
@@ -81,6 +85,11 @@ import type {
   UnreadCountResult,
   UpdateHeadteacherInput,
   UpdateStaffInput,
+  WorkOutputQuery,
+  WorkOutputSummaryView,
+  WorkOutputReviewQuery,
+  WorkOutputDetailView,
+  GradeWorkOutputInput,
 } from '@/types/portal'
 import { clearSession, getToken } from '@/auth/storage'
 import { clearParentSession, getParentToken } from '@/auth/parentStorage'
@@ -212,8 +221,35 @@ export const api = {
   firstPasswordChange: (newPassword: string, confirmPassword: string) =>
     request<null>('/api/auth/first-password-change', jsonBody({ newPassword, confirmPassword })),
 
+  // Profile picture
+  uploadProfilePicture: async (file: File): Promise<{ profilePictureUrl: string }> => {
+    const token = getToken()
+    const formData = new FormData()
+    formData.append('image', file)
+    const response = await fetch(`${API_BASE_URL}/api/profile-picture`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    })
+    const body = (await response.json()) as { success: boolean; message: string; data?: { profilePictureUrl: string }; errors?: Array<{ field: string; message: string }> }
+    if (!response.ok || !body.success) {
+      const message = body?.message ?? 'Upload failed.'
+      const fieldErrors: Record<string, string> = {}
+      if (Array.isArray(body?.errors)) {
+        for (const error of body.errors) {
+          fieldErrors[error.field] = error.message
+        }
+      }
+      throw new ApiError(message, response.status, fieldErrors)
+    }
+    return body.data as { profilePictureUrl: string }
+  },
+  deleteProfilePicture: () =>
+    request<null>('/api/profile-picture', { method: 'DELETE' }),
+
   // Owner
   ownerSummary: () => request<OwnerSummary>('/api/owner/summary'),
+  ownerFinanceOverview: () => request<OwnerFinanceOverviewView>('/api/owner/finance-overview'),
   listHeadteachers: () => request<StaffView[]>('/api/owner/headteacher'),
   getHeadteacher: (id: string) => request<PublicUser>(`/api/owner/headteacher/${id}`),
   createHeadteacher: (input: CreateHeadteacherInput) =>
@@ -255,6 +291,32 @@ export const api = {
     request<StaffView>(`/api/staff/${id}/role`, { method: 'PUT', body: JSON.stringify({ roleName }) }),
   removeRole: (id: string) => request<StaffView>(`/api/staff/${id}/role`, { method: 'DELETE' }),
 
+  // Pupil profile picture
+  uploadPupilPicture: async (pupilId: string, file: File): Promise<{ profilePictureUrl: string }> => {
+    const token = getToken()
+    const formData = new FormData()
+    formData.append('image', file)
+    const response = await fetch(`${API_BASE_URL}/api/pupils/${pupilId}/picture`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    })
+    const body = (await response.json()) as { success: boolean; message: string; data?: { profilePictureUrl: string }; errors?: Array<{ field: string; message: string }> }
+    if (!response.ok || !body.success) {
+      const message = body?.message ?? 'Upload failed.'
+      const fieldErrors: Record<string, string> = {}
+      if (Array.isArray(body?.errors)) {
+        for (const error of body.errors) {
+          fieldErrors[error.field] = error.message
+        }
+      }
+      throw new ApiError(message, response.status, fieldErrors)
+    }
+    return body.data as { profilePictureUrl: string }
+  },
+  deletePupilPicture: (pupilId: string) =>
+    request<null>(`/api/pupils/${pupilId}/picture`, { method: 'DELETE' }),
+
   // Pupils
   listPupils: (params?: PupilListQuery) => {
     const search = new URLSearchParams()
@@ -270,6 +332,7 @@ export const api = {
   },
   getPupil: (id: string) => request<PupilView>(`/api/pupils/${id}`),
   pupilStats: () => request<PupilStats>('/api/pupils/stats'),
+  admissionFee: () => request<AdmissionFeeView | null>('/api/pupils/admission-fee'),
   createPupil: (input: PupilCreateInput) => request<PupilView>('/api/pupils', jsonBody(input)),
   updatePupil: (id: string, input: PupilUpdateInput) =>
     request<PupilView>(`/api/pupils/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
@@ -514,6 +577,28 @@ export const api = {
       { method: 'POST' },
     ),
 
+  // Phase 8 — Attendance (admin read-only)
+  listAttendance: (params?: { pupilId?: string; status?: string; staffId?: string; sessionId?: string; classId?: string; dateFrom?: string; dateTo?: string }) => {
+    const search = new URLSearchParams()
+    if (params?.pupilId) search.set('pupilId', params.pupilId)
+    if (params?.status) search.set('status', params.status)
+    if (params?.staffId) search.set('staffId', params.staffId)
+    if (params?.sessionId) search.set('sessionId', params.sessionId)
+    if (params?.classId) search.set('classId', params.classId)
+    if (params?.dateFrom) search.set('dateFrom', params.dateFrom)
+    if (params?.dateTo) search.set('dateTo', params.dateTo)
+    const query = search.toString()
+    return request<AttendanceView[]>(`/api/attendance${query ? `?${query}` : ''}`)
+  },
+  listAttendanceAdmin: (params?: { staffId?: string; dateFrom?: string; dateTo?: string }) => {
+    const search = new URLSearchParams()
+    if (params?.staffId) search.set('staffId', params.staffId)
+    if (params?.dateFrom) search.set('dateFrom', params.dateFrom)
+    if (params?.dateTo) search.set('dateTo', params.dateTo)
+    const query = search.toString()
+    return request<AttendanceAdminRecord[]>(`/api/attendance/admin${query ? `?${query}` : ''}`)
+  },
+
   // Phase 9 — Notifications
   listNotifications: (params?: { limit?: number; offset?: number; unread?: boolean }) => {
     const search = new URLSearchParams()
@@ -554,4 +639,38 @@ export const api = {
     request<AnnouncementView>(`/api/announcements/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
   deleteAnnouncement: (id: string) =>
     request<null>(`/api/announcements/${id}`, { method: 'DELETE' }),
+
+  // Work Output — Owner teacher work output monitoring
+  getWorkOutput: (params?: WorkOutputQuery) => {
+    const search = new URLSearchParams()
+    if (params?.sessionId) search.set('sessionId', params.sessionId)
+    if (params?.termId) search.set('termId', params.termId)
+    if (params?.teacherId) search.set('teacherId', params.teacherId)
+    if (params?.subjectId) search.set('subjectId', params.subjectId)
+    if (params?.weekNumber) search.set('weekNumber', String(params.weekNumber))
+    const query = search.toString()
+    return request<WorkOutputSummaryView>(`/api/work-output${query ? `?${query}` : ''}`)
+  },
+
+  // Work Output — Headteacher review/grade
+  listWorkOutputForReview: (params?: WorkOutputReviewQuery) => {
+    const search = new URLSearchParams()
+    if (params?.sessionId) search.set('sessionId', params.sessionId)
+    if (params?.termId) search.set('termId', params.termId)
+    if (params?.teacherId) search.set('teacherId', params.teacherId)
+    if (params?.subjectId) search.set('subjectId', params.subjectId)
+    if (params?.weekNumber) search.set('weekNumber', String(params.weekNumber))
+    if (params?.reviewStatus) search.set('reviewStatus', params.reviewStatus)
+    const query = search.toString()
+    return request<WorkOutputDetailView[]>(`/api/work-output/review${query ? `?${query}` : ''}`)
+  },
+  getWorkOutputDetail: (id: string) =>
+    request<WorkOutputDetailView>(`/api/work-output/${id}`),
+  gradeWorkOutput: (id: string, input: GradeWorkOutputInput) =>
+    request<WorkOutputDetailView>(`/api/work-output/${id}/grade`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  reviewWorkOutput: (id: string) =>
+    request<WorkOutputDetailView>(`/api/work-output/${id}/review`, { method: 'POST' }),
 }

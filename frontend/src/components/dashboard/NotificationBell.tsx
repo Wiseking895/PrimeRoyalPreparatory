@@ -11,7 +11,7 @@ import { cn } from '@/lib/cn'
  * Placed in the dashboard header area. Polls for new notifications
  * every 60 seconds when the tab is visible.
  */
-export function NotificationBell() {
+export function NotificationBell({ dark = false }: { dark?: boolean }) {
   const { user } = useAuth()
   const navigate = useNavigate()
   const [unreadCount, setUnreadCount] = useState(0)
@@ -113,7 +113,12 @@ export function NotificationBell() {
         ref={bellRef}
         type="button"
         onClick={() => setOpen(!open)}
-        className="relative inline-flex h-10 w-10 items-center justify-center rounded-xl text-cream-200/80 transition-colors hover:bg-white/10 hover:text-white"
+        className={cn(
+          'relative inline-flex h-10 w-10 items-center justify-center rounded-xl transition-colors',
+          dark
+            ? 'text-cream-200/80 hover:bg-white/10 hover:text-white'
+            : 'text-royal-600 hover:bg-cream-100 hover:text-royal-800',
+        )}
         aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}`}
         aria-expanded={open}
         aria-haspopup="true"

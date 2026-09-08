@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { ArrowLeft, Baby, FileText, Wallet } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
 import { PageHeader } from '@/components/dashboard/PageHeader'
+import { Avatar } from '@/components/dashboard/Avatar'
 import { CardSkeleton } from '@/components/dashboard/Loaders'
 import { ErrorState } from '@/components/dashboard/States'
 import { cn } from '@/lib/cn'
@@ -109,7 +110,13 @@ export function ParentChildDetailPage() {
 
       {tab === 'profile' ? (
         <div className="rounded-2xl border border-cream-300/70 bg-white p-6 shadow-[0_2px_16px_-8px_rgba(11,20,48,0.1)]">
-          <h2 className="text-lg font-extrabold tracking-tight text-ink-900">Profile</h2>
+          <div className="flex items-center gap-4">
+            <Avatar name={child.fullName} imageUrl={child.profilePictureUrl} size="lg" />
+            <div>
+              <h2 className="text-lg font-extrabold tracking-tight text-ink-900">Profile</h2>
+              <p className="text-sm text-ink-500">{child.className}</p>
+            </div>
+          </div>
           <dl className="mt-4 grid gap-4 sm:grid-cols-2">
             <div>
               <dt className="text-xs font-bold uppercase tracking-wider text-ink-500">Full name</dt>

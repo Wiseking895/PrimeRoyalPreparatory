@@ -6,6 +6,7 @@ import {
   getHeadteacherHandler,
   headteacherPermissionsHandler,
   listHeadteachersHandler,
+  ownerFinanceOverviewHandler,
   ownerSummaryHandler,
   resendHeadteacherInvitationHandler,
   updateHeadteacherHandler,
@@ -25,6 +26,7 @@ const router = Router()
 router.use(requireAuth, requirePermission('owner.manage'))
 
 router.get('/summary', ownerSummaryHandler)
+router.get('/finance-overview', ownerFinanceOverviewHandler)
 
 router.get('/headteacher', listHeadteachersHandler)
 router.post('/headteacher', validate(headteacherCreateSchema), createHeadteacherHandler)

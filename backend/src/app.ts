@@ -1,3 +1,4 @@
+import path from 'node:path'
 import cors from 'cors'
 import express from 'express'
 import type { Express } from 'express'
@@ -31,6 +32,8 @@ import { reportsRouter } from './routes/reports.routes'
 import { notificationRouter } from './routes/notification.routes'
 import { announcementRouter } from './routes/announcement.routes'
 import { notificationPreferenceRouter } from './routes/notification-preference.routes'
+import { workOutputRouter } from './routes/work-output.routes'
+import { uploadRouter } from './routes/upload.routes'
 
 /**
  * Builds and configures the Express application. Kept separate from the HTTP
@@ -108,6 +111,15 @@ export function createApp(): Express {
   app.use('/api/notifications', notificationRouter)
   app.use('/api/announcements', announcementRouter)
   app.use('/api/notification-preferences', notificationPreferenceRouter)
+
+  // Work Output — owner-only teacher work output monitoring.
+  app.use('/api/work-output', workOutputRouter)
+
+  // File uploads — profile pictures, etc.
+  app.use('/api/uploads', express.static(path.resolve('uploads')))
+
+  // Upload routes — authenticated file upload/delete.
+  app.use('/api', uploadRouter)
 
   // 404 + centralized error handling (must be last)
   app.use(notFoundHandler)

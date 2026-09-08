@@ -111,6 +111,8 @@ model User {
   teachingAssignments  TeachingAssignment[] @relation("TeachingAssignmentTeacher")
   classTeachers        ClassTeacher[]       @relation("ClassTeacherTeacher")
   sbaRecords           SbaRecord[]          @relation("SbaRecordTeacher")
+  workOutputRecords    WorkOutputRecord[]   @relation("WorkOutputTeacher")
+  reviewedWorkOutput   WorkOutputRecord[]   @relation("WorkOutputReviewer")
   attendance           Attendance[]  @relation("AttendanceRecorder")
   notifications        Notification[]
   announcements        Announcement[]
@@ -191,6 +193,7 @@ model SchoolClass {
   teachingAssignments TeachingAssignment[]
   classTeachers      ClassTeacher[]
   sbaRecords         SbaRecord[]
+  workOutputRecords  WorkOutputRecord[]
   attendance         Attendance[]
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
@@ -217,6 +220,7 @@ model Guardian {
   phone              String?
   email              String?
   address            String?
+  occupation         String?
   accountEmail       String?         @unique
   passwordHash       String?
   status             AccountStatus   @default(INACTIVE)
@@ -253,27 +257,31 @@ model PupilGuardian {
 /// Pupil / student record. Deactivation is preferred over physical deletion so
 /// school history is preserved.
 model Pupil {
-  id                String          @id @default(cuid())
-  pupilId           String          @unique
-  admissionNumber   String?         @unique
-  firstName         String
-  middleName        String?
-  lastName          String
-  dateOfBirth       DateTime
-  gender            Gender
-  profilePictureUrl String?
-  classId           String
-  dateAdmitted      DateTime
-  status            PupilStatus     @default(ACTIVE)
-  address           String?
-  class             SchoolClass     @relation(fields: [classId], references: [id])
-  guardians         PupilGuardian[]
-  feeAssignments    FeeAssignment[]
-  payments          Payment[]
-  sbaRecords        SbaRecord[]
-  attendance        Attendance[]
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
+  id                      String          @id @default(cuid())
+  pupilId                 String          @unique
+  admissionNumber         String?         @unique
+  firstName               String
+  middleName              String?
+  lastName                String
+  dateOfBirth             DateTime
+  gender                  Gender
+  profilePictureUrl       String?
+  nationality             String?
+  religion                String?
+  admissionReason         String?
+  declarationAcknowledged Boolean         @default(false)
+  classId                 String
+  dateAdmitted            DateTime
+  status                  PupilStatus     @default(ACTIVE)
+  address                 String?
+  class                   SchoolClass     @relation(fields: [classId], references: [id])
+  guardians               PupilGuardian[]
+  feeAssignments          FeeAssignment[]
+  payments                Payment[]
+  sbaRecords              SbaRecord[]
+  attendance              Attendance[]
+  createdAt               DateTime        @default(now())
+  updatedAt               DateTime        @updatedAt
 
   @@index([status])
   @@index([classId])
@@ -360,8 +368,10 @@ model AcademicTerm {
   schoolDays Int             @default(0)
   status     AccountStatus   @default(ACTIVE)
   session    AcademicSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  fees       FinanceFee[]
   charges    FeeCharge[]
   sbaRecords SbaRecord[]
+  workOutputRecords WorkOutputRecord[]
   createdAt  DateTime        @default(now())
   updatedAt  DateTime        @updatedAt
 
@@ -372,23 +382,27 @@ model AcademicTerm {
   @@map("academic_terms")
 }
 
-/// A fee structure defined for an academic session. The feeType determines how
-/// charges materialize (see FeeType). Amounts are stored as Decimal (GHS).
+/// A fee structure defined for an academic session and term. The feeType
+/// determines how charges materialize (see FeeType). Amounts are stored as
+/// Decimal (GHS). Each fee belongs to exactly one session + term combination.
 model FinanceFee {
   id          String          @id @default(cuid())
   sessionId   String
+  termId      String
   name        String
   feeType     FeeType
   amount      Decimal         @db.Decimal(12, 2)
   description String?
   status      AccountStatus   @default(ACTIVE)
   session     AcademicSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  term        AcademicTerm    @relation(fields: [termId], references: [id], onDelete: Cascade)
   assignments FeeAssignment[]
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 
-  @@unique([sessionId, name])
+  @@unique([sessionId, termId, name])
   @@index([sessionId, status])
+  @@index([termId])
   @@index([feeType])
   @@map("finance_fees")
 }
@@ -502,6 +516,7 @@ model Subject {
   status      AccountStatus       @default(ACTIVE)
   assignments TeachingAssignment[]
   sbaRecords  SbaRecord[]
+  workOutputRecords WorkOutputRecord[]
   createdAt   DateTime            @default(now())
   updatedAt   DateTime            @updatedAt
 
@@ -582,6 +597,68 @@ model SbaRecord {
   @@index([termId])
   @@index([teacherId])
   @@map("sba_records")
+}
+
+// =============================================================================
+// WORK OUTPUT — Teacher assessment delivery tracking.
+// =============================================================================
+
+/// The category of academic work a teacher delivers to students.
+enum WorkOutputType {
+  EXERCISE
+  QUIZ
+  HOMEWORK
+  MIDTERM_EXAM
+}
+
+/// Review status for a work output submission.
+enum WorkOutputReviewStatus {
+  PENDING
+  REVIEWED
+  CONFIRMED
+}
+
+/// An individual piece of academic work delivered by a teacher to a subject
+/// class in a specific academic week. Each record represents one discrete
+/// assessment item (e.g. one exercise sheet, one quiz, one homework
+/// assignment, one mid-term exam). The teacher records what they gave, when,
+/// and for which subject/class/week.
+model WorkOutputRecord {
+  id            String          @id @default(cuid())
+  teacherId    String                     // FK -> User (the teacher who gave the work)
+  subjectId    String                     // FK -> Subject
+  classId      String                     // FK -> SchoolClass
+  termId       String                     // FK -> AcademicTerm
+  weekNumber   Int                        // 1-based, scoped to the term (1..16)
+  workType     WorkOutputType             // EXERCISE | QUIZ | HOMEWORK | MIDTERM_EXAM
+  title        String?                    // optional short description
+  dateGiven    DateTime?                  // when the work was assigned
+
+  // Review / grading fields (Headteacher operational review)
+  reviewStatus   WorkOutputReviewStatus @default(PENDING)
+  reviewedById   String?                                // FK -> User (the Headteacher who reviewed)
+  reviewedAt     DateTime?
+  score          Decimal?                 @db.Decimal(3, 1)  // 0.0 – 10.0
+  classification String?                  // EXCELLENT | VERY_GOOD | GOOD | WEAK (computed from score)
+  feedback       String?
+
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  teacher      User        @relation("WorkOutputTeacher", fields: [teacherId], references: [id], onDelete: Restrict)
+  subject      Subject     @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+  class        SchoolClass @relation(fields: [classId], references: [id], onDelete: Restrict)
+  term         AcademicTerm @relation(fields: [termId], references: [id], onDelete: Restrict)
+  reviewedBy   User?       @relation("WorkOutputReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([teacherId])
+  @@index([subjectId])
+  @@index([classId])
+  @@index([termId])
+  @@index([weekNumber])
+  @@index([workType])
+  @@index([reviewStatus])
+  @@map("work_output_records")
 }
 
 // =============================================================================

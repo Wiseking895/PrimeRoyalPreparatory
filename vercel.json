@@ -13,7 +13,19 @@
     },
     "backend": {
       "root": "backend/",
-      "framework": "express"
+      "framework": "express",
+      "builds": [
+        {
+          "src": "src/vercel.ts",
+          "use": "@vercel/node"
+        }
+      ],
+      "routes": [
+        {
+          "src": "/(.*)",
+          "dest": "src/vercel.ts"
+        }
+      ]
     }
   },
   "rewrites": [

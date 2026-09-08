@@ -31,6 +31,7 @@ export interface ParentChildView {
   dateOfBirth: string
   relationship: string | null
   isPrimary: boolean
+  profilePictureUrl: string | null
 }
 
 export async function assertGuardianOwnsPupil(guardianId: string, pupilId: string): Promise<void> {
@@ -64,6 +65,7 @@ export async function listMyPupils(guardianId: string): Promise<ParentChildView[
     dateOfBirth: link.pupil.dateOfBirth.toISOString(),
     relationship: link.relationship,
     isPrimary: link.isPrimary,
+    profilePictureUrl: link.pupil.profilePictureUrl,
   }))
 }
 

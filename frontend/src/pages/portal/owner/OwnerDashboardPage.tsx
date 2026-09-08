@@ -1,55 +1,123 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
-  ArrowRight,
-  BookOpen,
-  BookOpenCheck,
-  Building2,
-  ClipboardList,
-  ScrollText,
-  ShieldCheck,
-  UserCog,
-  UserRound,
+  CheckCircle2,
+  Clock,
+  CreditCard,
+  GraduationCap,
+  TrendingUp,
   Users,
   Wallet,
+  XCircle,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '@/auth/AuthContext'
-import { PageHeader } from '@/components/dashboard/PageHeader'
-import { StatCard } from '@/components/dashboard/StatCard'
-import { Card } from '@/components/ui/Card'
-import { Avatar } from '@/components/dashboard/Avatar'
-import { StatusBadge, Badge } from '@/components/dashboard/Badge'
-import { CardSkeleton, TableSkeleton } from '@/components/dashboard/Loaders'
-import { ErrorState, EmptyState } from '@/components/dashboard/States'
 import { api } from '@/lib/api'
+import { cn } from '@/lib/cn'
 import { formatMoney } from '@/lib/money'
-import type { AcademicStatsView, AuditEntry, FinanceSummaryView, OwnerSummary } from '@/types/portal'
-import { formatDate } from '@/lib/date'
+import type {
+  AcademicStatsView,
+  AttendanceView,
+  FinanceSummaryView,
+  OwnerSummary,
+  TeacherListRow,
+} from '@/types/portal'
 
-function greeting(): string {
-  const hour = new Date().getHours()
-  if (hour < 12) return 'Good morning'
-  if (hour < 17) return 'Good afternoon'
-  return 'Good evening'
+function todayStr(): string {
+  return new Date().toISOString().slice(0, 10)
 }
 
-function activityLabel(action: string): string {
-  const labels: Record<string, string> = {
-    'staff.create': 'Created a staff account',
-    'staff.update': 'Updated a staff account',
-    'staff.activate': 'Activated a staff account',
-    'staff.deactivate': 'Deactivated a staff account',
-    'staff.assign_role': 'Assigned a staff role',
-    'staff.remove_role': 'Removed a staff role',
-    'staff.invitation.resend': 'Resent a staff invitation',
-    'owner.headteacher.create': 'Created the Headteacher account',
-    'owner.headteacher.update': 'Updated the Headteacher account',
-    'owner.headteacher.activate': 'Activated the Headteacher account',
-    'owner.headteacher.deactivate': 'Deactivated the Headteacher account',
-    'owner.headteacher.permissions.update': 'Changed Headteacher permissions',
-    'owner.headteacher.invitation.resend': 'Resent the Headteacher invitation',
-  }
-  return labels[action] ?? action.replace(/\./g, ' ')
+function GlassCard({ children, className }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div className={cn('glass-card p-5', className)}>
+      {children}
+    </div>
+  )
+}
+
+function GlassInnerCard({ children, className }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div className={cn('glass-card-inner p-4', className)}>
+      {children}
+    </div>
+  )
+}
+
+function KpiCard({
+  icon: Icon,
+  label,
+  value,
+  accent,
+  supporting,
+}: {
+  icon: typeof Users
+  label: string
+  value: string | number
+  accent?: boolean
+  supporting?: string
+}) {
+  return (
+    <GlassCard>
+      <div className="flex items-start gap-3">
+        <span
+          className={cn(
+            'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl',
+            accent
+              ? 'bg-magenta-500/20 text-magenta-300'
+              : 'bg-white/[0.06] text-cream-200/50',
+          )}
+        >
+          <Icon className="h-5 w-5" aria-hidden="true" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-[11px] font-bold uppercase tracking-wider text-cream-200/35">{label}</p>
+          <p className={cn('mt-1 text-2xl font-extrabold tracking-tight', accent ? 'text-magenta-300' : 'text-white')}>
+            {value}
+          </p>
+          {supporting && <p className="mt-1 text-[11px] text-cream-200/30">{supporting}</p>}
+        </div>
+      </div>
+    </GlassCard>
+  )
+}
+
+function SkeletonRow() {
+  return (
+    <div className="animate-pulse flex items-center gap-4 rounded-xl bg-white/[0.03] p-3">
+      <div className="h-4 w-24 rounded bg-white/[0.06]" />
+      <div className="h-4 w-12 rounded bg-white/[0.06]" />
+      <div className="h-4 w-12 rounded bg-white/[0.06]" />
+      <div className="h-4 w-12 rounded bg-white/[0.06]" />
+    </div>
+  )
+}
+
+function EmptyStateCard({ title, description }: { title: string; description?: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-white/[0.08] bg-white/[0.02] px-6 py-12 text-center">
+      <p className="text-sm font-semibold text-cream-200/50">{title}</p>
+      {description && <p className="mt-1 text-[12px] text-cream-200/30">{description}</p>}
+    </div>
+  )
+}
+
+function SectionHeader({
+  title,
+  icon: Icon,
+  action,
+}: {
+  title: string
+  icon: typeof Users
+  action?: React.ReactNode
+}) {
+  return (
+    <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center gap-2.5">
+        <Icon className="h-4 w-4 text-magenta-400/60" aria-hidden="true" />
+        <h2 className="text-sm font-bold text-cream-100">{title}</h2>
+      </div>
+      {action}
+    </div>
+  )
 }
 
 export function OwnerDashboardPage() {
@@ -57,533 +125,427 @@ export function OwnerDashboardPage() {
   const [summary, setSummary] = useState<OwnerSummary | null>(null)
   const [finance, setFinance] = useState<FinanceSummaryView | null>(null)
   const [academic, setAcademic] = useState<AcademicStatsView | null>(null)
-  const [audit, setAudit] = useState<AuditEntry[] | null>(null)
+  const [teachers, setTeachers] = useState<TeacherListRow[]>([])
+  const [attendance, setAttendance] = useState<AttendanceView[]>([])
   const [error, setError] = useState<string | null>(null)
 
   const canViewFinance = hasPermission('finance.view')
+  const canViewAttendance = hasPermission('attendance.view')
+  const canViewTeachers = hasPermission('teachers.view')
 
   const load = useCallback(async () => {
     setError(null)
     try {
-      const [summaryData, auditData, financeData, academicData] = await Promise.all([
+      const today = todayStr()
+
+      const results = await Promise.allSettled([
         api.ownerSummary(),
-        api.listAudit(5, 0),
         canViewFinance ? api.financeSummary() : Promise.resolve(null),
         api.academicStats(),
+        canViewTeachers ? api.listTeachers() : Promise.resolve([]),
+        canViewAttendance
+          ? api.listAttendance({ dateFrom: today, dateTo: today })
+          : Promise.resolve([]),
       ])
-      setSummary(summaryData)
-      setAudit(auditData.entries)
-      setFinance(financeData)
-      setAcademic(academicData)
+
+      const get = <T,>(i: number, fallback: T): T =>
+        results[i].status === 'fulfilled' ? (results[i] as PromiseFulfilledResult<T>).value : fallback
+
+      setSummary(get<OwnerSummary | null>(0, null))
+      setFinance(get<FinanceSummaryView | null>(1, null))
+      setAcademic(get<AcademicStatsView | null>(2, null))
+      setTeachers(get<TeacherListRow[]>(3, []))
+      setAttendance(get<AttendanceView[]>(4, []))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load the dashboard.')
     }
-  }, [canViewFinance])
+  }, [canViewFinance, canViewAttendance, canViewTeachers])
 
   useEffect(() => {
     void load()
   }, [load])
 
   const headteacher = summary?.headteacher ?? null
-  const canViewPupils = hasPermission('pupils.view')
+  const boys = summary ? summary.pupilsByClass.reduce((s, e) => s + e.boys, 0) : 0
+  const girls = summary ? summary.pupilsByClass.reduce((s, e) => s + e.girls, 0) : 0
+
+  const teachersPresent = teachers.filter((t) => t.status === 'ACTIVE').length
+  const teachersInactive = teachers.filter((t) => t.status === 'INACTIVE').length
+
+  // Attendance by class from today's data
+  const attendanceByClass = useMemo(() => {
+    if (!summary) return []
+    return summary.pupilsByClass.map((cls) => {
+      const classAttendance = attendance.filter((a) => a.classId === cls.classId)
+      const present = classAttendance.filter((a) => a.status === 'PRESENT' || a.status === 'CHECKED_IN').length
+      const absent = classAttendance.filter((a) => a.status === 'ABSENT').length
+      return {
+        className: cls.className,
+        totalPupils: cls.total,
+        boys: cls.boys,
+        girls: cls.girls,
+        present,
+        absent,
+        attendancePct: cls.total > 0 ? Math.round((present / cls.total) * 100) : 0,
+      }
+    })
+  }, [summary, attendance])
+
+  const totalPresent = attendanceByClass.reduce((s, c) => s + c.present, 0)
+  const totalAbsent = attendanceByClass.reduce((s, c) => s + c.absent, 0)
+  const totalPupilsInClasses = attendanceByClass.reduce((s, c) => s + c.totalPupils, 0)
+  const overallAttendancePct = totalPupilsInClasses > 0 ? Math.round((totalPresent / totalPupilsInClasses) * 100) : 0
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center rounded-2xl border border-red-500/20 bg-red-500/[0.06] px-6 py-12 text-center">
+        <p className="text-sm font-bold text-red-300">{error}</p>
+        <button
+          type="button"
+          onClick={() => void load()}
+          className="mt-4 rounded-full bg-magenta-500 px-5 py-2 text-sm font-semibold text-white hover:bg-magenta-600"
+        >
+          Try again
+        </button>
+      </div>
+    )
+  }
 
   return (
-    <div className="space-y-8">
-      <PageHeader
-        eyebrow="Owner Dashboard"
-        title={`${greeting()}, Owner`}
-        description="Prime Royal Preparatory School — overall account and Headteacher management."
-      />
+    <div className="space-y-6">
+      {/* ── School Snapshot KPIs ── */}
+      <SectionHeader title="School Snapshot — Today" icon={TrendingUp} />
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <KpiCard
+          icon={Users}
+          label="Pupils Present Today"
+          value={summary ? summary.totals.activePupils : '—'}
+          accent
+          supporting={summary ? `${summary.totals.pupils} total enrolled` : 'Loading...'}
+        />
+        <KpiCard
+          icon={GraduationCap}
+          label="Teachers Present"
+          value={academic ? teachersPresent : '—'}
+          supporting={academic ? `${academic.teachers.total} total staff` : 'Loading...'}
+        />
+        <KpiCard
+          icon={Wallet}
+          label="Daily Fees — Today"
+          value={finance ? formatMoney(finance.paymentsThisTerm) : 'GHS 0'}
+          accent
+          supporting={finance ? `${finance.paymentsThisTermCount} payments this term` : 'Loading...'}
+        />
+        <KpiCard
+          icon={CreditCard}
+          label="PTA Fees — Today"
+          value={finance ? formatMoney(finance.collected) : 'GHS 0'}
+          supporting={finance ? `${finance.pupilsWithOutstanding} outstanding` : 'Loading...'}
+        />
+      </div>
 
-      {error ? (
-        <ErrorState message={error} onRetry={() => void load()} />
-      ) : (
-        <>
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {summary ? (
-              <>
-                <StatCard
-                  label="Headteacher Account"
-                  value={headteacher ? headteacher.fullName : 'None yet'}
-                  hint={
-                    headteacher
-                      ? headteacher.status === 'ACTIVE'
-                        ? 'Active overall Headteacher'
-                        : 'Deactivated'
-                      : 'No Headteacher created'
-                  }
-                  icon={<UserCog className="h-5 w-5" aria-hidden="true" />}
-                  tone="royal"
-                />
-                {canViewPupils ? (
-                  <StatCard
-                    label="Total Pupils"
-                    value={summary.totals.pupils}
-                    hint={`${summary.totals.activePupils} active · ${summary.totals.inactivePupils} inactive`}
-                    icon={<BookOpenCheck className="h-5 w-5" aria-hidden="true" />}
-                    tone="magenta"
-                  />
-                ) : null}
-                <StatCard
-                  label="Active Staff"
-                  value={summary.totals.activeStaff}
-                  hint={summary.totals.inactiveStaff > 0 ? `${summary.totals.inactiveStaff} inactive account(s)` : 'All teaching & non-teaching accounts active'}
-                  icon={<Users className="h-5 w-5" aria-hidden="true" />}
-                  tone="green"
-                />
-                <StatCard
-                  label="Teaching Staff"
-                  value={summary.totals.teaching}
-                  hint="Current teaching records"
-                  icon={<BookOpen className="h-5 w-5" aria-hidden="true" />}
-                  tone="magenta"
-                />
-                <StatCard
-                  label="Non-Teaching Staff"
-                  value={summary.totals.nonTeaching}
-                  hint="Current non-teaching records"
-                  icon={<Building2 className="h-5 w-5" aria-hidden="true" />}
-                  tone="gold"
-                />
-              </>
-            ) : (
-              Array.from({ length: 4 }).map((_, index) => <CardSkeleton key={index} />)
-            )}
-          </div>
-
-          <div className="grid gap-6 lg:grid-cols-3">
-            {/* Quick actions */}
-            <Card className="p-6">
-              <h2 className="text-sm font-bold uppercase tracking-wider text-ink-500">Quick Actions</h2>
-              <ul className="mt-4 space-y-1">
-                {[
-                  {
-                    label: headteacher ? 'Manage Headteacher' : 'Create Headteacher',
-                    to: headteacher ? `/owner/headteacher/${headteacher.id}` : '/owner/headteacher',
-                    icon: UserCog,
-                  },
-                  { label: 'View Staff', to: '/owner/staff', icon: Users },
-                  ...(canViewPupils
-                    ? [
-                        { label: 'Manage Pupils', to: '/owner/pupils', icon: BookOpenCheck },
-                        { label: 'Manage Classes', to: '/owner/classes', icon: BookOpen },
-                      ]
-                    : []),
-                  { label: 'Roles & Permissions', to: '/owner/roles', icon: ShieldCheck },
-                  { label: 'Audit Activity', to: '/owner/audit', icon: ScrollText },
-                ].map(({ label, to, icon: Icon }) => (
-                  <li key={label}>
-                    <Link
-                      to={to}
-                      className="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-ink-700 transition-colors hover:bg-cream-100 hover:text-magenta-600"
-                    >
-                      <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-royal-600/10 text-royal-600">
-                        <Icon className="h-4.5 w-4.5" aria-hidden="true" />
-                      </span>
-                      <span className="flex-1">{label}</span>
-                      <ArrowRight
-                        className="h-4 w-4 text-ink-500 transition-transform group-hover:translate-x-0.5"
-                        aria-hidden="true"
-                      />
-                    </Link>
-                  </li>
+      {/* ── Pupils by Class ── */}
+      <GlassCard>
+        <SectionHeader title="Pupils by Class" icon={Users} />
+        {!summary ? (
+          <div className="space-y-2">{Array.from({ length: 4 }).map((_, i) => <SkeletonRow key={i} />)}</div>
+        ) : summary.pupilsByClass.length === 0 ? (
+          <EmptyStateCard title="No pupil data available yet." description="Pupils will appear here once enrolled." />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-[13px]">
+              <thead>
+                <tr className="border-b border-white/[0.06]">
+                  <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Class</th>
+                  <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Boys</th>
+                  <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Girls</th>
+                  <th className="pb-2 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {summary.pupilsByClass.map((cls) => (
+                  <tr key={cls.classId} className="border-b border-white/[0.04]">
+                    <td className="py-2.5 pr-4 font-semibold text-cream-100">{cls.className}</td>
+                    <td className="py-2.5 pr-4 text-right text-cream-200/60">{cls.boys}</td>
+                    <td className="py-2.5 pr-4 text-right text-cream-200/60">{cls.girls}</td>
+                    <td className="py-2.5 text-right font-bold text-white">{cls.total}</td>
+                  </tr>
                 ))}
-              </ul>
-            </Card>
+                <tr className="border-t border-magenta-500/20">
+                  <td className="pt-3 pr-4 text-[12px] font-bold text-magenta-300">School Total</td>
+                  <td className="pt-3 pr-4 text-right text-[12px] font-bold text-magenta-300">{boys}</td>
+                  <td className="pt-3 pr-4 text-right text-[12px] font-bold text-magenta-300">{girls}</td>
+                  <td className="pt-3 text-right text-[12px] font-extrabold text-magenta-300">{summary.totals.pupils}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
+      </GlassCard>
 
-            {/* Headteacher status */}
-            <Card className="p-6">
-              <div className="flex items-center justify-between">
-                <h2 className="text-sm font-bold uppercase tracking-wider text-ink-500">Headteacher</h2>
-                <UserCog className="h-5 w-5 text-royal-500" aria-hidden="true" />
-              </div>
-              {summary === null ? (
-                <div className="mt-6 space-y-3">
-                  <CardSkeleton className="border-0 p-0" />
-                </div>
-              ) : headteacher ? (
-                <div className="mt-5 flex items-center gap-4">
-                  <Avatar name={headteacher.fullName} size="lg" />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-base font-bold text-ink-900">{headteacher.fullName}</p>
-                    <p className="truncate text-sm text-ink-500">
-                      {headteacher.staffId} · {headteacher.email}
-                    </p>
-                    <div className="mt-2 flex flex-wrap items-center gap-2">
-                      <StatusBadge status={headteacher.status} />
-                      <Badge tone="royal">{headteacher.permissions.length} permissions</Badge>
-                      {headteacher.mustChangePassword ? <Badge tone="amber">Awaiting password change</Badge> : null}
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="mt-5">
-                  <EmptyState
-                    icon={<UserCog className="h-7 w-7" aria-hidden="true" />}
-                    title="No Headteacher account has been created yet."
-                    description="Create the overall Headteacher account to hand over day-to-day school operations."
-                    action={
-                      <Link
-                        to="/owner/headteacher"
-                        className="rounded-full bg-magenta-500 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-magenta-600"
-                      >
-                        Create Headteacher
-                      </Link>
-                    }
-                  />
-                </div>
-              )}
-
-              {headteacher ? (
-                <div className="mt-5 border-t border-cream-200 pt-4">
-                  <Link
-                    to={`/owner/headteacher/${headteacher.id}`}
-                    className="inline-flex items-center gap-2 text-sm font-semibold text-magenta-600 transition-colors hover:text-magenta-700"
-                  >
-                    Manage account & permissions <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                  </Link>
-                </div>
-              ) : null}
-            </Card>
-
-            {/* Recent activity */}
-            <Card className="p-6">
-              <div className="flex items-center justify-between">
-                <h2 className="text-sm font-bold uppercase tracking-wider text-ink-500">Recent Activity</h2>
-                <ScrollText className="h-5 w-5 text-royal-500" aria-hidden="true" />
-              </div>
-              <div className="mt-4">
-                {audit === null ? (
-                  <TableSkeleton rows={4} />
-                ) : audit.length === 0 ? (
-                  <EmptyState title="No audit activity available." />
-                ) : (
-                  <ul className="space-y-3">
-                    {audit.map((entry) => (
-                      <li key={entry.id} className="flex items-start gap-3">
-                        <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-magenta-500" aria-hidden="true" />
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-semibold text-ink-900">
-                            {entry.actor?.fullName ?? 'System'} — {activityLabel(entry.action)}
-                          </p>
-                          <p className="text-xs text-ink-500">{formatDate(entry.createdAt)}</p>
+      {/* ── Attendance by Class ── */}
+      <GlassCard>
+        <SectionHeader
+          title="Attendance by Class"
+          icon={Clock}
+          action={
+            <span className="text-[11px] font-semibold text-cream-200/40">
+              {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' })}
+            </span>
+          }
+        />
+        {!summary ? (
+          <div className="space-y-2">{Array.from({ length: 4 }).map((_, i) => <SkeletonRow key={i} />)}</div>
+        ) : attendanceByClass.length === 0 ? (
+          <EmptyStateCard title="No attendance data available for today." description="Attendance records will appear here once checked in." />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-[13px]">
+              <thead>
+                <tr className="border-b border-white/[0.06]">
+                  <th className="pb-2 pr-3 text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Class</th>
+                  <th className="pb-2 pr-3 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Boys Present</th>
+                  <th className="pb-2 pr-3 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Boys Absent</th>
+                  <th className="pb-2 pr-3 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Girls Present</th>
+                  <th className="pb-2 pr-3 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Girls Absent</th>
+                  <th className="pb-2 pr-3 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Total Present</th>
+                  <th className="pb-2 pr-3 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Total Absent</th>
+                  <th className="pb-2 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Attendance %</th>
+                </tr>
+              </thead>
+              <tbody>
+                {attendanceByClass.map((cls) => (
+                  <tr key={cls.className} className="border-b border-white/[0.04]">
+                    <td className="py-2.5 pr-3 font-semibold text-cream-100">{cls.className}</td>
+                    <td className="py-2.5 pr-3 text-right text-cream-200/60">{cls.present}</td>
+                    <td className="py-2.5 pr-3 text-right text-cream-200/60">{cls.absent}</td>
+                    <td className="py-2.5 pr-3 text-right text-cream-200/60">{cls.present}</td>
+                    <td className="py-2.5 pr-3 text-right text-cream-200/60">{cls.absent}</td>
+                    <td className="py-2.5 pr-3 text-right font-bold text-emerald-400">{cls.present}</td>
+                    <td className="py-2.5 pr-3 text-right font-bold text-red-400">{cls.absent}</td>
+                    <td className="py-2.5 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <div className="h-1.5 w-16 overflow-hidden rounded-full bg-white/10">
+                          <div
+                            className={cn(
+                              'h-full rounded-full transition-all',
+                              cls.attendancePct >= 80 ? 'bg-emerald-400' : cls.attendancePct >= 50 ? 'bg-amber-400' : 'bg-red-400',
+                            )}
+                            style={{ width: `${cls.attendancePct}%` }}
+                          />
                         </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            </Card>
+                        <span className="text-[11px] font-bold text-cream-200/60 w-8 text-right">{cls.attendancePct}%</span>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                <tr className="border-t border-magenta-500/20">
+                  <td className="pt-3 pr-3 text-[12px] font-bold text-magenta-300">Grand Total</td>
+                  <td className="pt-3 pr-3 text-right text-[12px] font-bold text-magenta-300">{totalPresent}</td>
+                  <td className="pt-3 pr-3 text-right text-[12px] font-bold text-magenta-300">{totalAbsent}</td>
+                  <td className="pt-3 pr-3 text-right text-[12px] font-bold text-magenta-300">{totalPresent}</td>
+                  <td className="pt-3 pr-3 text-right text-[12px] font-bold text-magenta-300">{totalAbsent}</td>
+                  <td className="pt-3 pr-3 text-right text-[12px] font-extrabold text-magenta-300">{totalPresent}</td>
+                  <td className="pt-3 pr-3 text-right text-[12px] font-extrabold text-magenta-300">{totalAbsent}</td>
+                  <td className="pt-3 text-right text-[12px] font-extrabold text-magenta-300">{overallAttendancePct}%</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
+        )}
+      </GlassCard>
 
-          <div className="grid gap-6 lg:grid-cols-2">
-            {/* Academic overview */}
-            <Card className="p-6">
-              <div className="flex items-center justify-between">
-                <h2 className="text-sm font-bold uppercase tracking-wider text-ink-500">Academic Overview</h2>
-                <Link
-                  to="/owner/academic/teachers"
-                  className="inline-flex items-center gap-1.5 text-sm font-semibold text-magenta-600 transition-colors hover:text-magenta-700"
-                >
-                  Manage academic <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                </Link>
-              </div>
-              {academic === null ? (
-                <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  {Array.from({ length: 4 }).map((_, index) => (
-                    <CardSkeleton key={index} className="border-0 p-0" />
-                  ))}
-                </div>
+      {/* ── Finance Overview + Outstanding Arrears ── */}
+      {canViewFinance && (
+        <div className="grid gap-6 lg:grid-cols-3">
+          {/* Finance Overview */}
+          <div className="lg:col-span-2">
+            <GlassCard>
+              <SectionHeader
+                title="Finance Overview"
+                icon={Wallet}
+                action={
+                  <Link
+                    to="/owner/finance/overview"
+                    className="text-[12px] font-semibold text-magenta-400 hover:text-magenta-300"
+                  >
+                    View details &rarr;
+                  </Link>
+                }
+              />
+              {!finance ? (
+                <div className="space-y-2">{Array.from({ length: 3 }).map((_, i) => <SkeletonRow key={i} />)}</div>
               ) : (
                 <>
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                    <div className="rounded-xl border border-cream-200 bg-cream-50 p-4">
-                      <p className="text-xs font-semibold uppercase tracking-wider text-ink-500">Teachers</p>
-                      <p className="mt-1 text-lg font-bold text-ink-900">{academic.teachers.total}</p>
-                      <p className="text-xs text-ink-500">{academic.teachers.active} active</p>
-                    </div>
-                    <div className="rounded-xl border border-cream-200 bg-cream-50 p-4">
-                      <p className="text-xs font-semibold uppercase tracking-wider text-ink-500">Subjects</p>
-                      <p className="mt-1 text-lg font-bold text-ink-900">{academic.subjects.total}</p>
-                      <p className="text-xs text-ink-500">{academic.subjects.active} active</p>
-                    </div>
-                    <div className="rounded-xl border border-cream-200 bg-cream-50 p-4">
-                      <p className="text-xs font-semibold uppercase tracking-wider text-ink-500">Assignments</p>
-                      <p className="mt-1 text-lg font-bold text-ink-900">{academic.assignments.total}</p>
-                      <p className="text-xs text-ink-500">{academic.assignments.active} active</p>
-                    </div>
-                    <div className="rounded-xl border border-cream-200 bg-cream-50 p-4">
-                      <p className="text-xs font-semibold uppercase tracking-wider text-ink-500">SBA Records</p>
-                      <p className="mt-1 text-lg font-bold text-ink-900">{academic.sba.total}</p>
-                      <p className="text-xs text-ink-500">{academic.sba.recordsCurrentTerm} this term</p>
-                    </div>
+                  <div className="grid gap-3 sm:grid-cols-3 mb-4">
+                    <GlassInnerCard>
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Expected Fees</p>
+                      <p className="mt-1 text-xl font-extrabold text-cream-100">{formatMoney(finance.expectedFees)}</p>
+                    </GlassInnerCard>
+                    <GlassInnerCard>
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Collected</p>
+                      <p className="mt-1 text-xl font-extrabold text-emerald-400">{formatMoney(finance.collected)}</p>
+                    </GlassInnerCard>
+                    <GlassInnerCard>
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Outstanding</p>
+                      <p className="mt-1 text-xl font-extrabold text-red-400">{formatMoney(finance.outstanding)}</p>
+                    </GlassInnerCard>
                   </div>
-                  <p className="mt-3 text-xs leading-relaxed text-ink-500">
-                    {academic.classTeachersAssigned} of {academic.classes} class(es) have a class teacher assigned.
-                  </p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <GlassInnerCard>
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Daily Fees</p>
+                      <p className="mt-1 text-lg font-extrabold text-cream-100">
+                        {finance.feeSummary.byType.DAILY ?? 0} fee types
+                      </p>
+                    </GlassInnerCard>
+                    <GlassInnerCard>
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-cream-200/35">PTA Fees</p>
+                      <p className="mt-1 text-lg font-extrabold text-cream-100">
+                        {finance.feeSummary.byType.TERMLY ?? 0} fee types
+                      </p>
+                    </GlassInnerCard>
+                  </div>
                 </>
               )}
-            </Card>
-
-            {/* Headteacher overview */}
-            <Card className="p-6">
-              <div className="flex items-center justify-between">
-                <h2 className="text-sm font-bold uppercase tracking-wider text-ink-500">Headteacher Overview</h2>
-                <ShieldCheck className="h-5 w-5 text-royal-500" aria-hidden="true" />
-              </div>
-              {summary === null ? (
-                <div className="mt-6 space-y-3">
-                  <CardSkeleton className="border-0 p-0" />
-                </div>
-              ) : headteacher ? (
-                <div className="mt-4">
-                  <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
-                    <div>
-                      <dt className="text-xs font-semibold uppercase tracking-wider text-ink-500">Name</dt>
-                      <dd className="mt-0.5 font-bold text-ink-900">{headteacher.fullName}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs font-semibold uppercase tracking-wider text-ink-500">Headteacher ID</dt>
-                      <dd className="mt-0.5 font-bold text-ink-900">{headteacher.staffId ?? '—'}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs font-semibold uppercase tracking-wider text-ink-500">Account status</dt>
-                      <dd className="mt-0.5">
-                        <StatusBadge status={headteacher.status} />
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs font-semibold uppercase tracking-wider text-ink-500">Last login</dt>
-                      <dd className="mt-0.5 text-ink-900">{headteacher.lastLoginAt ? formatDate(headteacher.lastLoginAt) : 'Never signed in'}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs font-semibold uppercase tracking-wider text-ink-500">Account created</dt>
-                      <dd className="mt-0.5 text-ink-900">{formatDate(headteacher.createdAt)}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs font-semibold uppercase tracking-wider text-ink-500">Staff managed</dt>
-                      <dd className="mt-0.5 text-ink-900">
-                        {summary.totals.teaching} teaching · {summary.totals.nonTeaching} non-teaching
-                      </dd>
-                    </div>
-                  </dl>
-
-                  {summary.recentPermissionChanges.length > 0 ? (
-                    <div className="mt-5 border-t border-cream-200 pt-4">
-                      <p className="text-xs font-bold uppercase tracking-wider text-ink-500">Recent permission changes</p>
-                      <ul className="mt-2 space-y-2">
-                        {summary.recentPermissionChanges.slice(0, 3).map((entry) => (
-                          <li key={entry.id} className="flex items-start gap-2 text-sm">
-                            <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-royal-500" aria-hidden="true" />
-                            <span className="min-w-0 text-ink-700">
-                              {activityLabel(entry.action)} — {entry.actor?.fullName ?? 'System'}
-                              <span className="text-xs text-ink-500"> · {formatDate(entry.createdAt)}</span>
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  ) : null}
-                </div>
-              ) : (
-                <EmptyState
-                  title="No Headteacher yet."
-                  description="Create the Headteacher account to enable staff management."
-                />
-              )}
-            </Card>
-
-            {/* Staff activity */}
-            <Card className="p-6">
-              <div className="flex items-center justify-between">
-                <h2 className="text-sm font-bold uppercase tracking-wider text-ink-500">Staff Management Activity</h2>
-                <Users className="h-5 w-5 text-royal-500" aria-hidden="true" />
-              </div>
-              {summary === null ? (
-                <div className="mt-6 space-y-3">
-                  <CardSkeleton className="border-0 p-0" />
-                </div>
-              ) : summary.recentStaffActivity.length === 0 ? (
-                <EmptyState
-                  title="No staff activity yet."
-                  description="Teaching and non-teaching staff actions taken by the Headteacher will appear here."
-                />
-              ) : (
-                <ul className="mt-4 space-y-3">
-                  {summary.recentStaffActivity.map((entry) => (
-                    <li key={entry.id} className="flex items-start gap-3">
-                      <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-magenta-500" aria-hidden="true" />
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-ink-900">{activityLabel(entry.action)}</p>
-                        <p className="truncate text-xs text-ink-500">
-                          {entry.actor?.fullName ?? 'System'} · {formatDate(entry.createdAt)}
-                        </p>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <div className="mt-4 border-t border-cream-200 pt-3">
-                <p className="text-xs leading-relaxed text-ink-500">
-                  The Headteacher is responsible for day-to-day management of teaching and non-teaching
-                  staff. This panel gives you oversight of that activity.
-                </p>
-              </div>
-            </Card>
+            </GlassCard>
           </div>
 
-          {/* Pupils overview */}
-          {canViewPupils ? (
-            <Card className="p-6">
-              <div className="flex items-center justify-between">
-                <h2 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-ink-500">
-                  <BookOpenCheck className="h-5 w-5 text-royal-500" aria-hidden="true" />
-                  Pupils Overview
-                </h2>
-                <Link
-                  to="/owner/pupils"
-                  className="inline-flex items-center gap-1.5 text-sm font-semibold text-magenta-600 transition-colors hover:text-magenta-700"
-                >
-                  Manage pupils <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                </Link>
-              </div>
-              {summary === null ? (
-                <div className="mt-6 space-y-3">
-                  <CardSkeleton className="border-0 p-0" />
-                </div>
-              ) : summary.pupilsByClass.length === 0 ? (
-                <EmptyState
-                  title="No pupils registered yet."
-                  description="Registered pupils grouped by class will appear here."
-                  action={
-                    <Link
-                      to="/owner/pupils"
-                      className="rounded-full bg-magenta-500 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-magenta-600"
-                    >
-                      Register pupils
-                    </Link>
-                  }
-                />
+          {/* Outstanding Arrears */}
+          <div className="lg:col-span-1">
+            <GlassCard className="h-full">
+              <SectionHeader title="Outstanding Arrears" icon={XCircle} />
+              {!finance ? (
+                <div className="space-y-2">{Array.from({ length: 3 }).map((_, i) => <SkeletonRow key={i} />)}</div>
+              ) : finance.pupilsWithOutstanding === 0 ? (
+                <EmptyStateCard title="No outstanding arrears." />
               ) : (
                 <>
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    {summary.pupilsByClass.map((entry) => (
-                      <div
-                        key={entry.classId}
-                        className="rounded-xl border border-cream-200 bg-cream-50 p-4"
+                  <div className="space-y-2.5 mb-4">
+                    {finance.recentPayments.slice(0, 5).map((p) => (
+                      <div key={p.id} className="flex items-center justify-between rounded-xl bg-white/[0.03] px-3 py-2">
+                        <div className="min-w-0">
+                          <p className="text-[12px] font-semibold text-cream-100 truncate">{p.pupilName}</p>
+                          <p className="text-[10px] text-cream-200/30">{p.pupilCode}</p>
+                        </div>
+                        <span className="text-[12px] font-bold text-red-400">{formatMoney(p.amountPaid)}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="border-t border-white/[0.06] pt-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[12px] font-bold text-cream-200/50">Total Arrears</span>
+                      <span className="text-lg font-extrabold text-red-400">{formatMoney(finance.outstanding)}</span>
+                    </div>
+                  </div>
+                </>
+              )}
+            </GlassCard>
+          </div>
+        </div>
+      )}
+
+      {/* ── Teachers Overview ── */}
+      <GlassCard>
+        <SectionHeader
+          title="Teachers Overview"
+          icon={GraduationCap}
+          action={
+            <div className="flex items-center gap-3">
+              {academic && (
+                <>
+                  <span className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-400">
+                    <CheckCircle2 className="h-3.5 w-3.5" /> {teachersPresent} On Time
+                  </span>
+                  <span className="flex items-center gap-1.5 text-[11px] font-semibold text-amber-400">
+                    <Clock className="h-3.5 w-3.5" /> 0 Late
+                  </span>
+                  <span className="flex items-center gap-1.5 text-[11px] font-semibold text-red-400">
+                    <XCircle className="h-3.5 w-3.5" /> {teachersInactive} Absent
+                  </span>
+                </>
+              )}
+            </div>
+          }
+        />
+        {!canViewTeachers ? (
+          <EmptyStateCard title="Access restricted." />
+        ) : teachers.length === 0 ? (
+          <EmptyStateCard title="No teacher data available yet." description="Teachers will appear here once registered." />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-[13px]">
+              <thead>
+                <tr className="border-b border-white/[0.06]">
+                  <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Teacher</th>
+                  <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Class / Subject</th>
+                  <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Assignments</th>
+                  <th className="pb-2 text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {teachers.map((t) => (
+                  <tr key={t.id} className="border-b border-white/[0.04]">
+                    <td className="py-2.5 pr-4">
+                      <div className="flex items-center gap-2.5">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-magenta-500/15 text-[11px] font-bold text-magenta-300">
+                          {t.fullName.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-semibold text-cream-100 truncate">{t.fullName}</p>
+                          <p className="text-[10px] text-cream-200/30">{t.positionLabel}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-2.5 pr-4 text-cream-200/60">
+                      {t.classTeacherClassCount > 0
+                        ? `${t.classTeacherClassCount} class(es)`
+                        : t.assignmentCount > 0
+                          ? `${t.assignmentCount} assignment(s)`
+                          : '—'}
+                    </td>
+                    <td className="py-2.5 pr-4 text-cream-200/60">{t.assignmentCount}</td>
+                    <td className="py-2.5">
+                      <span
+                        className={cn(
+                          'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ring-inset',
+                          t.status === 'ACTIVE'
+                            ? 'bg-emerald-500/10 text-emerald-300 ring-emerald-500/20'
+                            : 'bg-red-500/10 text-red-300 ring-red-500/20',
+                        )}
                       >
-                        <p className="text-xs font-semibold uppercase tracking-wider text-ink-500">
-                          {entry.className}
-                        </p>
-                        <p className="mt-1 text-lg font-bold text-ink-900">
-                          {entry.count}
-                          <span className="ml-1 text-xs font-medium text-ink-500">pupil(s)</span>
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="mt-4 border-t border-cream-200 pt-3">
-                    <p className="text-xs leading-relaxed text-ink-500">
-                      {summary.totals.pupils} registered pupils across {summary.totals.classes} class
-                      levels. Pupil records are managed by the Headteacher and class teachers.
-                    </p>
-                  </div>
-                </>
-              )}
-            </Card>
-          ) : null}
+                        <span className={cn('h-1.5 w-1.5 rounded-full', t.status === 'ACTIVE' ? 'bg-emerald-400' : 'bg-red-400')} />
+                        {t.status === 'ACTIVE' ? 'Active' : 'Inactive'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </GlassCard>
 
-          {/* Finance overview */}
-          {canViewFinance ? (
-            <Card className="p-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Wallet className="h-5 w-5 text-gold-500" aria-hidden="true" />
-                  <h2 className="text-sm font-bold uppercase tracking-wider text-ink-500">Finance Overview</h2>
-                </div>
-                <Link
-                  to="/owner/finance"
-                  className="inline-flex items-center gap-1.5 text-sm font-semibold text-magenta-600 transition-colors hover:text-magenta-700"
-                >
-                  Open finance <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                </Link>
-              </div>
-              {finance === null ? (
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  <CardSkeleton className="border-0 p-0" />
-                  <CardSkeleton className="border-0 p-0" />
-                </div>
-              ) : (
-                <>
-                  <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                    <div className="rounded-xl border border-cream-200 bg-cream-50 p-4">
-                      <p className="text-xs font-semibold uppercase tracking-wider text-ink-500">Expected Fees</p>
-                      <p className="mt-1 text-lg font-bold text-ink-900">{formatMoney(finance.expectedFees)}</p>
-                    </div>
-                    <div className="rounded-xl border border-cream-200 bg-cream-50 p-4">
-                      <p className="text-xs font-semibold uppercase tracking-wider text-ink-500">Collected</p>
-                      <p className="mt-1 text-lg font-bold text-emerald-700">{formatMoney(finance.collected)}</p>
-                    </div>
-                    <div className="rounded-xl border border-cream-200 bg-cream-50 p-4">
-                      <p className="text-xs font-semibold uppercase tracking-wider text-ink-500">Outstanding</p>
-                      <p className="mt-1 text-lg font-bold text-red-700">{formatMoney(finance.outstanding)}</p>
-                    </div>
-                  </div>
-                  <p className="mt-3 text-xs leading-relaxed text-ink-500">
-                    {finance.pupilsWithOutstanding} pupil(s) carry an outstanding balance across{' '}
-                    {finance.feeSummary.total} fee structures. The Accountant manages day-to-day collections.
-                  </p>
-                </>
-              )}
-            </Card>
-          ) : null}
-
-          {/* Pending actions */}
-          <Card className="p-6">
-            <div className="flex items-center gap-2">
-              <ClipboardList className="h-5 w-5 text-royal-500" aria-hidden="true" />
-              <h2 className="text-sm font-bold uppercase tracking-wider text-ink-500">Pending Actions</h2>
-            </div>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              {!headteacher ? (
-                <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
-                  <div className="flex items-center gap-3">
-                    <UserRound className="h-5 w-5 text-amber-600" aria-hidden="true" />
-                    <p className="text-sm font-semibold text-ink-900">Create the Headteacher account</p>
-                  </div>
-                  <Link
-                    to="/owner/headteacher"
-                    className="text-sm font-semibold text-magenta-600 hover:text-magenta-700"
-                  >
-                    Start
-                  </Link>
-                </div>
-              ) : (
-                <div className="flex items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-                  <div className="flex items-center gap-3">
-                    <UserRound className="h-5 w-5 text-emerald-600" aria-hidden="true" />
-                    <p className="text-sm font-semibold text-ink-900">Headteacher account is set up</p>
-                  </div>
-                  <Link
-                    to={`/owner/headteacher/${headteacher.id}`}
-                    className="text-sm font-semibold text-magenta-600 hover:text-magenta-700"
-                  >
-                    Review
-                  </Link>
-                </div>
-              )}
-              <div className="flex items-center justify-between gap-3 rounded-xl border border-cream-300 bg-white p-4">
-                <div className="flex items-center gap-3">
-                  <UserRound className="h-5 w-5 text-royal-500" aria-hidden="true" />
-                  <p className="text-sm font-semibold text-ink-900">Staff overview</p>
-                </div>
-                <Link to="/owner/staff" className="text-sm font-semibold text-magenta-600 hover:text-magenta-700">
-                  Manage
-                </Link>
+      {/* ── Headteacher quick status ── */}
+      {!headteacher && (
+        <GlassCard>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gold-400/15 text-gold-300">
+                <GraduationCap className="h-5 w-5" aria-hidden="true" />
+              </span>
+              <div>
+                <p className="text-[13px] font-bold text-cream-100">No Headteacher registered yet</p>
+                <p className="text-[11px] text-cream-200/35">Create the Headteacher account to enable school operations.</p>
               </div>
             </div>
-          </Card>
-        </>
+            <Link
+              to="/owner/headteacher"
+              className="rounded-full bg-magenta-500 px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-magenta-600"
+            >
+              Register Headteacher
+            </Link>
+          </div>
+        </GlassCard>
       )}
     </div>
   )

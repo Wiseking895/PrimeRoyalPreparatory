@@ -20,6 +20,7 @@ export interface GuardianInput {
   phone?: string
   email?: string
   address?: string
+  occupation?: string
   isPrimary?: boolean
   isEmergency?: boolean
 }
@@ -35,6 +36,10 @@ export interface PupilCreateInput {
   classId: string
   dateAdmitted?: string
   address?: string
+  nationality?: string
+  religion?: string
+  admissionReason?: string
+  declarationAcknowledged?: boolean
   status?: PupilStatus
   guardians?: GuardianInput[]
 }
@@ -50,6 +55,10 @@ export interface PupilUpdateInput {
   classId?: string
   dateAdmitted?: string
   address?: string | null
+  nationality?: string | null
+  religion?: string | null
+  admissionReason?: string | null
+  declarationAcknowledged?: boolean
   status?: PupilStatus
   guardians?: GuardianInput[]
 }
@@ -133,6 +142,7 @@ async function resolveGuardian(
       phone: phone || null,
       email: email || null,
       address: input.address?.trim() || null,
+      occupation: input.occupation?.trim() || null,
     },
   })
   return created.id
@@ -249,6 +259,10 @@ export async function createPupil(
         dateAdmitted: input.dateAdmitted ? new Date(input.dateAdmitted) : new Date(),
         status: input.status ?? 'ACTIVE',
         address: input.address?.trim() || null,
+        nationality: input.nationality?.trim() || null,
+        religion: input.religion?.trim() || null,
+        admissionReason: input.admissionReason?.trim() || null,
+        declarationAcknowledged: input.declarationAcknowledged ?? false,
       },
     })
     await linkGuardians(tx, created.id, input.guardians ?? [])
@@ -328,6 +342,22 @@ export async function updatePupil(
   if (input.address !== undefined) {
     data.address = input.address?.trim() || null
     changed.push('address')
+  }
+  if (input.nationality !== undefined) {
+    data.nationality = input.nationality?.trim() || null
+    changed.push('nationality')
+  }
+  if (input.religion !== undefined) {
+    data.religion = input.religion?.trim() || null
+    changed.push('religion')
+  }
+  if (input.admissionReason !== undefined) {
+    data.admissionReason = input.admissionReason?.trim() || null
+    changed.push('admissionReason')
+  }
+  if (input.declarationAcknowledged !== undefined) {
+    data.declarationAcknowledged = input.declarationAcknowledged
+    changed.push('declarationAcknowledged')
   }
   if (input.status !== undefined) {
     data.status = input.status

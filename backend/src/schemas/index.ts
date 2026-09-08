@@ -62,6 +62,7 @@ const guardianInputSchema = z.object({
   phone: optionalPhone,
   email: optionalEmail,
   address: optionalLongText(200),
+  occupation: optionalLongText(100),
   isPrimary: z.boolean().default(false),
   isEmergency: z.boolean().default(false),
 })
@@ -79,6 +80,10 @@ export const pupilCreateSchema = z.object({
   classId: z.string().trim().min(1, 'Select a class.').max(100),
   dateAdmitted: dateField.optional(),
   address: optionalLongText(200),
+  nationality: optionalLongText(60),
+  religion: optionalLongText(60),
+  admissionReason: optionalLongText(200),
+  declarationAcknowledged: z.boolean().default(false),
   status: z.enum(['ACTIVE', 'INACTIVE']).default('ACTIVE'),
   guardians: z.array(guardianInputSchema).max(6, 'A maximum of 6 guardians is allowed.').default([]),
 })
@@ -94,6 +99,10 @@ export const pupilUpdateSchema = z.object({
   classId: z.string().trim().min(1).max(100).optional(),
   dateAdmitted: dateField.optional(),
   address: optionalLongText(200).nullable(),
+  nationality: optionalLongText(60).nullable(),
+  religion: optionalLongText(60).nullable(),
+  admissionReason: optionalLongText(200).nullable(),
+  declarationAcknowledged: z.boolean().optional(),
   status: z.enum(['ACTIVE', 'INACTIVE']).optional(),
   guardians: z.array(guardianInputSchema).max(6).optional(),
 })

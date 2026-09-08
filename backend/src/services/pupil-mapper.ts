@@ -8,6 +8,7 @@ export interface PupilGuardianRecord {
     phone: string | null
     email: string | null
     address: string | null
+    occupation: string | null
   }
 }
 
@@ -21,6 +22,10 @@ export interface PupilRecord {
   dateOfBirth: Date
   gender: 'MALE' | 'FEMALE'
   profilePictureUrl: string | null
+  nationality: string | null
+  religion: string | null
+  admissionReason: string | null
+  declarationAcknowledged: boolean
   classId: string
   dateAdmitted: Date
   status: 'ACTIVE' | 'INACTIVE'
@@ -37,6 +42,7 @@ export interface GuardianView {
   phone: string | null
   email: string | null
   address: string | null
+  occupation: string | null
   relationship: string | null
   isPrimary: boolean
   isEmergency: boolean
@@ -53,6 +59,10 @@ export interface PupilView {
   dateOfBirth: string
   gender: 'MALE' | 'FEMALE'
   profilePictureUrl: string | null
+  nationality: string | null
+  religion: string | null
+  admissionReason: string | null
+  declarationAcknowledged: boolean
   classId: string
   className: string
   dateAdmitted: string
@@ -81,6 +91,10 @@ export function toPupilView(record: PupilRecord): PupilView {
     dateOfBirth: record.dateOfBirth.toISOString(),
     gender: record.gender,
     profilePictureUrl: record.profilePictureUrl,
+    nationality: record.nationality,
+    religion: record.religion,
+    admissionReason: record.admissionReason,
+    declarationAcknowledged: record.declarationAcknowledged,
     classId: record.classId,
     className: record.class?.name ?? '—',
     dateAdmitted: record.dateAdmitted.toISOString(),
@@ -92,6 +106,7 @@ export function toPupilView(record: PupilRecord): PupilView {
       phone: entry.guardian.phone,
       email: entry.guardian.email,
       address: entry.guardian.address,
+      occupation: entry.guardian.occupation,
       relationship: entry.relationship,
       isPrimary: entry.isPrimary,
       isEmergency: entry.isEmergency,

@@ -160,8 +160,31 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
   {
     name: OWNER_ROLE,
     label: 'Owner',
-    description: 'Root administrative authority for this school instance.',
-    permissions: PERMISSIONS.map((p) => p.key),
+    description: 'Root administrative authority for this school instance. Read-only oversight; registers the Headteacher as the sole operational task.',
+    permissions: [
+      // Owner administration
+      'owner.manage',
+      'owner.create',
+      'owner.change',
+      'owner.delete',
+      // Read-only views for oversight
+      'staff.view',
+      'pupils.view',
+      'classes.view',
+      'admissions.view',
+      'attendance.view',
+      'reports.view',
+      'academic.view',
+      'finance.view',
+      'teachers.view',
+      'subjects.view',
+      'sba.view',
+      'guardians.view',
+      // Communication (view + manage announcements)
+      'notifications.view',
+      'announcements.view',
+      'announcements.manage',
+    ],
   },
   {
     name: HEADTEACHER_ROLE,
@@ -189,6 +212,9 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       'academic.view',
       'academic.manage',
       'finance.view',
+      'finance.manage',
+      'fees.manage',
+      'payments.record',
       'teachers.view',
       'teachers.manage',
       'subjects.view',

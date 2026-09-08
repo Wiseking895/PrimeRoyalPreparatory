@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client'
 import { HEADTEACHER_ROLE, OWNER_ONLY_PERMISSIONS, PERMISSIONS } from '../rbac/catalog'
 import { HttpStatus } from '../config/enums'
 import { logger } from '../config/logger'
@@ -10,6 +11,7 @@ import { recordAudit } from './audit.service'
 import { ensureInitialRbac } from './ensure-rbac'
 import { maskEmail, sendHeadteacherInvitation, type MailResult } from './mail.service'
 import { toPublicUser, toStaffView, type PublicUser, type StaffView } from './user-mapper'
+import { money } from './finance-mapper'
 
 const headteacherInclude = {
   staffProfile: true,
@@ -75,7 +77,9 @@ export async function getOwnerSummary(): Promise<{
   pupilsByClass: Array<{
     classId: string
     className: string
-    count: number
+    boys: number
+    girls: number
+    total: number
   }>
   recentStaffActivity: Array<{
     id: string
@@ -127,7 +131,7 @@ export async function getOwnerSummary(): Promise<{
     prisma.pupil.count({ where: { status: 'ACTIVE' } }),
     prisma.pupil.count({ where: { status: 'INACTIVE' } }),
     prisma.schoolClass.count(),
-    prisma.pupil.groupBy({ by: ['classId'], _count: { _all: true } }),
+    prisma.pupil.groupBy({ by: ['classId', 'gender'], _count: { _all: true } }),
     prisma.auditLog.findMany({
       where: { action: { startsWith: 'staff.' } },
       orderBy: { createdAt: 'desc' },
@@ -142,7 +146,7 @@ export async function getOwnerSummary(): Promise<{
     }),
   ])
 
-  const classIds = pupilGroupBy.map((row) => row.classId)
+  const classIds = [...new Set(pupilGroupBy.map((row) => row.classId))]
   const classes = classIds.length > 0
     ? await prisma.schoolClass.findMany({
         where: { id: { in: classIds } },
@@ -150,11 +154,25 @@ export async function getOwnerSummary(): Promise<{
       })
     : []
   const classMap = new Map(classes.map((entry) => [entry.id, entry.name]))
-  const pupilsByClass = pupilGroupBy
-    .map((row) => ({
-      classId: row.classId,
-      className: classMap.get(row.classId) ?? '—',
-      count: row._count._all,
+
+  const classAggregates = new Map<string, { boys: number; girls: number }>()
+  for (const row of pupilGroupBy) {
+    const existing = classAggregates.get(row.classId) ?? { boys: 0, girls: 0 }
+    if (row.gender === 'MALE') {
+      existing.boys = row._count._all
+    } else {
+      existing.girls = row._count._all
+    }
+    classAggregates.set(row.classId, existing)
+  }
+
+  const pupilsByClass = Array.from(classAggregates.entries())
+    .map(([classId, agg]) => ({
+      classId,
+      className: classMap.get(classId) ?? '—',
+      boys: agg.boys,
+      girls: agg.girls,
+      total: agg.boys + agg.girls,
     }))
     .sort((a, b) => a.className.localeCompare(b.className))
 
@@ -189,6 +207,225 @@ export async function getOwnerSummary(): Promise<{
       createdAt: entry.createdAt,
       actor: entry.actorUser,
     })),
+  }
+}
+
+// =============================================================================
+// Owner Finance Overview (read-only)
+// =============================================================================
+
+export interface ClassFinanceRow {
+  classId: string
+  className: string
+  pupilCount: number
+  expectedAmount: string
+  collectedAmount: string
+  outstandingAmount: string
+}
+
+export interface OwnerFinanceOverviewView {
+  session: { id: string; name: string } | null
+  term: { id: string; name: string } | null
+  totals: {
+    totalExpected: string
+    totalCollected: string
+    totalOutstanding: string
+    totalPupils: number
+    pupilsWithCharges: number
+    pupilsWithPayments: number
+  }
+  dailyFees: ClassFinanceRow[]
+  ptaFees: ClassFinanceRow[]
+  maintenanceFees: ClassFinanceRow[]
+}
+
+export async function getOwnerFinanceOverview(): Promise<OwnerFinanceOverviewView> {
+  const session = await prisma.academicSession.findFirst({
+    where: { status: 'ACTIVE' },
+    select: { id: true, name: true },
+    orderBy: { createdAt: 'desc' },
+  })
+  const term = session
+    ? await prisma.academicTerm.findFirst({
+        where: { sessionId: session.id, status: 'ACTIVE' },
+        select: { id: true, name: true },
+        orderBy: { termNumber: 'desc' },
+      })
+    : null
+
+  // Get all active classes
+  const classes = await prisma.schoolClass.findMany({
+    where: { status: 'ACTIVE' },
+    select: { id: true, name: true },
+    orderBy: { sortOrder: 'asc' },
+  })
+
+  if (classes.length === 0) {
+    return {
+      session,
+      term,
+      totals: {
+        totalExpected: money(0),
+        totalCollected: money(0),
+        totalOutstanding: money(0),
+        totalPupils: 0,
+        pupilsWithCharges: 0,
+        pupilsWithPayments: 0,
+      },
+      dailyFees: [],
+      ptaFees: [],
+      maintenanceFees: [],
+    }
+  }
+
+  const classIds = classes.map((c) => c.id)
+
+  // Get all active charges with their assignments (pupil → class) and fee type
+  const charges = await prisma.feeCharge.findMany({
+    where: {
+      status: 'ACTIVE',
+      assignment: {
+        pupil: { classId: { in: classIds } },
+      },
+    },
+    select: {
+      id: true,
+      amount: true,
+      assignment: {
+        select: {
+          pupilId: true,
+          pupil: { select: { classId: true } },
+          fee: { select: { feeType: true } },
+        },
+      },
+      allocations: { select: { amount: true } },
+    },
+  })
+
+  // Get all active payments for pupils in these classes
+  const payments = await prisma.payment.findMany({
+    where: {
+      status: 'ACTIVE',
+      pupil: { classId: { in: classIds } },
+    },
+    select: {
+      id: true,
+      amountPaid: true,
+      pupilId: true,
+      pupil: { select: { classId: true } },
+      allocations: {
+        select: {
+          amount: true,
+          charge: {
+            select: {
+              assignment: {
+                select: { fee: { select: { feeType: true } } },
+              },
+            },
+          },
+        },
+      },
+    },
+  })
+
+  // Aggregate charges by class and fee type
+  type FeeTypeKey = 'DAILY' | 'TERMLY' | 'OTHER'
+  const byClassAndType = new Map<string, Map<FeeTypeKey, { expected: Prisma.Decimal; collected: Prisma.Decimal; pupilCount: Set<string> }>>()
+
+  for (const cls of classes) {
+    byClassAndType.set(cls.id, new Map([
+      ['DAILY', { expected: new Prisma.Decimal(0), collected: new Prisma.Decimal(0), pupilCount: new Set() }],
+      ['TERMLY', { expected: new Prisma.Decimal(0), collected: new Prisma.Decimal(0), pupilCount: new Set() }],
+      ['OTHER', { expected: new Prisma.Decimal(0), collected: new Prisma.Decimal(0), pupilCount: new Set() }],
+    ]))
+  }
+
+  for (const charge of charges) {
+    const classId = charge.assignment.pupil.classId
+    const feeType = charge.assignment.fee.feeType as FeeTypeKey
+    const bucket = byClassAndType.get(classId)?.get(feeType)
+    if (!bucket) continue
+
+    bucket.expected = bucket.expected.plus(charge.amount)
+    bucket.pupilCount.add(charge.assignment.pupilId)
+
+    for (const alloc of charge.allocations) {
+      bucket.collected = bucket.collected.plus(alloc.amount)
+    }
+  }
+
+  // Aggregate payments by class and fee type (from allocation breakdown)
+  for (const payment of payments) {
+    const classId = payment.pupil.classId
+    for (const alloc of payment.allocations) {
+      const feeType = alloc.charge?.assignment?.fee?.feeType as FeeTypeKey | undefined
+      if (!feeType) continue
+      const bucket = byClassAndType.get(classId)?.get(feeType)
+      if (!bucket) continue
+      // Payments are already captured via charge allocations above
+    }
+  }
+
+  // Build per-class rows for each fee type
+  function buildRows(feeType: FeeTypeKey): ClassFinanceRow[] {
+    return classes
+      .map((cls) => {
+        const bucket = byClassAndType.get(cls.id)?.get(feeType)
+        if (!bucket) return null
+        const expected = bucket.expected
+        const collected = bucket.collected
+        const outstanding = expected.minus(collected)
+        return {
+          classId: cls.id,
+          className: cls.name,
+          pupilCount: bucket.pupilCount.size,
+          expectedAmount: money(expected),
+          collectedAmount: money(collected),
+          outstandingAmount: money(outstanding),
+        }
+      })
+      .filter((row): row is ClassFinanceRow => row !== null)
+      .filter((row) => row.pupilCount > 0 || Number(row.expectedAmount) > 0)
+  }
+
+  const dailyFees = buildRows('DAILY')
+  const ptaFees = buildRows('TERMLY')
+  const maintenanceFees = buildRows('OTHER')
+
+  // Compute totals
+  let totalExpected = new Prisma.Decimal(0)
+  let totalCollected = new Prisma.Decimal(0)
+  const allPupilsWithCharges = new Set<string>()
+  const allPupilsWithPayments = new Set<string>()
+
+  for (const charge of charges) {
+    totalExpected = totalExpected.plus(charge.amount)
+    allPupilsWithCharges.add(charge.assignment.pupilId)
+  }
+
+  for (const payment of payments) {
+    totalCollected = totalCollected.plus(payment.amountPaid)
+    allPupilsWithPayments.add(payment.pupilId)
+  }
+
+  const totalPupils = await prisma.pupil.count({
+    where: { classId: { in: classIds }, status: 'ACTIVE' },
+  })
+
+  return {
+    session,
+    term,
+    totals: {
+      totalExpected: money(totalExpected),
+      totalCollected: money(totalCollected),
+      totalOutstanding: money(totalExpected.minus(totalCollected)),
+      totalPupils,
+      pupilsWithCharges: allPupilsWithCharges.size,
+      pupilsWithPayments: allPupilsWithPayments.size,
+    },
+    dailyFees,
+    ptaFees,
+    maintenanceFees,
   }
 }
 

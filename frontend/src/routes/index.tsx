@@ -13,14 +13,13 @@ import NewsPage from '@/pages/NewsPage'
 import NotFoundPage from '@/pages/NotFoundPage'
 import SchoolLifePage from '@/pages/SchoolLifePage'
 import StaffLoginPage from '@/pages/StaffLoginPage'
-import { AuditPage } from '@/pages/portal/AuditPage'
 import { ClassManagementPage } from '@/pages/portal/ClassManagementPage'
 import { ForbiddenPage } from '@/pages/portal/ForbiddenPage'
 import { LoginPage } from '@/pages/portal/LoginPage'
 import { ProfilePage } from '@/pages/portal/ProfilePage'
 import { PupilManagementPage } from '@/pages/portal/PupilManagementPage'
 import { PupilProfilePage } from '@/pages/portal/PupilProfilePage'
-import { RolesPage } from '@/pages/portal/RolesPage'
+import { HeadteacherWorkOutputPage } from '@/pages/portal/headteacher/HeadteacherWorkOutputPage'
 import { StaffManagementPage } from '@/pages/portal/StaffManagementPage'
 import { StaffProfilePage } from '@/pages/portal/StaffProfilePage'
 import { ChangePasswordPage } from '@/pages/portal/ChangePasswordPage'
@@ -36,9 +35,11 @@ import { PupilFinanceProfilePage } from '@/pages/portal/finance/PupilFinanceProf
 import { SessionsPage } from '@/pages/portal/finance/SessionsPage'
 import { HeadteacherDashboardPage } from '@/pages/portal/headteacher/HeadteacherDashboardPage'
 import { OwnerDashboardPage } from '@/pages/portal/owner/OwnerDashboardPage'
+import { OwnerFinanceOverviewPage } from '@/pages/portal/owner/OwnerFinanceOverviewPage'
 import { OwnerHeadteacherEditPage } from '@/pages/portal/owner/OwnerHeadteacherEditPage'
 import { OwnerHeadteacherPage } from '@/pages/portal/owner/OwnerHeadteacherPage'
 import { OwnerSetupPage } from '@/pages/portal/owner/OwnerSetupPage'
+import { OwnerWorkOutputPage } from '@/pages/portal/owner/OwnerWorkOutputPage'
 import { SettingsPage } from '@/pages/portal/owner/SettingsPage'
 import { ClassAcademicOverviewPage } from '@/pages/portal/teacher/ClassAcademicOverviewPage'
 import { SbaEntryPage } from '@/pages/portal/teacher/SbaEntryPage'
@@ -96,33 +97,13 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <Navigate to="/owner/dashboard" replace /> },
       { path: 'dashboard', element: <OwnerDashboardPage /> },
-      { path: 'pupils', element: <PupilManagementPage /> },
-      { path: 'pupils/:id', element: <PupilProfilePage /> },
-      { path: 'classes', element: <ClassManagementPage /> },
-      { path: 'academic/teachers', element: <TeacherManagementPage /> },
-      { path: 'academic/teachers/:id', element: <TeacherProfilePage /> },
-      { path: 'academic/subjects', element: <SubjectManagementPage /> },
-      { path: 'academic/assignments', element: <TeacherAssignmentPage /> },
-      { path: 'academic/classes/:classId', element: <ClassAcademicOverviewPage /> },
       { path: 'headteacher', element: <OwnerHeadteacherPage /> },
       { path: 'headteacher/:id', element: <OwnerHeadteacherEditPage /> },
-      { path: 'staff', element: <StaffManagementPage /> },
-      { path: 'staff/:id', element: <StaffProfilePage /> },
-      { path: 'roles', element: <RolesPage /> },
-      { path: 'audit', element: <AuditPage /> },
       { path: 'profile', element: <ProfilePage /> },
       { path: 'settings', element: <SettingsPage /> },
-      { path: 'finance', element: <Navigate to="/owner/finance/dashboard" replace /> },
-      { path: 'finance/dashboard', element: <FinanceDashboardPage /> },
-      { path: 'finance/sessions', element: <SessionsPage /> },
-      { path: 'finance/fees', element: <FeeStructuresPage /> },
-      { path: 'finance/fees/:id/assignments', element: <FeeAssignmentsPage /> },
-      { path: 'finance/charges', element: <ChargeGenerationPage /> },
-      { path: 'finance/payments', element: <PaymentsPage /> },
-      { path: 'finance/payments/:id', element: <PaymentDetailPage /> },
-      { path: 'finance/pupils', element: <PupilFinancePage /> },
-      { path: 'finance/pupils/:id', element: <PupilFinanceProfilePage /> },
-      { path: 'finance/summary', element: <FinanceSummaryPage /> },
+      { path: 'finance', element: <Navigate to="/owner/finance/overview" replace /> },
+      { path: 'finance/overview', element: <OwnerFinanceOverviewPage /> },
+      { path: 'work-output', element: <OwnerWorkOutputPage /> },
       { path: 'notifications', element: <NotificationsPage /> },
       { path: 'announcements', element: <AnnouncementsPage /> },
       { path: 'notification-preferences', element: <NotificationPreferencesPage /> },
@@ -148,7 +129,7 @@ export const router = createBrowserRouter([
       { path: 'academic/classes/:classId', element: <ClassAcademicOverviewPage /> },
       { path: 'staff', element: <StaffManagementPage /> },
       { path: 'staff/:id', element: <StaffProfilePage /> },
-      { path: 'roles', element: <RolesPage /> },
+      { path: 'work-output', element: <HeadteacherWorkOutputPage /> },
       { path: 'profile', element: <ProfilePage /> },
       { path: 'finance', element: <Navigate to="/headteacher/finance/dashboard" replace /> },
       { path: 'finance/dashboard', element: <FinanceDashboardPage /> },

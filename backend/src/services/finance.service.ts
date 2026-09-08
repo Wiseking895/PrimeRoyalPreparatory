@@ -78,6 +78,7 @@ export interface TermUpdateInput {
 
 export interface FeeCreateInput {
   sessionId: string
+  termId: string
   name: string
   feeType: FeeTypeValue
   amount: string
@@ -86,6 +87,7 @@ export interface FeeCreateInput {
 }
 
 export interface FeeUpdateInput {
+  termId?: string
   name?: string
   feeType?: FeeTypeValue
   amount?: string
@@ -553,6 +555,7 @@ export async function setTermStatus(
 
 const feeInclude = {
   session: { select: { name: true } },
+  term: { select: { id: true, name: true } },
   assignments: { where: { status: 'ACTIVE' }, select: { id: true } },
   _count: { select: { assignments: true, charges: true } },
 } as const
@@ -562,6 +565,8 @@ function toFeeViewRecord(fee: Prisma.FinanceFeeGetPayload<{ include: typeof feeI
     id: fee.id,
     sessionId: fee.sessionId,
     sessionName: fee.session.name,
+    termId: fee.termId,
+    termName: fee.term.name,
     name: fee.name,
     feeType: fee.feeType,
     amount: fee.amount,
@@ -605,9 +610,18 @@ export async function createFee(
     throw new AppError('Academic session not found.', HttpStatus.NotFound)
   }
 
+  const term = await prisma.academicTerm.findUnique({ where: { id: input.termId } })
+  if (!term) {
+    throw new AppError('Academic term not found.', HttpStatus.NotFound)
+  }
+  if (term.sessionId !== input.sessionId) {
+    throw new AppError('The selected term does not belong to the selected session.', HttpStatus.BadRequest)
+  }
+
   const fee = await prisma.financeFee.create({
     data: {
       sessionId: input.sessionId,
+      termId: input.termId,
       name: input.name.trim(),
       feeType: input.feeType,
       amount: new Prisma.Decimal(input.amount),
@@ -616,7 +630,7 @@ export async function createFee(
     },
   }).catch((error: unknown) => {
     if (isUniqueViolation(error)) {
-      throw new AppError('A fee with this name already exists in the session.', HttpStatus.Conflict)
+      throw new AppError('A fee with this name already exists in the session and term.', HttpStatus.Conflict)
     }
     throw error
   })
@@ -626,7 +640,7 @@ export async function createFee(
     action: 'finance.fee.create',
     resourceType: 'financeFee',
     resourceId: fee.id,
-    metadata: { sessionId: input.sessionId, name: fee.name, feeType: fee.feeType, amount: money(fee.amount) },
+    metadata: { sessionId: input.sessionId, termId: input.termId, name: fee.name, feeType: fee.feeType, amount: money(fee.amount) },
     ip: ip ?? null,
   })
 
@@ -647,6 +661,17 @@ export async function updateFee(
   const data: Prisma.FinanceFeeUpdateInput = {}
   const changed: string[] = []
 
+  if (input.termId !== undefined) {
+    const term = await prisma.academicTerm.findUnique({ where: { id: input.termId } })
+    if (!term) {
+      throw new AppError('Academic term not found.', HttpStatus.NotFound)
+    }
+    if (term.sessionId !== existing.sessionId) {
+      throw new AppError('The selected term does not belong to the fee\'s session.', HttpStatus.BadRequest)
+    }
+    data.term = { connect: { id: input.termId } }
+    changed.push('termId')
+  }
   if (input.name !== undefined) {
     data.name = input.name.trim()
     changed.push('name')
@@ -671,7 +696,7 @@ export async function updateFee(
   if (Object.keys(data).length > 0) {
     await prisma.financeFee.update({ where: { id }, data }).catch((error: unknown) => {
       if (isUniqueViolation(error)) {
-        throw new AppError('A fee with this name already exists in the session.', HttpStatus.Conflict)
+        throw new AppError('A fee with this name already exists in the session and term.', HttpStatus.Conflict)
       }
       throw error
     })
@@ -868,7 +893,7 @@ export async function deactivateAssignment(
 async function generateChargesForFeeInner(feeId: string): Promise<number> {
   const fee = await prisma.financeFee.findUnique({
     where: { id: feeId },
-    include: { session: { select: { name: true } } },
+    include: { session: { select: { name: true } }, term: { select: { id: true, name: true, schoolDays: true } } },
   })
   if (!fee) {
     throw new AppError('Fee not found.', HttpStatus.NotFound)
@@ -881,27 +906,19 @@ async function generateChargesForFeeInner(feeId: string): Promise<number> {
   if (assignments.length === 0) return 0
 
   if (fee.feeType === 'DAILY') {
-    const terms = await prisma.academicTerm.findMany({
-      where: { sessionId: fee.sessionId, status: 'ACTIVE' },
-      select: { id: true, name: true, schoolDays: true },
-      orderBy: { termNumber: 'asc' },
-    })
-    const invalidTerm = terms.find((term) => term.schoolDays <= 0)
-    if (invalidTerm) {
+    if (fee.term.schoolDays <= 0) {
       throw new AppError(
-        `Term "${invalidTerm.name}" has no school days. Set the school day count before generating daily charges.`,
+        `Term "${fee.term.name}" has no school days. Set the school day count before generating daily charges.`,
         HttpStatus.BadRequest,
       )
     }
     const rows: Array<{ assignmentId: string; termId: string; amount: Prisma.Decimal }> = []
     for (const assignment of assignments) {
-      for (const term of terms) {
-        rows.push({
-          assignmentId: assignment.id,
-          termId: term.id,
-          amount: fee.amount.mul(term.schoolDays),
-        })
-      }
+      rows.push({
+        assignmentId: assignment.id,
+        termId: fee.termId,
+        amount: fee.amount.mul(fee.term.schoolDays),
+      })
     }
     if (rows.length === 0) return 0
     const result = await prisma.feeCharge.createMany({ data: rows, skipDuplicates: true })
@@ -909,16 +926,9 @@ async function generateChargesForFeeInner(feeId: string): Promise<number> {
   }
 
   if (fee.feeType === 'TERMLY') {
-    const terms = await prisma.academicTerm.findMany({
-      where: { sessionId: fee.sessionId, status: 'ACTIVE' },
-      select: { id: true },
-      orderBy: { termNumber: 'asc' },
-    })
     const rows: Array<{ assignmentId: string; termId: string; amount: Prisma.Decimal }> = []
     for (const assignment of assignments) {
-      for (const term of terms) {
-        rows.push({ assignmentId: assignment.id, termId: term.id, amount: fee.amount })
-      }
+      rows.push({ assignmentId: assignment.id, termId: fee.termId, amount: fee.amount })
     }
     if (rows.length === 0) return 0
     const result = await prisma.feeCharge.createMany({ data: rows, skipDuplicates: true })
@@ -1449,5 +1459,34 @@ export async function getFinanceSummary(): Promise<FinanceSummaryView> {
     paymentsThisTermCount: termPayments?._count ?? 0,
     feeSummary: { total: fees.length, active: activeFees, byType },
     recentPayments: recentPayments.map((entry) => toPaymentView(entry as never, recentUserNames)),
+  }
+}
+
+export interface AdmissionFeeView {
+  id: string
+  name: string
+  amount: string
+  description: string | null
+}
+
+/**
+ * Retrieve the current admission fee for the registration flow.
+ * Searches for the most recently created ACTIVE fee with "admission"
+ * in its name (case-insensitive). Returns null if none exists.
+ */
+export async function getAdmissionFee(): Promise<AdmissionFeeView | null> {
+  const fee = await prisma.financeFee.findFirst({
+    where: {
+      status: 'ACTIVE',
+      name: { contains: 'admission', mode: 'insensitive' },
+    },
+    orderBy: { createdAt: 'desc' },
+  })
+  if (!fee) return null
+  return {
+    id: fee.id,
+    name: fee.name,
+    amount: money(fee.amount),
+    description: fee.description,
   }
 }

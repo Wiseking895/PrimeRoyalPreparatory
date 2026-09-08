@@ -64,7 +64,9 @@ export interface OwnerSummary {
   pupilsByClass: Array<{
     classId: string
     className: string
-    count: number
+    boys: number
+    girls: number
+    total: number
   }>
   recentStaffActivity: Array<{
     id: string
@@ -223,6 +225,7 @@ export interface GuardianView {
   phone: string | null
   email: string | null
   address: string | null
+  occupation: string | null
   relationship: string | null
   isPrimary: boolean
   isEmergency: boolean
@@ -239,6 +242,10 @@ export interface PupilView {
   dateOfBirth: string
   gender: PupilGender
   profilePictureUrl: string | null
+  nationality: string | null
+  religion: string | null
+  admissionReason: string | null
+  declarationAcknowledged: boolean
   classId: string
   className: string
   dateAdmitted: string
@@ -274,12 +281,20 @@ export interface PupilStats {
   byClass: Array<{ classId: string; className: string; count: number }>
 }
 
+export interface AdmissionFeeView {
+  id: string
+  name: string
+  amount: string
+  description: string | null
+}
+
 export interface GuardianInput {
   fullName: string
   relationship: string
   phone?: string
   email?: string
   address?: string
+  occupation?: string
   isPrimary: boolean
   isEmergency: boolean
 }
@@ -295,6 +310,10 @@ export interface PupilCreateInput {
   classId: string
   dateAdmitted?: string
   address?: string
+  nationality?: string
+  religion?: string
+  admissionReason?: string
+  declarationAcknowledged?: boolean
   status?: PupilStatus
   guardians: GuardianInput[]
 }
@@ -310,6 +329,10 @@ export interface PupilUpdateInput {
   classId?: string
   dateAdmitted?: string | null
   address?: string | null
+  nationality?: string | null
+  religion?: string | null
+  admissionReason?: string | null
+  declarationAcknowledged?: boolean
   status?: PupilStatus
   guardians?: GuardianInput[]
 }
@@ -796,6 +819,7 @@ export interface ParentChildView {
   dateOfBirth: string
   relationship: string | null
   isPrimary: boolean
+  profilePictureUrl: string | null
 }
 
 export interface ReportSubjectResult {
@@ -878,6 +902,37 @@ export interface ParentAccountResult {
 }
 
 // =============================================================================
+// Phase 8 — GPS Staff Attendance
+// =============================================================================
+
+export interface AttendanceView {
+  id: string
+  pupilId: string | null
+  pupilFullName: string | null
+  staffId: string
+  staffFullName: string
+  date: string
+  status: string
+  sessionId?: string | null
+  classId?: string | null
+  notes?: string | null
+  createdAt: string
+}
+
+export interface AttendanceAdminRecord {
+  id: string
+  staffId: string
+  staffFullName: string
+  position: string
+  date: string
+  status: string
+  latitude: number
+  longitude: number
+  accuracy: number | null
+  capturedAt: string
+}
+
+// =============================================================================
 // Phase 9 — Notifications & Announcements
 // =============================================================================
 
@@ -949,4 +1004,150 @@ export interface NotificationPreferenceView {
 export interface NotificationPreferenceUpdateInput {
   emailEnabled?: boolean
   inAppEnabled?: boolean
+}
+
+// =============================================================================
+// Owner Finance Overview (read-only)
+// =============================================================================
+
+export interface OwnerFinanceClassRow {
+  classId: string
+  className: string
+  pupilCount: number
+  expectedAmount: string
+  collectedAmount: string
+  outstandingAmount: string
+}
+
+export interface OwnerFinanceOverviewView {
+  session: { id: string; name: string } | null
+  term: { id: string; name: string } | null
+  totals: {
+    totalExpected: string
+    totalCollected: string
+    totalOutstanding: string
+    totalPupils: number
+    pupilsWithCharges: number
+    pupilsWithPayments: number
+  }
+  dailyFees: OwnerFinanceClassRow[]
+  ptaFees: OwnerFinanceClassRow[]
+  maintenanceFees: OwnerFinanceClassRow[]
+}
+
+// =============================================================================
+// Work Output — Teacher assessment delivery tracking
+// =============================================================================
+
+export type WorkOutputTypeValue = 'EXERCISE' | 'QUIZ' | 'HOMEWORK' | 'MIDTERM_EXAM'
+
+export interface WorkOutputTeacherSubjectRow {
+  teacherId: string
+  teacherName: string
+  subjectId: string
+  subjectName: string
+  subjectCode: string
+  className: string
+  classId: string
+  exercises: number
+  quizzes: number
+  homework: number
+  midtermExams: number
+}
+
+export interface WorkOutputWeeklyRow {
+  weekNumber: number
+  exercises: number
+  quizzes: number
+  homework: number
+  midtermExams: number
+}
+
+export interface WorkOutputTeacherDetail {
+  teacherId: string
+  teacherName: string
+  subjects: Array<{
+    subjectId: string
+    subjectName: string
+    subjectCode: string
+    className: string
+    classId: string
+    weekly: WorkOutputWeeklyRow[]
+    totals: {
+      exercises: number
+      quizzes: number
+      homework: number
+      midtermExams: number
+    }
+  }>
+  totals: {
+    exercises: number
+    quizzes: number
+    homework: number
+    midtermExams: number
+  }
+}
+
+export interface WorkOutputSummaryView {
+  session: { id: string; name: string } | null
+  term: { id: string; name: string; startDate: string; endDate: string } | null
+  totals: {
+    exercises: number
+    quizzes: number
+    homework: number
+    midtermExams: number
+    totalTeachers: number
+    totalSubjects: number
+  }
+  byTeacherSubject: WorkOutputTeacherSubjectRow[]
+  byTeacher: WorkOutputTeacherDetail[]
+}
+
+export interface WorkOutputQuery {
+  sessionId?: string
+  termId?: string
+  teacherId?: string
+  subjectId?: string
+  weekNumber?: number
+}
+
+export type WorkOutputReviewStatus = 'PENDING' | 'REVIEWED' | 'CONFIRMED'
+
+export interface WorkOutputDetailView {
+  id: string
+  teacherId: string
+  teacherName: string
+  subjectId: string
+  subjectName: string
+  subjectCode: string
+  classId: string
+  className: string
+  termId: string
+  termName: string
+  weekNumber: number
+  workType: string
+  title: string | null
+  dateGiven: string | null
+  reviewStatus: WorkOutputReviewStatus
+  reviewedById: string | null
+  reviewedByName: string | null
+  reviewedAt: string | null
+  score: number | null
+  classification: string | null
+  feedback: string | null
+  createdAt: string
+}
+
+export interface WorkOutputReviewQuery {
+  sessionId?: string
+  termId?: string
+  teacherId?: string
+  subjectId?: string
+  weekNumber?: number
+  reviewStatus?: WorkOutputReviewStatus
+}
+
+export interface GradeWorkOutputInput {
+  score: number
+  feedback?: string
 }

@@ -10,6 +10,7 @@ import {
   setPupilStatus,
   updatePupil,
 } from '../services/pupil.service'
+import { getAdmissionFee } from '../services/finance.service'
 
 export const listPupilsHandler = asyncHandler(async (req, res) => {
   const page = Number.parseInt(String(req.query.page ?? '1'), 10)
@@ -64,4 +65,9 @@ export const deactivatePupilHandler = asyncHandler(async (req: AuthRequest, res)
 export const pupilStatsHandler = asyncHandler(async (_req, res) => {
   const stats = await getPupilStats()
   res.json(ok(stats))
+})
+
+export const admissionFeeHandler = asyncHandler(async (_req, res) => {
+  const fee = await getAdmissionFee()
+  res.json(ok(fee))
 })

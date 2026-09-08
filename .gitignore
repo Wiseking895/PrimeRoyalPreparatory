@@ -8,12 +8,13 @@ dist/
 build/
 coverage/
 *.tsbuildinfo
-frontend/dist/
-backend/dist/
 
 # Environment
 .env
 .env.local
+.env.development
+.env.production
+.env.staging
 .env.*.local
 
 # Logs
@@ -34,3 +35,6 @@ Thumbs.db
 # Prisma
 backend/prisma/*.db
 backend/prisma/*.db-journal
+
+# Uploads
+backend/uploads/

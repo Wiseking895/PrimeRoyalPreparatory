@@ -1,14 +1,16 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import {
   ArrowLeft,
   Calendar,
+  Camera,
   IdCard,
   Mail,
   MapPin,
   Pencil,
   Phone,
   ShieldCheck,
+  Trash2,
   UserRound,
   Users,
 } from 'lucide-react'
@@ -37,6 +39,7 @@ interface GuardianEditRow {
   phone: string
   email: string
   address: string
+  occupation: string
   isPrimary: boolean
   isEmergency: boolean
 }
@@ -52,6 +55,10 @@ interface EditForm {
   classId: string
   dateAdmitted: string
   address: string
+  nationality: string
+  religion: string
+  admissionReason: string
+  declarationAcknowledged: boolean
   guardians: GuardianEditRow[]
 }
 
@@ -67,6 +74,7 @@ function toRow(guardian: GuardianView): GuardianEditRow {
     phone: guardian.phone ?? '',
     email: guardian.email ?? '',
     address: guardian.address ?? '',
+    occupation: guardian.occupation ?? '',
     isPrimary: guardian.isPrimary,
     isEmergency: guardian.isEmergency,
   }
@@ -82,6 +90,7 @@ function newRow(): GuardianEditRow {
     phone: '',
     email: '',
     address: '',
+    occupation: '',
     isPrimary: false,
     isEmergency: false,
   }
@@ -114,6 +123,10 @@ export function PupilProfilePage() {
 
   const [confirmStatus, setConfirmStatus] = useState<'ACTIVE' | 'INACTIVE' | null>(null)
   const [busyAction, setBusyAction] = useState<string | null>(null)
+
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [uploading, setUploading] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   const can = {
     update: hasPermission('pupils.update'),
@@ -148,6 +161,10 @@ export function PupilProfilePage() {
       classId: pupil.classId,
       dateAdmitted: toDateValue(pupil.dateAdmitted),
       address: pupil.address ?? '',
+      nationality: pupil.nationality ?? '',
+      religion: pupil.religion ?? '',
+      admissionReason: pupil.admissionReason ?? '',
+      declarationAcknowledged: pupil.declarationAcknowledged,
       guardians: pupil.guardians.map(toRow),
     })
     setFormErrors({})
@@ -231,12 +248,17 @@ export function PupilProfilePage() {
         classId: form.classId,
         dateAdmitted: form.dateAdmitted,
         address: form.address.trim() || null,
+        nationality: form.nationality.trim() || null,
+        religion: form.religion.trim() || null,
+        admissionReason: form.admissionReason.trim() || null,
+        declarationAcknowledged: form.declarationAcknowledged,
         guardians: form.guardians.map((guardian) => ({
           fullName: guardian.fullName.trim(),
           relationship: guardian.relationship.trim(),
           phone: guardian.phone.trim() || undefined,
           email: guardian.email.trim() || undefined,
           address: guardian.address.trim() || undefined,
+          occupation: guardian.occupation.trim() || undefined,
           isPrimary: guardian.isPrimary,
           isEmergency: guardian.isEmergency,
         })),
@@ -272,6 +294,36 @@ export function PupilProfilePage() {
   }
 
   const nextStatus: 'ACTIVE' | 'INACTIVE' = pupil?.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE'
+
+  const handlePictureUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file || !pupil) return
+    setUploading(true)
+    try {
+      const result = await api.uploadPupilPicture(pupil.id, file)
+      setPupil((current) => (current ? { ...current, profilePictureUrl: result.profilePictureUrl } : current))
+      push('success', 'Profile picture updated.')
+    } catch (err) {
+      push('error', err instanceof Error ? err.message : 'Upload failed.')
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  const handlePictureDelete = async () => {
+    if (!pupil) return
+    setDeleting(true)
+    try {
+      await api.deletePupilPicture(pupil.id)
+      setPupil((current) => (current ? { ...current, profilePictureUrl: null } : current))
+      push('success', 'Profile picture removed.')
+    } catch (err) {
+      push('error', err instanceof Error ? err.message : 'Delete failed.')
+    } finally {
+      setDeleting(false)
+    }
+  }
 
   if (error) {
     return (
@@ -317,7 +369,68 @@ export function PupilProfilePage() {
       {/* Identity */}
       <Card className="p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-          <Avatar name={pupil.fullName} size="lg" />
+          <div className="flex flex-col items-center gap-3">
+            <div className="relative">
+              <Avatar
+                name={pupil.fullName}
+                imageUrl={pupil.profilePictureUrl}
+                size="lg"
+                className={uploading ? 'opacity-50' : ''}
+              />
+              {can.update && (
+                <>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    className="hidden"
+                    onChange={handlePictureUpload}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploading}
+                    className="absolute -bottom-1 -right-1 flex h-8 w-8 items-center justify-center rounded-full bg-royal-600 text-white shadow-md transition-colors hover:bg-royal-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    aria-label="Change profile picture"
+                  >
+                    {uploading ? (
+                      <Spinner className="h-4 w-4" />
+                    ) : (
+                      <Camera className="h-4 w-4" aria-hidden="true" />
+                    )}
+                  </button>
+                </>
+              )}
+            </div>
+            {can.update && (
+              <div className="flex flex-col items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                  className="text-sm font-semibold text-royal-600 transition-colors hover:text-magenta-600 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {uploading ? 'Uploading...' : pupil.profilePictureUrl ? 'Change Photo' : 'Upload Photo'}
+                </button>
+                <p className="text-xs text-ink-400">JPG, PNG, WebP or GIF · Max 5 MB</p>
+              </div>
+            )}
+            {can.update && pupil.profilePictureUrl && (
+              <button
+                type="button"
+                onClick={handlePictureDelete}
+                disabled={deleting}
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-red-600 transition-colors hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {deleting ? (
+                  <Spinner className="h-3.5 w-3.5" />
+                ) : (
+                  <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                )}
+                Remove Photo
+              </button>
+            )}
+          </div>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <p className="text-xl font-bold text-ink-900">{pupil.fullName}</p>
@@ -425,6 +538,27 @@ export function PupilProfilePage() {
                 error={formErrors.address}
               />
             </div>
+            <TextField
+              label="Nationality"
+              name="nationality"
+              value={form.nationality}
+              onChange={(event) => set('nationality', event.target.value)}
+              error={formErrors.nationality}
+            />
+            <TextField
+              label="Religion"
+              name="religion"
+              value={form.religion}
+              onChange={(event) => set('religion', event.target.value)}
+              error={formErrors.religion}
+            />
+            <TextField
+              label="Reason for choosing school"
+              name="admissionReason"
+              value={form.admissionReason}
+              onChange={(event) => set('admissionReason', event.target.value)}
+              error={formErrors.admissionReason}
+            />
 
             <div className="sm:col-span-2">
               <div className="flex items-center justify-between">
@@ -504,6 +638,13 @@ export function PupilProfilePage() {
                       error={formErrors[`guardians.${guardian.id}.address`]}
                     />
                   </div>
+                  <TextField
+                    label="Occupation"
+                    name={`guardian-${guardian.id}-occupation`}
+                    value={guardian.occupation}
+                    onChange={(event) => setGuardian(guardian.id, 'occupation', event.target.value)}
+                    error={formErrors[`guardians.${guardian.id}.occupation`]}
+                  />
                   <label className="flex items-center gap-2 text-sm font-semibold text-ink-900">
                     <input
                       type="checkbox"
@@ -549,6 +690,9 @@ export function PupilProfilePage() {
               {renderDetail(Calendar, 'Date of birth', formatDate(pupil.dateOfBirth))}
               {renderDetail(Calendar, 'Date admitted', formatDate(pupil.dateAdmitted))}
               {renderDetail(MapPin, 'Home address', pupil.address ?? '—')}
+              {renderDetail(UserRound, 'Nationality', pupil.nationality ?? '—')}
+              {renderDetail(UserRound, 'Religion', pupil.religion ?? '—')}
+              {renderDetail(UserRound, 'Reason for choosing school', pupil.admissionReason ?? '—')}
             </dl>
           </Card>
 

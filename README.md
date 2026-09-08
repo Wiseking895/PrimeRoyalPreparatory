@@ -38,9 +38,20 @@ Per-app documentation:
 ## Quick Start
 
 ```bash
-npm install
-npm run setup          # create backend/.env and frontend/.env from examples
-npm run dev            # frontend on :5173, backend on :4000
+# Install dependencies for each application
+cd backend && npm install && cd ..
+cd frontend && npm install && cd ..
+
+# Create .env files from examples
+cd backend && npm run setup && cd ..
+cd frontend && npm run setup && cd ..
+
+# Start both applications (requires two terminals)
+# Terminal 1 — Backend on :4000
+cd backend && npm run dev
+
+# Terminal 2 — Frontend on :5173
+cd frontend && npm run dev
 ```
 
 Check the API: http://localhost:4000/api/health
@@ -50,16 +61,17 @@ the system design.
 
 ## Deployment
 
-The frontend and backend are deployed as **separate Vercel projects**:
+The frontend and backend are deployed as a **Vercel multi-service project**
+using the root `vercel.json` configuration:
 
-- **Frontend → Vercel:** deploy from the `frontend/` root. Set `VITE_API_URL`
-  to your production backend URL (e.g. `https://prps-backend-xxxxx.vercel.app`)
+- **Frontend → Vercel:** Built as a Vite application. Set `VITE_API_URL` to
+  your production backend URL (e.g. `https://prps-backend-xxxxx.vercel.app`)
   in the Vercel project settings. The frontend build needs **no** PostgreSQL
   and **no** `DATABASE_URL`.
 
-- **Backend → Vercel:** deploy from the `backend/` root. Configure
-  `DATABASE_URL`, `JWT_SECRET`, `CLIENT_URL` (the frontend origin for CORS)
-  and `NODE_ENV=production` in the Vercel project settings. Run
+- **Backend → Vercel:** Built as a serverless function via `@vercel/node`.
+  Configure `DATABASE_URL`, `JWT_SECRET`, `CLIENT_URL` (the frontend origin
+  for CORS) and `NODE_ENV=production` in the Vercel project settings. Run
   `npx prisma migrate deploy` to apply database migrations.
 
 - **Database → PostgreSQL:** Prisma schema, migrations and seed live under
@@ -87,8 +99,9 @@ See `docs/deployment.md` for the full step-by-step deployment guide.
   and a seed script.
 - PWA foundation: manifest, theme color, generated icons (192/512 + maskable),
   service worker precache, installability.
-- Root workspace scripts: `dev`, `build`, `typecheck`, `lint`, `test`,
-  `check`, `db:*`, `setup`.
+- Per-app scripts: `dev`, `build`, `typecheck`, `lint`, `test`, `setup`.
+  Backend also has `db:generate`, `db:migrate`, `db:deploy`, `db:seed`,
+  `db:studio`.
 
 ## Phase Roadmap
 

@@ -1,407 +1,555 @@
-import { useCallback, useEffect, useState } from 'react'
-import { ArrowRight, BookOpen, BookOpenCheck, Building2, ShieldCheck, UserRound, Users, Wallet } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  BookOpenCheck,
+  CheckCircle2,
+  Clock,
+  ClipboardList,
+  GraduationCap,
+  TrendingUp,
+  Users,
+  Wallet,
+  XCircle,
+} from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '@/auth/AuthContext'
-import { PageHeader } from '@/components/dashboard/PageHeader'
-import { StatCard } from '@/components/dashboard/StatCard'
-import { Card } from '@/components/ui/Card'
-import { Avatar } from '@/components/dashboard/Avatar'
-import { StatusBadge } from '@/components/dashboard/Badge'
-import { CardSkeleton, TableSkeleton } from '@/components/dashboard/Loaders'
-import { ErrorState, EmptyState } from '@/components/dashboard/States'
 import { api } from '@/lib/api'
-import { formatDate } from '@/lib/date'
+import { cn } from '@/lib/cn'
 import { formatMoney } from '@/lib/money'
-import type { AcademicStatsView, FinanceSummaryView, PupilStats, StaffStats, StaffView } from '@/types/portal'
+import type {
+  AcademicStatsView,
+  AttendanceView,
+  FinanceSummaryView,
+  OwnerSummary,
+  StaffStats,
+  StaffView,
+  TeacherListRow,
+} from '@/types/portal'
 
-function greeting(): string {
-  const hour = new Date().getHours()
-  if (hour < 12) return 'Good morning'
-  if (hour < 17) return 'Good afternoon'
-  return 'Good evening'
+function todayStr(): string {
+  return new Date().toISOString().slice(0, 10)
 }
 
-function activityLabel(action: string): string {
-  const labels: Record<string, string> = {
-    'staff.create': 'Created a staff account',
-    'staff.update': 'Updated a staff account',
-    'staff.activate': 'Activated a staff account',
-    'staff.deactivate': 'Deactivated a staff account',
-    'staff.assign_role': 'Assigned a staff role',
-    'staff.remove_role': 'Removed a staff role',
-    'staff.invitation.resend': 'Resent a staff invitation',
-  }
-  return labels[action] ?? action.replace(/\./g, ' ')
+function GlassCard({ children, className }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div className={cn('glass-card p-5', className)}>
+      {children}
+    </div>
+  )
+}
+
+function GlassInnerCard({ children, className }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div className={cn('glass-card-inner p-4', className)}>
+      {children}
+    </div>
+  )
+}
+
+function KpiCard({
+  icon: Icon,
+  label,
+  value,
+  accent,
+  supporting,
+}: {
+  icon: typeof Users
+  label: string
+  value: string | number
+  accent?: boolean
+  supporting?: string
+}) {
+  return (
+    <GlassCard>
+      <div className="flex items-start gap-3">
+        <span
+          className={cn(
+            'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl',
+            accent
+              ? 'bg-magenta-500/20 text-magenta-300'
+              : 'bg-white/[0.06] text-cream-200/50',
+          )}
+        >
+          <Icon className="h-5 w-5" aria-hidden="true" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-[11px] font-bold uppercase tracking-wider text-cream-200/35">{label}</p>
+          <p className={cn('mt-1 text-2xl font-extrabold tracking-tight', accent ? 'text-magenta-300' : 'text-white')}>
+            {value}
+          </p>
+          {supporting && <p className="mt-1 text-[11px] text-cream-200/30">{supporting}</p>}
+        </div>
+      </div>
+    </GlassCard>
+  )
+}
+
+function SkeletonRow() {
+  return (
+    <div className="animate-pulse flex items-center gap-4 rounded-xl bg-white/[0.03] p-3">
+      <div className="h-4 w-24 rounded bg-white/[0.06]" />
+      <div className="h-4 w-12 rounded bg-white/[0.06]" />
+      <div className="h-4 w-12 rounded bg-white/[0.06]" />
+      <div className="h-4 w-12 rounded bg-white/[0.06]" />
+    </div>
+  )
+}
+
+function EmptyStateCard({ title, description }: { title: string; description?: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-white/[0.08] bg-white/[0.02] px-6 py-12 text-center">
+      <p className="text-sm font-semibold text-cream-200/50">{title}</p>
+      {description && <p className="mt-1 text-[12px] text-cream-200/30">{description}</p>}
+    </div>
+  )
+}
+
+function SectionHeader({
+  title,
+  icon: Icon,
+  action,
+}: {
+  title: string
+  icon: typeof Users
+  action?: React.ReactNode
+}) {
+  return (
+    <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center gap-2.5">
+        <Icon className="h-4 w-4 text-magenta-400/60" aria-hidden="true" />
+        <h2 className="text-sm font-bold text-cream-100">{title}</h2>
+      </div>
+      {action}
+    </div>
+  )
 }
 
 export function HeadteacherDashboardPage() {
-  const { user, hasPermission } = useAuth()
+  const { hasPermission } = useAuth()
   const [staff, setStaff] = useState<StaffView[] | null>(null)
   const [stats, setStats] = useState<StaffStats | null>(null)
-  const [pupilStats, setPupilStats] = useState<PupilStats | null>(null)
+  const [summary, setSummary] = useState<OwnerSummary | null>(null)
   const [finance, setFinance] = useState<FinanceSummaryView | null>(null)
   const [academic, setAcademic] = useState<AcademicStatsView | null>(null)
+  const [teachers, setTeachers] = useState<TeacherListRow[]>([])
+  const [attendance, setAttendance] = useState<AttendanceView[]>([])
   const [error, setError] = useState<string | null>(null)
 
   const canViewPupils = hasPermission('pupils.view')
   const canViewFinance = hasPermission('finance.view')
   const canViewAcademic = hasPermission('academic.view')
+  const canViewTeachers = hasPermission('teachers.view')
+  const canViewAttendance = hasPermission('attendance.view')
 
   const load = useCallback(async () => {
     setError(null)
     try {
-      const [staffData, statsData, pupilData, financeData, academicData] = await Promise.all([
+      const today = todayStr()
+      const results = await Promise.allSettled([
         api.listStaff(),
         api.staffStats(),
-        canViewPupils ? api.pupilStats() : Promise.resolve(null),
+        api.ownerSummary().catch(() => null),
         canViewFinance ? api.financeSummary() : Promise.resolve(null),
         canViewAcademic ? api.academicStats() : Promise.resolve(null),
+        canViewTeachers ? api.listTeachers() : Promise.resolve([]),
+        canViewAttendance ? api.listAttendance({ dateFrom: today, dateTo: today }) : Promise.resolve([]),
       ])
-      setStaff(staffData)
-      setStats(statsData)
-      setPupilStats(pupilData)
-      setFinance(financeData)
-      setAcademic(academicData)
+
+      const get = <T,>(i: number, fallback: T): T =>
+        results[i].status === 'fulfilled' ? (results[i] as PromiseFulfilledResult<T>).value : fallback
+
+      setStaff(get<StaffView[] | null>(0, null))
+      setStats(get<StaffStats | null>(1, null))
+      setSummary(get<OwnerSummary | null>(2, null))
+      setFinance(get<FinanceSummaryView | null>(3, null))
+      setAcademic(get<AcademicStatsView | null>(4, null))
+      setTeachers(get<TeacherListRow[]>(5, []))
+      setAttendance(get<AttendanceView[]>(6, []))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load the dashboard.')
     }
-  }, [canViewPupils, canViewFinance, canViewAcademic])
+  }, [canViewPupils, canViewFinance, canViewAcademic, canViewTeachers, canViewAttendance])
 
   useEffect(() => {
     void load()
   }, [load])
 
+  const boys = summary ? summary.pupilsByClass.reduce((s, e) => s + e.boys, 0) : 0
+  const girls = summary ? summary.pupilsByClass.reduce((s, e) => s + e.girls, 0) : 0
+  const teachersPresent = teachers.filter((t) => t.status === 'ACTIVE').length
+  const teachersInactive = teachers.filter((t) => t.status === 'INACTIVE').length
+
+  const attendanceByClass = useMemo(() => {
+    if (!summary) return []
+    return summary.pupilsByClass.map((cls) => {
+      const classAttendance = attendance.filter((a) => a.classId === cls.classId)
+      const present = classAttendance.filter((a) => a.status === 'PRESENT' || a.status === 'CHECKED_IN').length
+      const absent = classAttendance.filter((a) => a.status === 'ABSENT').length
+      return {
+        className: cls.className,
+        totalPupils: cls.total,
+        boys: cls.boys,
+        girls: cls.girls,
+        present,
+        absent,
+        attendancePct: cls.total > 0 ? Math.round((present / cls.total) * 100) : 0,
+      }
+    })
+  }, [summary, attendance])
+
+  const totalPresent = attendanceByClass.reduce((s, c) => s + c.present, 0)
+  const totalAbsent = attendanceByClass.reduce((s, c) => s + c.absent, 0)
+  const totalPupilsInClasses = attendanceByClass.reduce((s, c) => s + c.totalPupils, 0)
+  const overallAttendancePct = totalPupilsInClasses > 0 ? Math.round((totalPresent / totalPupilsInClasses) * 100) : 0
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center rounded-2xl border border-red-500/20 bg-red-500/[0.06] px-6 py-12 text-center">
+        <p className="text-sm font-bold text-red-300">{error}</p>
+        <button
+          type="button"
+          onClick={() => void load()}
+          className="mt-4 rounded-full bg-magenta-500 px-5 py-2 text-sm font-semibold text-white hover:bg-magenta-600"
+        >
+          Try again
+        </button>
+      </div>
+    )
+  }
+
   return (
-    <div className="space-y-8">
-      <PageHeader
-        eyebrow="Headteacher Dashboard"
-        title={`${greeting()}, ${user?.fullName.split(' ')[0] ?? 'Headteacher'}`}
-        description={`Prime Royal Preparatory School — operational management of teaching and non-teaching staff. Staff ID ${user?.staffId ?? '—'}.`}
-      />
+    <div className="space-y-6">
+      {/* ── School Snapshot KPIs ── */}
+      <SectionHeader title="School Snapshot — Today" icon={TrendingUp} />
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <KpiCard
+          icon={Users}
+          label="Total Pupils"
+          value={summary ? summary.totals.pupils : stats ? 0 : '—'}
+          accent
+          supporting={summary ? `${boys} boys · ${girls} girls` : 'Loading...'}
+        />
+        <KpiCard
+          icon={GraduationCap}
+          label="Teachers Present"
+          value={academic ? teachersPresent : '—'}
+          supporting={academic ? `${academic.teachers.total} total staff` : 'Loading...'}
+        />
+        <KpiCard
+          icon={BookOpenCheck}
+          label="Active Pupils"
+          value={summary ? summary.totals.activePupils : '—'}
+          supporting={summary ? `${summary.totals.inactivePupils} inactive` : 'Loading...'}
+        />
+        <KpiCard
+          icon={ClipboardList}
+          label="Work Output"
+          value={academic ? 'View' : '—'}
+          accent
+          supporting={canViewTeachers ? 'Teacher submissions pending review' : 'Loading...'}
+        />
+      </div>
 
-      {error ? (
-        <ErrorState message={error} onRetry={() => void load()} />
-      ) : (
-        <>
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {stats ? (
-              <>
-                <StatCard
-                  label="Total Staff"
-                  value={stats.total}
-                  hint="Teaching and non-teaching accounts"
-                  icon={<Users className="h-5 w-5" aria-hidden="true" />}
-                  tone="royal"
-                />
-                {canViewPupils ? (
-                  <StatCard
-                    label="Total Pupils"
-                    value={pupilStats?.total ?? 0}
-                    hint={
-                      pupilStats
-                        ? `${pupilStats.active} active · ${pupilStats.inactive} inactive`
-                        : '—'
-                    }
-                    icon={<BookOpenCheck className="h-5 w-5" aria-hidden="true" />}
-                    tone="magenta"
-                  />
-                ) : null}
-                <StatCard
-                  label="Teaching Staff"
-                  value={stats.teaching}
-                  hint="Class teachers & subject teachers"
-                  icon={<BookOpen className="h-5 w-5" aria-hidden="true" />}
-                  tone="magenta"
-                />
-                <StatCard
-                  label="Non-Teaching Staff"
-                  value={stats.nonTeaching}
-                  hint="Administration & support"
-                  icon={<Building2 className="h-5 w-5" aria-hidden="true" />}
-                  tone="gold"
-                />
-                <StatCard
-                  label="Active Accounts"
-                  value={stats.active}
-                  hint={stats.inactive > 0 ? `${stats.inactive} inactive account(s)` : 'All accounts active'}
-                  icon={<UserRound className="h-5 w-5" aria-hidden="true" />}
-                  tone="green"
-                />
-              </>
-            ) : (
-              Array.from({ length: 4 }).map((_, index) => <CardSkeleton key={index} />)
-            )}
-          </div>
-
-          <div className="grid gap-6 lg:grid-cols-2">
-            {/* Quick actions */}
-            <Card className="p-6">
-              <h2 className="text-sm font-bold uppercase tracking-wider text-ink-500">Quick Actions</h2>
-              <ul className="mt-4 space-y-1">
-                {[
-                  { label: 'Manage Teaching Staff', to: '/headteacher/staff?filter=TEACHING', icon: BookOpen },
-                  { label: 'Manage Non-Teaching Staff', to: '/headteacher/staff?filter=NON_TEACHING', icon: Building2 },
-                  ...(canViewPupils
-                    ? [
-                        { label: 'Manage Pupils', to: '/headteacher/pupils', icon: BookOpenCheck },
-                        { label: 'Manage Classes', to: '/headteacher/classes', icon: BookOpen },
-                      ]
-                    : []),
-                  { label: 'Staff Roles', to: '/headteacher/roles', icon: ShieldCheck },
-                  { label: 'My Profile', to: '/headteacher/profile', icon: UserRound },
-                ].map(({ label, to, icon: Icon }) => (
-                  <li key={label}>
-                    <Link
-                      to={to}
-                      className="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-ink-700 transition-colors hover:bg-cream-100 hover:text-magenta-600"
-                    >
-                      <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-royal-600/10 text-royal-600">
-                        <Icon className="h-4.5 w-4.5" aria-hidden="true" />
-                      </span>
-                      <span className="flex-1">{label}</span>
-                      <ArrowRight
-                        className="h-4 w-4 text-ink-500 transition-transform group-hover:translate-x-0.5"
-                        aria-hidden="true"
-                      />
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </Card>
-
-            {/* Staff overview */}
-            <Card className="p-6">
-              <div className="flex items-center justify-between">
-                <h2 className="text-sm font-bold uppercase tracking-wider text-ink-500">Staff Overview</h2>
-                <Users className="h-5 w-5 text-royal-500" aria-hidden="true" />
-              </div>
-              <div className="mt-4">
-                {staff === null ? (
-                  <TableSkeleton rows={4} />
-                ) : staff.length === 0 ? (
-                  <EmptyState
-                    title="No staff members found."
-                    description="Teaching and non-teaching staff you manage will appear here."
-                    action={
-                      <Link
-                        to="/headteacher/staff"
-                        className="rounded-full bg-magenta-500 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-magenta-600"
-                      >
-                        Go to Staff
-                      </Link>
-                    }
-                  />
-                ) : (
-                  <ul className="space-y-3">
-                    {staff.slice(0, 5).map((entry) => (
-                      <li key={entry.id} className="flex items-center gap-3">
-                        <Avatar name={entry.fullName} size="sm" />
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-bold text-ink-900">{entry.fullName}</p>
-                          <p className="truncate text-xs text-ink-500">
-                            {entry.staffId} · {entry.roles.join(', ')}
-                          </p>
+      {/* ── Attendance by Class ── */}
+      <GlassCard>
+        <SectionHeader
+          title="Attendance by Class"
+          icon={Clock}
+          action={
+            <span className="text-[11px] font-semibold text-cream-200/40">
+              {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' })}
+            </span>
+          }
+        />
+        {!summary ? (
+          <div className="space-y-2">{Array.from({ length: 4 }).map((_, i) => <SkeletonRow key={i} />)}</div>
+        ) : attendanceByClass.length === 0 ? (
+          <EmptyStateCard title="No attendance data available for today." description="Attendance records will appear here once checked in." />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-[13px]">
+              <thead>
+                <tr className="border-b border-white/[0.06]">
+                  <th className="pb-2 pr-3 text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Class</th>
+                  <th className="pb-2 pr-3 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Boys Present</th>
+                  <th className="pb-2 pr-3 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Boys Absent</th>
+                  <th className="pb-2 pr-3 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Girls Present</th>
+                  <th className="pb-2 pr-3 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Girls Absent</th>
+                  <th className="pb-2 pr-3 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Total Present</th>
+                  <th className="pb-2 pr-3 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Total Absent</th>
+                  <th className="pb-2 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Attendance %</th>
+                </tr>
+              </thead>
+              <tbody>
+                {attendanceByClass.map((cls) => (
+                  <tr key={cls.className} className="border-b border-white/[0.04]">
+                    <td className="py-2.5 pr-3 font-semibold text-cream-100">{cls.className}</td>
+                    <td className="py-2.5 pr-3 text-right text-cream-200/60">{cls.present}</td>
+                    <td className="py-2.5 pr-3 text-right text-cream-200/60">{cls.absent}</td>
+                    <td className="py-2.5 pr-3 text-right text-cream-200/60">{cls.present}</td>
+                    <td className="py-2.5 pr-3 text-right text-cream-200/60">{cls.absent}</td>
+                    <td className="py-2.5 pr-3 text-right font-bold text-emerald-400">{cls.present}</td>
+                    <td className="py-2.5 pr-3 text-right font-bold text-red-400">{cls.absent}</td>
+                    <td className="py-2.5 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <div className="h-1.5 w-16 overflow-hidden rounded-full bg-white/10">
+                          <div
+                            className={cn(
+                              'h-full rounded-full transition-all',
+                              cls.attendancePct >= 80 ? 'bg-emerald-400' : cls.attendancePct >= 50 ? 'bg-amber-400' : 'bg-red-400',
+                            )}
+                            style={{ width: `${cls.attendancePct}%` }}
+                          />
                         </div>
-                        <StatusBadge status={entry.status} />
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            </Card>
+                        <span className="text-[11px] font-bold text-cream-200/60 w-8 text-right">{cls.attendancePct}%</span>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                <tr className="border-t border-magenta-500/20">
+                  <td className="pt-3 pr-3 text-[12px] font-bold text-magenta-300">Grand Total</td>
+                  <td className="pt-3 pr-3 text-right text-[12px] font-bold text-magenta-300">{totalPresent}</td>
+                  <td className="pt-3 pr-3 text-right text-[12px] font-bold text-magenta-300">{totalAbsent}</td>
+                  <td className="pt-3 pr-3 text-right text-[12px] font-bold text-magenta-300">{totalPresent}</td>
+                  <td className="pt-3 pr-3 text-right text-[12px] font-bold text-magenta-300">{totalAbsent}</td>
+                  <td className="pt-3 pr-3 text-right text-[12px] font-extrabold text-magenta-300">{totalPresent}</td>
+                  <td className="pt-3 pr-3 text-right text-[12px] font-extrabold text-magenta-300">{totalAbsent}</td>
+                  <td className="pt-3 text-right text-[12px] font-extrabold text-magenta-300">{overallAttendancePct}%</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
+        )}
+      </GlassCard>
 
-          {/* Pupils overview */}
-          {canViewPupils ? (
-            <Card className="p-6">
-              <div className="flex items-center justify-between">
-                <h2 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-ink-500">
-                  <BookOpenCheck className="h-5 w-5 text-royal-500" aria-hidden="true" />
-                  Pupils Overview
-                </h2>
-                <Link
-                  to="/headteacher/pupils"
-                  className="inline-flex items-center gap-1.5 text-sm font-semibold text-magenta-600 transition-colors hover:text-magenta-700"
-                >
-                  Manage pupils <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                </Link>
+      {/* ── Finance Overview ── */}
+      {canViewFinance && (
+        <GlassCard>
+          <SectionHeader
+            title="Finance Overview"
+            icon={Wallet}
+            action={
+              <Link
+                to="/headteacher/finance"
+                className="text-[12px] font-semibold text-magenta-400 hover:text-magenta-300"
+              >
+                View details &rarr;
+              </Link>
+            }
+          />
+          {!finance ? (
+            <div className="space-y-2">{Array.from({ length: 3 }).map((_, i) => <SkeletonRow key={i} />)}</div>
+          ) : (
+            <>
+              <div className="grid gap-3 sm:grid-cols-3 mb-4">
+                <GlassInnerCard>
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Expected Fees</p>
+                  <p className="mt-1 text-xl font-extrabold text-cream-100">{formatMoney(finance.expectedFees)}</p>
+                </GlassInnerCard>
+                <GlassInnerCard>
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Collected</p>
+                  <p className="mt-1 text-xl font-extrabold text-emerald-400">{formatMoney(finance.collected)}</p>
+                </GlassInnerCard>
+                <GlassInnerCard>
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Outstanding</p>
+                  <p className="mt-1 text-xl font-extrabold text-red-400">{formatMoney(finance.outstanding)}</p>
+                </GlassInnerCard>
               </div>
-              {pupilStats === null ? (
-                <div className="mt-6 space-y-3">
-                  <TableSkeleton rows={4} />
-                </div>
-              ) : pupilStats.byClass.length === 0 ? (
-                <EmptyState
-                  title="No pupils registered yet."
-                  description="Registered pupils grouped by class will appear here."
-                  action={
-                    <Link
-                      to="/headteacher/pupils"
-                      className="rounded-full bg-magenta-500 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-magenta-600"
-                    >
-                      Register pupils
-                    </Link>
-                  }
-                />
-              ) : (
-                <>
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    {pupilStats.byClass.map((entry) => (
-                      <div
-                        key={entry.classId}
-                        className="rounded-xl border border-cream-200 bg-cream-50 p-4"
-                      >
-                        <p className="text-xs font-semibold uppercase tracking-wider text-ink-500">
-                          {entry.className}
-                        </p>
-                        <p className="mt-1 text-lg font-bold text-ink-900">
-                          {entry.count}
-                          <span className="ml-1 text-xs font-medium text-ink-500">pupil(s)</span>
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="mt-4 border-t border-cream-200 pt-3">
-                    <p className="text-xs leading-relaxed text-ink-500">
-                      {pupilStats.total} registered pupils across the classes you manage.
-                    </p>
-                  </div>
-                </>
-              )}
-            </Card>
-          ) : null}
-
-          {/* Finance overview (view-only for headteacher) */}
-          {canViewFinance ? (
-            <Card className="p-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Wallet className="h-5 w-5 text-gold-500" aria-hidden="true" />
-                  <h2 className="text-sm font-bold uppercase tracking-wider text-ink-500">Finance Overview</h2>
-                </div>
-                <Link
-                  to="/headteacher/finance"
-                  className="inline-flex items-center gap-1.5 text-sm font-semibold text-magenta-600 transition-colors hover:text-magenta-700"
-                >
-                  Open finance <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                </Link>
-              </div>
-              {finance === null ? (
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  <CardSkeleton className="border-0 p-0" />
-                  <CardSkeleton className="border-0 p-0" />
-                </div>
-              ) : (
-                <>
-                  <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                    <div className="rounded-xl border border-cream-200 bg-cream-50 p-4">
-                      <p className="text-xs font-semibold uppercase tracking-wider text-ink-500">Expected Fees</p>
-                      <p className="mt-1 text-lg font-bold text-ink-900">{formatMoney(finance.expectedFees)}</p>
-                    </div>
-                    <div className="rounded-xl border border-cream-200 bg-cream-50 p-4">
-                      <p className="text-xs font-semibold uppercase tracking-wider text-ink-500">Collected</p>
-                      <p className="mt-1 text-lg font-bold text-emerald-700">{formatMoney(finance.collected)}</p>
-                    </div>
-                    <div className="rounded-xl border border-cream-200 bg-cream-50 p-4">
-                      <p className="text-xs font-semibold uppercase tracking-wider text-ink-500">Outstanding</p>
-                      <p className="mt-1 text-lg font-bold text-red-700">{formatMoney(finance.outstanding)}</p>
-                    </div>
-                  </div>
-                  <p className="mt-3 text-xs leading-relaxed text-ink-500">
-                    {finance.pupilsWithOutstanding} pupil(s) carry an outstanding balance. The Accountant manages
-                    fee structures, charges and payments — you can review this module read-only.
-                  </p>
-                </>
-              )}
-            </Card>
-          ) : null}
-
-          {/* Academic overview */}
-          {canViewAcademic ? (
-            <Card className="p-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <BookOpenCheck className="h-5 w-5 text-royal-500" aria-hidden="true" />
-                  <h2 className="text-sm font-bold uppercase tracking-wider text-ink-500">Academic Overview</h2>
-                </div>
-                <Link
-                  to="/headteacher/academic/teachers"
-                  className="inline-flex items-center gap-1.5 text-sm font-semibold text-magenta-600 transition-colors hover:text-magenta-700"
-                >
-                  Manage academic <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                </Link>
-              </div>
-              {academic === null ? (
-                <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  {Array.from({ length: 4 }).map((_, index) => (
-                    <CardSkeleton key={index} className="border-0 p-0" />
-                  ))}
-                </div>
-              ) : (
-                <>
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                    <div className="rounded-xl border border-cream-200 bg-cream-50 p-4">
-                      <p className="text-xs font-semibold uppercase tracking-wider text-ink-500">Teachers</p>
-                      <p className="mt-1 text-lg font-bold text-ink-900">{academic.teachers.total}</p>
-                      <p className="text-xs text-ink-500">{academic.teachers.active} active</p>
-                    </div>
-                    <div className="rounded-xl border border-cream-200 bg-cream-50 p-4">
-                      <p className="text-xs font-semibold uppercase tracking-wider text-ink-500">Subjects</p>
-                      <p className="mt-1 text-lg font-bold text-ink-900">{academic.subjects.total}</p>
-                      <p className="text-xs text-ink-500">{academic.subjects.active} active</p>
-                    </div>
-                    <div className="rounded-xl border border-cream-200 bg-cream-50 p-4">
-                      <p className="text-xs font-semibold uppercase tracking-wider text-ink-500">Assignments</p>
-                      <p className="mt-1 text-lg font-bold text-ink-900">{academic.assignments.total}</p>
-                      <p className="text-xs text-ink-500">{academic.assignments.active} active</p>
-                    </div>
-                    <div className="rounded-xl border border-cream-200 bg-cream-50 p-4">
-                      <p className="text-xs font-semibold uppercase tracking-wider text-ink-500">SBA Records</p>
-                      <p className="mt-1 text-lg font-bold text-ink-900">{academic.sba.total}</p>
-                      <p className="text-xs text-ink-500">{academic.sba.recordsCurrentTerm} this term</p>
-                    </div>
-                  </div>
-                  <p className="mt-3 text-xs leading-relaxed text-ink-500">
-                    {academic.classTeachersAssigned} of {academic.classes} class(es) have a class teacher assigned.
-                  </p>
-                </>
-              )}
-            </Card>
-          ) : null}
-
-          {/* Recent staff activity */}
-          <Card className="p-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-bold uppercase tracking-wider text-ink-500">Recent Staff Activity</h2>
-              <ShieldCheck className="h-5 w-5 text-royal-500" aria-hidden="true" />
-            </div>
-            <div className="mt-4">
-              {stats === null ? (
-                <TableSkeleton rows={4} />
-              ) : stats.recentActivity.length === 0 ? (
-                <EmptyState
-                  title="No staff activity yet."
-                  description="Actions you take on teaching and non-teaching staff accounts will appear here."
-                />
-              ) : (
-                <ul className="space-y-3">
-                  {stats.recentActivity.map((entry) => (
-                    <li key={entry.id} className="flex items-start gap-3">
-                      <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-magenta-500" aria-hidden="true" />
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-ink-900">{activityLabel(entry.action)}</p>
-                        <p className="truncate text-xs text-ink-500">
-                          {entry.actor?.fullName ?? 'System'} · {formatDate(entry.createdAt)}
-                        </p>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </Card>
-        </>
+              <p className="text-[11px] text-cream-200/30">
+                {finance.pupilsWithOutstanding} pupil(s) carry an outstanding balance.
+              </p>
+            </>
+          )}
+        </GlassCard>
       )}
+
+      {/* ── Teachers Overview ── */}
+      <GlassCard>
+        <SectionHeader
+          title="Teachers Overview"
+          icon={GraduationCap}
+          action={
+            <div className="flex items-center gap-3">
+              {academic && (
+                <>
+                  <span className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-400">
+                    <CheckCircle2 className="h-3.5 w-3.5" /> {teachersPresent} Active
+                  </span>
+                  <span className="flex items-center gap-1.5 text-[11px] font-semibold text-red-400">
+                    <XCircle className="h-3.5 w-3.5" /> {teachersInactive} Inactive
+                  </span>
+                </>
+              )}
+            </div>
+          }
+        />
+        {!canViewTeachers ? (
+          <EmptyStateCard title="Access restricted." />
+        ) : teachers.length === 0 ? (
+          <EmptyStateCard title="No teacher data available yet." description="Teachers will appear here once registered." />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-[13px]">
+              <thead>
+                <tr className="border-b border-white/[0.06]">
+                  <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Teacher</th>
+                  <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Class / Subject</th>
+                  <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Assignments</th>
+                  <th className="pb-2 text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {teachers.map((t) => (
+                  <tr key={t.id} className="border-b border-white/[0.04]">
+                    <td className="py-2.5 pr-4">
+                      <div className="flex items-center gap-2.5">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-magenta-500/15 text-[11px] font-bold text-magenta-300">
+                          {t.fullName.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-semibold text-cream-100 truncate">{t.fullName}</p>
+                          <p className="text-[10px] text-cream-200/30">{t.positionLabel}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-2.5 pr-4 text-cream-200/60">
+                      {t.classTeacherClassCount > 0
+                        ? `${t.classTeacherClassCount} class(es)`
+                        : t.assignmentCount > 0
+                          ? `${t.assignmentCount} assignment(s)`
+                          : '\u2014'}
+                    </td>
+                    <td className="py-2.5 pr-4 text-cream-200/60">{t.assignmentCount}</td>
+                    <td className="py-2.5">
+                      <span
+                        className={cn(
+                          'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ring-inset',
+                          t.status === 'ACTIVE'
+                            ? 'bg-emerald-500/10 text-emerald-300 ring-emerald-500/20'
+                            : 'bg-red-500/10 text-red-300 ring-red-500/20',
+                        )}
+                      >
+                        <span className={cn('h-1.5 w-1.5 rounded-full', t.status === 'ACTIVE' ? 'bg-emerald-400' : 'bg-red-400')} />
+                        {t.status === 'ACTIVE' ? 'Active' : 'Inactive'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </GlassCard>
+
+      {/* ── Academic Overview ── */}
+      {canViewAcademic && (
+        <GlassCard>
+          <SectionHeader
+            title="Academic Overview"
+            icon={BookOpenCheck}
+            action={
+              <Link
+                to="/headteacher/academic/teachers"
+                className="text-[12px] font-semibold text-magenta-400 hover:text-magenta-300"
+              >
+                Manage academic &rarr;
+              </Link>
+            }
+          />
+          {academic === null ? (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {Array.from({ length: 4 }).map((_, index) => (
+                <SkeletonRow key={index} />
+              ))}
+            </div>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <GlassInnerCard>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Teachers</p>
+                <p className="mt-1 text-xl font-extrabold text-cream-100">{academic.teachers.total}</p>
+                <p className="text-[11px] text-cream-200/30">{academic.teachers.active} active</p>
+              </GlassInnerCard>
+              <GlassInnerCard>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Subjects</p>
+                <p className="mt-1 text-xl font-extrabold text-cream-100">{academic.subjects.total}</p>
+                <p className="text-[11px] text-cream-200/30">{academic.subjects.active} active</p>
+              </GlassInnerCard>
+              <GlassInnerCard>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Assignments</p>
+                <p className="mt-1 text-xl font-extrabold text-cream-100">{academic.assignments.total}</p>
+                <p className="text-[11px] text-cream-200/30">{academic.assignments.active} active</p>
+              </GlassInnerCard>
+              <GlassInnerCard>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-cream-200/35">SBA Records</p>
+                <p className="mt-1 text-xl font-extrabold text-cream-100">{academic.sba.total}</p>
+                <p className="text-[11px] text-cream-200/30">{academic.sba.recordsCurrentTerm} this term</p>
+              </GlassInnerCard>
+            </div>
+          )}
+        </GlassCard>
+      )}
+
+      {/* ── Staff Overview ── */}
+      <GlassCard>
+        <SectionHeader
+          title="Staff Overview"
+          icon={Users}
+          action={
+            <Link
+              to="/headteacher/staff"
+              className="text-[12px] font-semibold text-magenta-400 hover:text-magenta-300"
+            >
+              Manage staff &rarr;
+            </Link>
+          }
+        />
+        {staff === null ? (
+          <div className="space-y-2">{Array.from({ length: 4 }).map((_, i) => <SkeletonRow key={i} />)}</div>
+        ) : staff.length === 0 ? (
+          <EmptyStateCard title="No staff members found." description="Teaching and non-teaching staff you manage will appear here." />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-[13px]">
+              <thead>
+                <tr className="border-b border-white/[0.06]">
+                  <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Staff Member</th>
+                  <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Staff ID</th>
+                  <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Role</th>
+                  <th className="pb-2 text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {staff.slice(0, 6).map((entry) => (
+                  <tr key={entry.id} className="border-b border-white/[0.04]">
+                    <td className="py-2.5 pr-4">
+                      <div className="flex items-center gap-2.5">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-magenta-500/15 text-[11px] font-bold text-magenta-300">
+                          {entry.fullName.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()}
+                        </div>
+                        <span className="font-semibold text-cream-100">{entry.fullName}</span>
+                      </div>
+                    </td>
+                    <td className="py-2.5 pr-4 text-cream-200/60">{entry.staffId}</td>
+                    <td className="py-2.5 pr-4 text-cream-200/60">{entry.roles.join(', ')}</td>
+                    <td className="py-2.5">
+                      <span
+                        className={cn(
+                          'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ring-inset',
+                          entry.status === 'ACTIVE'
+                            ? 'bg-emerald-500/10 text-emerald-300 ring-emerald-500/20'
+                            : 'bg-red-500/10 text-red-300 ring-red-500/20',
+                        )}
+                      >
+                        <span className={cn('h-1.5 w-1.5 rounded-full', entry.status === 'ACTIVE' ? 'bg-emerald-400' : 'bg-red-400')} />
+                        {entry.status === 'ACTIVE' ? 'Active' : 'Inactive'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </GlassCard>
     </div>
   )
 }
