@@ -12,6 +12,7 @@ import {
 } from './pupil.service'
 
 const prismaMock = vi.hoisted(() => ({
+  $transaction: vi.fn(),
   pupil: {
     findMany: vi.fn(),
     findUnique: vi.fn(),
@@ -28,12 +29,24 @@ const prismaMock = vi.hoisted(() => ({
     findFirst: vi.fn(),
     create: vi.fn(),
   },
+  academicSession: {
+    findFirst: vi.fn(),
+  },
+  financeFee: {
+    findMany: vi.fn(),
+  },
+  feeAssignment: {
+    createMany: vi.fn(),
+  },
+  auditLog: {
+    create: vi.fn(),
+  },
   pupilGuardian: {
+    findMany: vi.fn(),
+    findUnique: vi.fn(),
     create: vi.fn(),
     deleteMany: vi.fn(),
   },
-  auditLog: { create: vi.fn() },
-  $transaction: vi.fn(),
 }))
 
 vi.mock('../lib/prisma', () => ({ prisma: prismaMock }))
@@ -129,6 +142,9 @@ describe('pupil.service', () => {
     prismaMock.guardian.create.mockResolvedValue({ id: 'g-1' })
     prismaMock.pupilGuardian.create.mockResolvedValue({})
     prismaMock.pupilGuardian.deleteMany.mockResolvedValue({ count: 0 })
+    prismaMock.academicSession.findFirst.mockResolvedValue(null)
+    prismaMock.financeFee.findMany.mockResolvedValue([])
+    prismaMock.feeAssignment.createMany.mockResolvedValue({ count: 0 })
     prismaMock.$transaction.mockImplementation((arg: unknown) => {
       if (typeof arg === 'function') return arg(prismaMock)
       return Promise.resolve(arg)
@@ -220,6 +236,9 @@ describe('pupil.service', () => {
   describe('createPupil', () => {
     it('creates a pupil with a generated pupil ID and audits the action', async () => {
       prismaMock.pupil.create.mockResolvedValue({ id: 'p-1' })
+      prismaMock.academicSession.findFirst.mockResolvedValue(null)
+      prismaMock.financeFee.findMany.mockResolvedValue([])
+      prismaMock.feeAssignment.createMany.mockResolvedValue({ count: 0 })
 
       const result = await createPupil(owner, createInput)
 
@@ -241,6 +260,9 @@ describe('pupil.service', () => {
 
     it('keeps an explicit pupil ID and admission number', async () => {
       prismaMock.pupil.create.mockResolvedValue({ id: 'p-1' })
+      prismaMock.academicSession.findFirst.mockResolvedValue(null)
+      prismaMock.financeFee.findMany.mockResolvedValue([])
+      prismaMock.feeAssignment.createMany.mockResolvedValue({ count: 0 })
 
       await createPupil(owner, { ...createInput, pupilId: 'P-2026-014', admissionNumber: 'ADM-014' })
 
@@ -252,6 +274,9 @@ describe('pupil.service', () => {
 
     it('creates guardian links with relationship flags', async () => {
       prismaMock.pupil.create.mockResolvedValue({ id: 'p-1' })
+      prismaMock.academicSession.findFirst.mockResolvedValue(null)
+      prismaMock.financeFee.findMany.mockResolvedValue([])
+      prismaMock.feeAssignment.createMany.mockResolvedValue({ count: 0 })
 
       await createPupil(owner, {
         ...createInput,
@@ -272,6 +297,9 @@ describe('pupil.service', () => {
 
     it('reuses an existing guardian matched by email', async () => {
       prismaMock.pupil.create.mockResolvedValue({ id: 'p-1' })
+      prismaMock.academicSession.findFirst.mockResolvedValue(null)
+      prismaMock.financeFee.findMany.mockResolvedValue([])
+      prismaMock.feeAssignment.createMany.mockResolvedValue({ count: 0 })
       prismaMock.guardian.findFirst.mockResolvedValue({ id: 'g-9' })
 
       await createPupil(owner, {
@@ -315,6 +343,9 @@ describe('pupil.service', () => {
 
     it('never persists or returns password-like data', async () => {
       prismaMock.pupil.create.mockResolvedValue({ id: 'p-1' })
+      prismaMock.academicSession.findFirst.mockResolvedValue(null)
+      prismaMock.financeFee.findMany.mockResolvedValue([])
+      prismaMock.feeAssignment.createMany.mockResolvedValue({ count: 0 })
 
       const result = await createPupil(owner, createInput)
 

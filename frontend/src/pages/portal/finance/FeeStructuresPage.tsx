@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
-import { Pencil, Plus, Receipt, Users } from 'lucide-react'
+import { Pencil, Plus, Receipt, Users, Trash2 } from 'lucide-react'
 import { useAuth } from '@/auth/AuthContext'
 import { PageHeader } from '@/components/dashboard/PageHeader'
 import { Button } from '@/components/ui/Button'
@@ -16,21 +16,36 @@ import { useToast } from '@/components/dashboard/Toast'
 import { api } from '@/lib/api'
 import { formatMoney, isValidMoney } from '@/lib/money'
 import { financeRoute } from './financeRoute'
-import type { AccountStatusValue, AcademicSessionView, FeeTypeValue, FeeView } from '@/types/portal'
+import type { AccountStatusValue, AcademicSessionView, AcademicTermView, FeeTypeValue, FeeView } from '@/types/portal'
 
-interface FeeForm {
-  sessionId: string
+interface FeeRow {
+  id: string
   name: string
   feeType: FeeTypeValue | ''
   amount: string
   description: string
 }
 
-const emptyForm: FeeForm = { sessionId: '', name: '', feeType: '', amount: '', description: '' }
+let rowIdCounter = 0
+function newRow(): FeeRow {
+  return { id: `new-${++rowIdCounter}`, name: '', feeType: '', amount: '', description: '' }
+}
+
+interface EditForm {
+  sessionId: string
+  termId: string
+  name: string
+  feeType: FeeTypeValue | ''
+  amount: string
+  description: string
+}
+
+const emptyEditForm: EditForm = { sessionId: '', termId: '', name: '', feeType: '', amount: '', description: '' }
 
 const feeTypeOptions: Array<{ value: FeeTypeValue; label: string }> = [
   { value: 'TERMLY', label: 'Termly' },
   { value: 'DAILY', label: 'Daily' },
+  { value: 'PA', label: 'PA Fees' },
   { value: 'OTHER', label: 'Other' },
 ]
 
@@ -43,15 +58,23 @@ export function FeeStructuresPage() {
 
   const [fees, setFees] = useState<FeeView[] | null>(null)
   const [sessions, setSessions] = useState<AcademicSessionView[]>([])
+  const [terms, setTerms] = useState<AcademicTermView[]>([])
   const [sessionFilter, setSessionFilter] = useState<string>('')
   const [statusFilter, setStatusFilter] = useState<string>('')
   const [error, setError] = useState<string | null>(null)
 
-  const [modalOpen, setModalOpen] = useState(false)
+  const [createModalOpen, setCreateModalOpen] = useState(false)
+  const [editModalOpen, setEditModalOpen] = useState(false)
   const [editing, setEditing] = useState<FeeView | null>(null)
-  const [form, setForm] = useState<FeeForm>(emptyForm)
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+
+  const [createSessionId, setCreateSessionId] = useState('')
+  const [createTermId, setCreateTermId] = useState('')
+  const [feeRows, setFeeRows] = useState<FeeRow[]>([newRow()])
+  const [createErrors, setCreateErrors] = useState<Record<string, string>>({})
   const [submitting, setSubmitting] = useState(false)
+
+  const [editForm, setEditForm] = useState<EditForm>(emptyEditForm)
+  const [editFieldErrors, setEditFieldErrors] = useState<Record<string, string>>({})
 
   const [confirmStatus, setConfirmStatus] = useState<{ fee: FeeView; status: AccountStatusValue } | null>(null)
   const [busyAction, setBusyAction] = useState<string | null>(null)
@@ -71,6 +94,14 @@ export function FeeStructuresPage() {
     void load()
   }, [load])
 
+  const createSessionOptions = sessions.map((s) => ({ value: s.id, label: s.name }))
+  const createTermOptions = terms.map((t) => ({ value: t.id, label: t.name }))
+
+  useEffect(() => {
+    if (!createSessionId) { setTerms([]); return }
+    api.listTerms(createSessionId).then(setTerms).catch(() => setTerms([]))
+  }, [createSessionId])
+
   const visibleFees = (fees ?? []).filter((fee) => {
     if (sessionFilter && fee.sessionId !== sessionFilter) return false
     if (statusFilter && fee.status !== statusFilter) return false
@@ -78,71 +109,128 @@ export function FeeStructuresPage() {
   })
 
   const openCreate = () => {
-    setEditing(null)
-    setForm({ ...emptyForm, sessionId: sessions.find((session) => session.status === 'ACTIVE')?.id ?? '' })
-    setFieldErrors({})
-    setModalOpen(true)
+    const activeSessionId = sessions.find((s) => s.status === 'ACTIVE')?.id ?? ''
+    setCreateSessionId(activeSessionId)
+    setCreateTermId('')
+    setFeeRows([newRow()])
+    setCreateErrors({})
+    setCreateModalOpen(true)
   }
 
   const openEdit = (fee: FeeView) => {
     setEditing(fee)
-    setForm({
+    setEditForm({
       sessionId: fee.sessionId,
+      termId: fee.termId,
       name: fee.name,
       feeType: fee.feeType,
       amount: fee.amount,
       description: fee.description ?? '',
     })
-    setFieldErrors({})
-    setModalOpen(true)
+    setEditFieldErrors({})
+    setEditModalOpen(true)
   }
 
-  const set = (field: keyof FeeForm, value: string) => {
-    setForm((current) => ({ ...current, [field]: value }))
-    setFieldErrors((current) => {
-      if (!current[field]) return current
+  const updateRow = (rowId: string, field: keyof FeeRow, value: string) => {
+    setFeeRows((current) => current.map((row) => (row.id === rowId ? { ...row, [field]: value } : row)))
+    const errorKey = `row_${rowId}_${field}`
+    setCreateErrors((current) => {
+      if (!current[errorKey]) return current
       const next = { ...current }
-      delete next[field]
+      delete next[errorKey]
       return next
     })
   }
 
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+  const addRow = () => {
+    setFeeRows((current) => [...current, newRow()])
+  }
+
+  const removeRow = (rowId: string) => {
+    setFeeRows((current) => {
+      if (current.length <= 1) return current
+      return current.filter((row) => row.id !== rowId)
+    })
+  }
+
+  const handleCreateSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const errors: Record<string, string> = {}
-    if (!form.sessionId) errors.sessionId = 'Select a session.'
-    if (form.name.trim().length < 2) errors.name = 'Fee name must be at least 2 characters.'
-    if (!form.feeType) errors.feeType = 'Select a fee type.'
-    if (!isValidMoney(form.amount)) errors.amount = 'Enter a valid amount with up to 2 decimal places.'
-    if (Object.keys(errors).length > 0) {
-      setFieldErrors(errors)
-      return
+
+    if (!createSessionId) errors.sessionId = 'Select a session.'
+    if (!createTermId) errors.termId = 'Select a term.'
+
+    for (const row of feeRows) {
+      if (row.name.trim().length < 2) errors[`row_${row.id}_name`] = 'Fee name must be at least 2 characters.'
+      if (!row.feeType) errors[`row_${row.id}_feeType`] = 'Select a fee type.'
+      if (!isValidMoney(row.amount)) errors[`row_${row.id}_amount`] = 'Enter a valid amount with up to 2 decimal places.'
     }
 
-    const payload = {
-      sessionId: form.sessionId,
-      name: form.name.trim(),
-      feeType: form.feeType as FeeTypeValue,
-      amount: form.amount.trim(),
-      description: form.description.trim() || undefined,
+    if (Object.keys(errors).length > 0) {
+      setCreateErrors(errors)
+      return
     }
 
     setSubmitting(true)
     try {
-      if (editing) {
-        const updated = await api.updateFee(editing.id, payload)
-        setFees((current) => (current ?? []).map((entry) => (entry.id === updated.id ? updated : entry)))
-        push('success', `${updated.name} updated.`)
-      } else {
-        const created = await api.createFee(payload)
-        setFees((current) => (current ? [...current, created] : [created]))
-        push('success', `${created.name} created.`)
-      }
-      setModalOpen(false)
+      const created = await api.createFeesBatch({
+        sessionId: createSessionId,
+        termId: createTermId,
+        fees: feeRows.map((row) => ({
+          name: row.name.trim(),
+          feeType: row.feeType as FeeTypeValue,
+          amount: row.amount.trim(),
+          description: row.description.trim() || undefined,
+        })),
+      })
+      setFees((current) => (current ? [...current, ...created] : created))
+      push('success', `${created.length} fee structure${created.length > 1 ? 's' : ''} created.`)
+      setCreateModalOpen(false)
     } catch (err) {
       const apiError = err as { fieldErrors?: Record<string, string> }
       if (apiError.fieldErrors && Object.keys(apiError.fieldErrors).length > 0) {
-        setFieldErrors(apiError.fieldErrors)
+        setCreateErrors(apiError.fieldErrors)
+      } else {
+        push('error', err instanceof Error ? err.message : 'Could not save fee structures.')
+      }
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleEditSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!editing) return
+
+    const errors: Record<string, string> = {}
+    if (editForm.name.trim().length < 2) errors.name = 'Fee name must be at least 2 characters.'
+    if (!editForm.feeType) errors.feeType = 'Select a fee type.'
+    if (!isValidMoney(editForm.amount)) errors.amount = 'Enter a valid amount with up to 2 decimal places.'
+
+    if (Object.keys(errors).length > 0) {
+      setEditFieldErrors(errors)
+      return
+    }
+
+    const payload = {
+      sessionId: editForm.sessionId,
+      termId: editForm.termId,
+      name: editForm.name.trim(),
+      feeType: editForm.feeType as FeeTypeValue,
+      amount: editForm.amount.trim(),
+      description: editForm.description.trim() || undefined,
+    }
+
+    setSubmitting(true)
+    try {
+      const updated = await api.updateFee(editing.id, payload)
+      setFees((current) => (current ?? []).map((entry) => (entry.id === updated.id ? updated : entry)))
+      push('success', `${updated.name} updated.`)
+      setEditModalOpen(false)
+    } catch (err) {
+      const apiError = err as { fieldErrors?: Record<string, string> }
+      if (apiError.fieldErrors && Object.keys(apiError.fieldErrors).length > 0) {
+        setEditFieldErrors(apiError.fieldErrors)
       } else {
         push('error', err instanceof Error ? err.message : 'Could not save the fee structure.')
       }
@@ -169,13 +257,14 @@ export function FeeStructuresPage() {
 
   const activeFees = fees?.filter((fee) => fee.status === 'ACTIVE').length ?? 0
   const sessionOptions = sessions.map((session) => ({ value: session.id, label: session.name }))
+  const termOptions = terms.map((term) => ({ value: term.id, label: term.name }))
 
   return (
     <div className="space-y-6">
       <PageHeader
         eyebrow="Fees & Finance"
         title="Fee Structures"
-        description="Fee structures belong to an academic session. Activate a fee, assign pupils, then generate charges."
+        description="Fee structures belong to an academic session and term. Activate a fee, assign pupils, then generate charges."
         actions={
           canManage ? (
             <Button onClick={openCreate}>
@@ -186,7 +275,7 @@ export function FeeStructuresPage() {
         }
       />
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         {fees ? (
           <>
             <StatCard
@@ -217,9 +306,16 @@ export function FeeStructuresPage() {
               icon={<Receipt className="h-5 w-5" aria-hidden="true" />}
               tone="gold"
             />
+            <StatCard
+              label="PA Fees"
+              value={fees.filter((fee) => fee.feeType === 'PA').length}
+              hint="PA recurring fees"
+              icon={<Receipt className="h-5 w-5" aria-hidden="true" />}
+              tone="royal"
+            />
           </>
         ) : (
-          Array.from({ length: 4 }).map((_, index) => <CardSkeleton key={index} />)
+          Array.from({ length: 5 }).map((_, index) => <CardSkeleton key={index} />)
         )}
       </div>
 
@@ -280,7 +376,6 @@ export function FeeStructuresPage() {
                   <th scope="col" className="px-5 py-3.5">Type</th>
                   <th scope="col" className="px-5 py-3.5">Amount</th>
                   <th scope="col" className="px-5 py-3.5">Assignments</th>
-                  <th scope="col" className="px-5 py-3.5">Charges</th>
                   <th scope="col" className="px-5 py-3.5">Status</th>
                   <th scope="col" className="px-5 py-3.5 text-right">Action</th>
                 </tr>
@@ -294,8 +389,8 @@ export function FeeStructuresPage() {
                     </td>
                     <td className="px-5 py-3.5 text-ink-700">{fee.sessionName}</td>
                     <td className="px-5 py-3.5">
-                      <Badge tone={fee.feeType === 'TERMLY' ? 'royal' : fee.feeType === 'DAILY' ? 'magenta' : 'gold'}>
-                        {fee.feeType}
+                      <Badge tone={fee.feeType === 'TERMLY' ? 'royal' : fee.feeType === 'DAILY' ? 'magenta' : fee.feeType === 'PA' ? 'green' : 'gold'}>
+                        {fee.feeType === 'PA' ? 'PA Fees' : fee.feeType}
                       </Badge>
                     </td>
                     <td className="px-5 py-3.5 font-semibold text-ink-900">{formatMoney(fee.amount)}</td>
@@ -303,7 +398,6 @@ export function FeeStructuresPage() {
                       {fee.assignmentCount}
                       <span className="text-xs text-ink-500"> ({fee.activeAssignmentCount} active)</span>
                     </td>
-                    <td className="px-5 py-3.5 text-ink-700">{fee.chargeCount}</td>
                     <td className="px-5 py-3.5"><StatusBadge status={fee.status} /></td>
                     <td className="px-5 py-3.5">
                       <div className="flex justify-end gap-2">
@@ -388,58 +482,182 @@ export function FeeStructuresPage() {
         </ul>
       ) : null}
 
-      {/* Create / edit dialog */}
+      {/* Create dialog — multi-fee */}
       <Modal
-        open={modalOpen}
-        onClose={() => setModalOpen(false)}
-        title={editing ? 'Edit fee structure' : 'Add fee structure'}
-        description={
-          editing ? `Update the details of ${editing.name}.` : 'Create a fee structure for an academic session.'
-        }
+        open={createModalOpen}
+        onClose={() => setCreateModalOpen(false)}
+        title="Add fee structures"
+        description="Create one or more fee structures for an academic session and term."
         size="lg"
       >
-        <form onSubmit={handleSubmit} noValidate className="grid gap-4 sm:grid-cols-2">
+        <form onSubmit={handleCreateSubmit} noValidate className="grid gap-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <SelectField
+                label="Session"
+                name="createSessionId"
+                value={createSessionId}
+                onChange={(event) => { setCreateSessionId(event.target.value); setCreateTermId('') }}
+                options={createSessionOptions}
+                placeholder={createSessionOptions.length > 0 ? 'Select a session' : 'No sessions available yet'}
+                error={createErrors.sessionId}
+                required
+              />
+            </div>
+            <div>
+              <SelectField
+                label="Term"
+                name="createTermId"
+                value={createTermId}
+                onChange={(event) => setCreateTermId(event.target.value)}
+                options={createTermOptions}
+                placeholder={!createSessionId ? 'Select a session first' : createTermOptions.length > 0 ? 'Select a term' : 'No terms for this session'}
+                error={createErrors.termId}
+                required
+              />
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <p className="text-sm font-semibold text-ink-700">Fee components</p>
+            {feeRows.map((row, index) => (
+              <div key={row.id} className="rounded-lg border border-cream-200 bg-cream-50 p-4">
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-ink-500">Fee {index + 1}</span>
+                  {feeRows.length > 1 ? (
+                    <button
+                      type="button"
+                      onClick={() => removeRow(row.id)}
+                      className="rounded p-1 text-ink-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                      aria-label={`Remove fee ${index + 1}`}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  ) : null}
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <TextField
+                    label="Fee name"
+                    name={`row_${row.id}_name`}
+                    value={row.name}
+                    onChange={(event) => updateRow(row.id, 'name', event.target.value)}
+                    error={createErrors[`row_${row.id}_name`]}
+                    hint="e.g. School Fees"
+                    required
+                    autoComplete="off"
+                  />
+                  <SelectField
+                    label="Fee type"
+                    name={`row_${row.id}_feeType`}
+                    value={row.feeType}
+                    onChange={(event) => updateRow(row.id, 'feeType', event.target.value)}
+                    options={feeTypeOptions}
+                    placeholder="Select a fee type"
+                    error={createErrors[`row_${row.id}_feeType`]}
+                    required
+                  />
+                  <div className="sm:col-span-2">
+                    <TextField
+                      label="Amount"
+                      name={`row_${row.id}_amount`}
+                      inputMode="decimal"
+                      value={row.amount}
+                      onChange={(event) => updateRow(row.id, 'amount', event.target.value)}
+                      error={createErrors[`row_${row.id}_amount`]}
+                      hint="Amount in GHS. Up to 2 decimal places."
+                      required
+                      autoComplete="off"
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <TextAreaField
+                      label="Description"
+                      name={`row_${row.id}_description`}
+                      value={row.description}
+                      onChange={(event) => updateRow(row.id, 'description', event.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
+            <Button variant="soft" type="button" onClick={addRow}>
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              Add another fee
+            </Button>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 border-t border-cream-200 pt-4">
+            <Button variant="cream" type="button" onClick={() => setCreateModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={submitting}>
+              {submitting ? <Spinner className="h-4 w-4" /> : null}
+              Create {feeRows.length > 1 ? `${feeRows.length} fees` : 'fee structure'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Edit dialog — single fee */}
+      <Modal
+        open={editModalOpen}
+        onClose={() => setEditModalOpen(false)}
+        title="Edit fee structure"
+        description={editing ? `Update the details of ${editing.name}.` : 'Update the fee structure.'}
+        size="lg"
+      >
+        <form onSubmit={handleEditSubmit} noValidate className="grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
             <SelectField
               label="Session"
-              name="sessionId"
-              value={form.sessionId}
-              onChange={(event) => set('sessionId', event.target.value)}
+              name="editSessionId"
+              value={editForm.sessionId}
+              onChange={(event) => { setEditForm((c) => ({ ...c, sessionId: event.target.value, termId: '' })) }}
               options={sessionOptions}
-              placeholder={sessionOptions.length > 0 ? 'Select a session' : 'No sessions available yet'}
-              error={fieldErrors.sessionId}
+              placeholder="Select a session"
+              error={editFieldErrors.sessionId}
+              required
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <SelectField
+              label="Term"
+              name="editTermId"
+              value={editForm.termId}
+              onChange={(event) => setEditForm((c) => ({ ...c, termId: event.target.value }))}
+              options={termOptions}
+              placeholder={!editForm.sessionId ? 'Select a session first' : 'Select a term'}
+              error={editFieldErrors.termId}
               required
             />
           </div>
           <TextField
             label="Fee name"
-            name="name"
-            value={form.name}
-            onChange={(event) => set('name', event.target.value)}
-            error={fieldErrors.name}
-            hint="e.g. School Fees."
+            name="editName"
+            value={editForm.name}
+            onChange={(event) => setEditForm((c) => ({ ...c, name: event.target.value }))}
+            error={editFieldErrors.name}
             required
             autoComplete="off"
           />
           <SelectField
             label="Fee type"
-            name="feeType"
-            value={form.feeType}
-            onChange={(event) => set('feeType', event.target.value)}
+            name="editFeeType"
+            value={editForm.feeType}
+            onChange={(event) => setEditForm((c) => ({ ...c, feeType: event.target.value as FeeTypeValue | '' }))}
             options={feeTypeOptions}
             placeholder="Select a fee type"
-            error={fieldErrors.feeType}
+            error={editFieldErrors.feeType}
             required
           />
           <div className="sm:col-span-2">
             <TextField
               label="Amount"
-              name="amount"
+              name="editAmount"
               inputMode="decimal"
-              value={form.amount}
-              onChange={(event) => set('amount', event.target.value)}
-              error={fieldErrors.amount}
-              hint="Amount in the school's currency. Up to 2 decimal places."
+              value={editForm.amount}
+              onChange={(event) => setEditForm((c) => ({ ...c, amount: event.target.value }))}
+              error={editFieldErrors.amount}
               required
               autoComplete="off"
             />
@@ -447,19 +665,18 @@ export function FeeStructuresPage() {
           <div className="sm:col-span-2">
             <TextAreaField
               label="Description"
-              name="description"
-              value={form.description}
-              onChange={(event) => set('description', event.target.value)}
-              error={fieldErrors.description}
+              name="editDescription"
+              value={editForm.description}
+              onChange={(event) => setEditForm((c) => ({ ...c, description: event.target.value }))}
             />
           </div>
           <div className="flex items-center justify-end gap-2 sm:col-span-2">
-            <Button variant="cream" type="button" onClick={() => setModalOpen(false)}>
+            <Button variant="cream" type="button" onClick={() => setEditModalOpen(false)}>
               Cancel
             </Button>
             <Button type="submit" disabled={submitting}>
               {submitting ? <Spinner className="h-4 w-4" /> : null}
-              {editing ? 'Save changes' : 'Create fee structure'}
+              Save changes
             </Button>
           </div>
         </form>

@@ -18,7 +18,7 @@ import { formatMoney } from '@/lib/money'
 import type {
   AcademicStatsView,
   AttendanceView,
-  FinanceSummaryView,
+  OwnerFinanceOverviewView,
   OwnerSummary,
   StaffStats,
   StaffView,
@@ -28,6 +28,8 @@ import type {
 function todayStr(): string {
   return new Date().toISOString().slice(0, 10)
 }
+
+type FeeCategory = 'daily' | 'pta' | 'pa' | 'maintenance'
 
 function GlassCard({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
@@ -128,10 +130,11 @@ export function HeadteacherDashboardPage() {
   const [staff, setStaff] = useState<StaffView[] | null>(null)
   const [stats, setStats] = useState<StaffStats | null>(null)
   const [summary, setSummary] = useState<OwnerSummary | null>(null)
-  const [finance, setFinance] = useState<FinanceSummaryView | null>(null)
+  const [finance, setFinance] = useState<OwnerFinanceOverviewView | null>(null)
   const [academic, setAcademic] = useState<AcademicStatsView | null>(null)
   const [teachers, setTeachers] = useState<TeacherListRow[]>([])
   const [attendance, setAttendance] = useState<AttendanceView[]>([])
+  const [activeCategory, setActiveCategory] = useState<FeeCategory>('daily')
   const [error, setError] = useState<string | null>(null)
 
   const canViewPupils = hasPermission('pupils.view')
@@ -148,7 +151,7 @@ export function HeadteacherDashboardPage() {
         api.listStaff(),
         api.staffStats(),
         api.ownerSummary().catch(() => null),
-        canViewFinance ? api.financeSummary() : Promise.resolve(null),
+        canViewFinance ? api.financeOverview() : Promise.resolve(null),
         canViewAcademic ? api.academicStats() : Promise.resolve(null),
         canViewTeachers ? api.listTeachers() : Promise.resolve([]),
         canViewAttendance ? api.listAttendance({ dateFrom: today, dateTo: today }) : Promise.resolve([]),
@@ -160,7 +163,7 @@ export function HeadteacherDashboardPage() {
       setStaff(get<StaffView[] | null>(0, null))
       setStats(get<StaffStats | null>(1, null))
       setSummary(get<OwnerSummary | null>(2, null))
-      setFinance(get<FinanceSummaryView | null>(3, null))
+      setFinance(get<OwnerFinanceOverviewView | null>(3, null))
       setAcademic(get<AcademicStatsView | null>(4, null))
       setTeachers(get<TeacherListRow[]>(5, []))
       setAttendance(get<AttendanceView[]>(6, []))
@@ -200,6 +203,40 @@ export function HeadteacherDashboardPage() {
   const totalAbsent = attendanceByClass.reduce((s, c) => s + c.absent, 0)
   const totalPupilsInClasses = attendanceByClass.reduce((s, c) => s + c.totalPupils, 0)
   const overallAttendancePct = totalPupilsInClasses > 0 ? Math.round((totalPresent / totalPupilsInClasses) * 100) : 0
+
+  const activeClassCount = useMemo(() => {
+    if (!finance) return 0
+    const ids = new Set<string>()
+    for (const row of [...finance.dailyFees, ...finance.ptaFees, ...finance.maintenanceFees]) {
+      ids.add(row.classId)
+    }
+    return ids.size
+  }, [finance])
+
+  const collectionPct = useMemo(() => {
+    if (!finance) return 0
+    const exp = Number(finance.totals.totalExpected)
+    const col = Number(finance.totals.totalCollected)
+    if (exp <= 0) return 0
+    return Math.round((col / exp) * 100)
+  }, [finance])
+
+  const activeFeeRows = useMemo(() => {
+    if (!finance) return []
+    if (activeCategory === 'daily') return finance.dailyFees
+    if (activeCategory === 'pta') return finance.ptaFees
+    if (activeCategory === 'pa') return finance.paFees
+    return finance.maintenanceFees
+  }, [finance, activeCategory])
+
+  const activeFeeTotals = useMemo(() => {
+    if (!finance) return { expected: '0.00', collected: '0.00', outstanding: '0.00' }
+    if (activeCategory === 'daily') return { expected: finance.totals.totalExpected, collected: finance.totals.totalCollected, outstanding: finance.totals.totalOutstanding }
+    const rows = activeFeeRows
+    const exp = rows.reduce((s, r) => s + Number(r.expectedAmount), 0)
+    const col = rows.reduce((s, r) => s + Number(r.collectedAmount), 0)
+    return { expected: exp.toFixed(2), collected: col.toFixed(2), outstanding: (exp - col).toFixed(2) }
+  }, [finance, activeCategory, activeFeeRows])
 
   if (error) {
     return (
@@ -328,35 +365,233 @@ export function HeadteacherDashboardPage() {
             title="Finance Overview"
             icon={Wallet}
             action={
-              <Link
-                to="/headteacher/finance"
-                className="text-[12px] font-semibold text-magenta-400 hover:text-magenta-300"
-              >
-                View details &rarr;
-              </Link>
+              <div className="flex items-center gap-3">
+                {finance?.term && (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.05] px-3 py-1 text-[11px] font-semibold text-cream-200/50 ring-1 ring-white/[0.08]">
+                    <Clock className="h-3 w-3" aria-hidden="true" />
+                    {finance.term.name}
+                  </span>
+                )}
+                {finance?.session && (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.05] px-3 py-1 text-[11px] font-semibold text-cream-200/50 ring-1 ring-white/[0.08]">
+                    {finance.session.name}
+                  </span>
+                )}
+                <Link
+                  to="/headteacher/finance"
+                  className="text-[12px] font-semibold text-magenta-400 hover:text-magenta-300"
+                >
+                  View details &rarr;
+                </Link>
+              </div>
             }
           />
           {!finance ? (
             <div className="space-y-2">{Array.from({ length: 3 }).map((_, i) => <SkeletonRow key={i} />)}</div>
           ) : (
             <>
-              <div className="grid gap-3 sm:grid-cols-3 mb-4">
+              {/* KPI strip */}
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 mb-4">
                 <GlassInnerCard>
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Expected Fees</p>
-                  <p className="mt-1 text-xl font-extrabold text-cream-100">{formatMoney(finance.expectedFees)}</p>
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Total Expected</p>
+                  <p className="mt-1 text-xl font-extrabold text-cream-100">{formatMoney(finance.totals.totalExpected)}</p>
+                  <p className="text-[11px] text-cream-200/30">{finance.totals.pupilsWithCharges} pupils with charges</p>
                 </GlassInnerCard>
                 <GlassInnerCard>
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Collected</p>
-                  <p className="mt-1 text-xl font-extrabold text-emerald-400">{formatMoney(finance.collected)}</p>
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Total Collected</p>
+                  <p className="mt-1 text-xl font-extrabold text-emerald-400">{formatMoney(finance.totals.totalCollected)}</p>
+                  <p className="text-[11px] text-cream-200/30">{finance.totals.pupilsWithPayments} pupils have paid</p>
+                  <div className="mt-2 flex items-center gap-2">
+                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/[0.08]">
+                      <div className="h-full rounded-full bg-gradient-to-r from-magenta-500 to-pink-400" style={{ width: `${collectionPct}%` }} />
+                    </div>
+                    <span className="text-[11px] font-bold text-cream-200/50 w-8 text-right">{collectionPct}%</span>
+                  </div>
                 </GlassInnerCard>
                 <GlassInnerCard>
                   <p className="text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Outstanding</p>
-                  <p className="mt-1 text-xl font-extrabold text-red-400">{formatMoney(finance.outstanding)}</p>
+                  <p className="mt-1 text-xl font-extrabold text-red-400">{formatMoney(finance.totals.totalOutstanding)}</p>
+                  <p className="text-[11px] text-cream-200/30">{collectionPct}% collection rate</p>
+                </GlassInnerCard>
+                <GlassInnerCard>
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Active Classes</p>
+                  <p className="mt-1 text-xl font-extrabold text-cream-100">{activeClassCount}</p>
+                  <p className="text-[11px] text-cream-200/30">{finance.totals.totalPupils} total active pupils</p>
                 </GlassInnerCard>
               </div>
-              <p className="text-[11px] text-cream-200/30">
-                {finance.pupilsWithOutstanding} pupil(s) carry an outstanding balance.
-              </p>
+
+              {/* Fee table + Outstanding Arrears (2-col grid) */}
+              <div className="grid gap-6 lg:grid-cols-3 mb-4">
+                <div className="lg:col-span-2">
+                  {/* Fee type toggle */}
+                  <div className="mb-3 flex gap-2">
+                    {([['daily', 'Daily Fees'], ['pta', 'PTA Fees'], ['pa', 'PA Fees'], ['maintenance', 'Maintenance Fees']] as const).map(([key, label]) => (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => setActiveCategory(key)}
+                        className={cn(
+                          'rounded-full px-3 py-1 text-[11px] font-semibold transition-colors',
+                          activeCategory === key
+                            ? 'bg-magenta-500/20 text-magenta-300 ring-1 ring-magenta-500/30'
+                            : 'bg-white/[0.05] text-cream-200/40 hover:bg-white/[0.08] hover:text-cream-200/60',
+                        )}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {activeFeeRows.length === 0 ? (
+                    <p className="text-[12px] text-cream-200/30 py-4 text-center">No {activeCategory === 'daily' ? 'daily' : activeCategory === 'pta' ? 'PTA' : activeCategory === 'pa' ? 'PA' : 'maintenance'} fee data for this term.</p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-[13px]">
+                        <thead>
+                          <tr className="border-b border-white/[0.06]">
+                            <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Class</th>
+                            <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Pupils</th>
+                            <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Expected</th>
+                            <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Collected</th>
+                            <th className="pb-2 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Outstanding</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {activeFeeRows.map((row) => (
+                            <tr key={row.classId} className="border-b border-white/[0.04]">
+                              <td className="py-2.5 pr-4 font-semibold text-cream-100">{row.className}</td>
+                              <td className="py-2.5 pr-4 text-right text-cream-200/60">{row.pupilCount}</td>
+                              <td className="py-2.5 pr-4 text-right text-cream-200/60">{formatMoney(row.expectedAmount)}</td>
+                              <td className="py-2.5 pr-4 text-right font-semibold text-emerald-400">{formatMoney(row.collectedAmount)}</td>
+                              <td className="py-2.5 text-right font-semibold text-red-400">{formatMoney(row.outstandingAmount)}</td>
+                            </tr>
+                          ))}
+                          <tr className="border-t border-magenta-500/20">
+                            <td colSpan={2} className="pt-3 pr-4 text-[12px] font-bold text-magenta-300">Total</td>
+                            <td className="pt-3 pr-4 text-right text-[12px] font-bold text-magenta-300">{formatMoney(activeFeeTotals.expected)}</td>
+                            <td className="pt-3 pr-4 text-right text-[12px] font-bold text-magenta-300">{formatMoney(activeFeeTotals.collected)}</td>
+                            <td className="pt-3 text-right text-[12px] font-extrabold text-magenta-300">{formatMoney(activeFeeTotals.outstanding)}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                      <div className="mt-3 flex items-center gap-2">
+                        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/[0.08]">
+                          <div className="h-full rounded-full bg-gradient-to-r from-magenta-500 to-pink-400" style={{ width: `${Number(activeFeeTotals.expected) > 0 ? Math.min(Math.round((Number(activeFeeTotals.collected) / Number(activeFeeTotals.expected)) * 100), 100) : 0}%` }} />
+                        </div>
+                        <span className="text-[11px] font-bold text-cream-200/50 w-8 text-right">{Number(activeFeeTotals.expected) > 0 ? Math.min(Math.round((Number(activeFeeTotals.collected) / Number(activeFeeTotals.expected)) * 100), 100) : 0}%</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Outstanding Arrears panel */}
+                <div className="lg:col-span-1">
+                  <GlassInnerCard className="h-full">
+                    <div className="flex items-center gap-2 mb-3">
+                      <XCircle className="h-4 w-4 text-magenta-400/60" aria-hidden="true" />
+                      <h3 className="text-[12px] font-bold text-cream-100">Outstanding Arrears</h3>
+                    </div>
+                    {Number(finance.totals.totalOutstanding) <= 0 ? (
+                      <p className="text-[12px] text-cream-200/30 py-4 text-center">No outstanding arrears.</p>
+                    ) : (
+                      <>
+                        <div className="space-y-2">
+                          {[...finance.dailyFees, ...finance.ptaFees, ...finance.maintenanceFees, ...finance.paFees]
+                            .filter((r) => Number(r.outstandingAmount) > 0)
+                            .sort((a, b) => Number(b.outstandingAmount) - Number(a.outstandingAmount))
+                            .slice(0, 8)
+                            .map((row) => (
+                              <div
+                                key={row.classId}
+                                className="flex items-center justify-between rounded-xl bg-magenta-500/[0.06] border border-magenta-500/10 px-3 py-2"
+                              >
+                                <div className="min-w-0">
+                                  <p className="text-[12px] font-semibold text-cream-100 truncate">{row.className}</p>
+                                  <p className="text-[10px] text-cream-200/30">{row.pupilCount} pupils with charges</p>
+                                </div>
+                                <span className="text-[12px] font-bold text-red-400">{formatMoney(row.outstandingAmount)}</span>
+                              </div>
+                            ))}
+                        </div>
+                        <div className="border-t border-white/[0.06] mt-3 pt-3">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[12px] font-bold text-cream-200/50">Total Arrears</span>
+                            <span className="text-lg font-extrabold text-red-400">{formatMoney(finance.totals.totalOutstanding)}</span>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </GlassInnerCard>
+                </div>
+              </div>
+
+              {/* All Classes Summary Table */}
+              {(() => {
+                const classMap = new Map<string, { className: string; pupilCount: number; expected: number; collected: number; outstanding: number }>()
+    for (const row of [...finance.dailyFees, ...finance.ptaFees, ...finance.maintenanceFees, ...finance.paFees]) {
+                  const existing = classMap.get(row.classId) ?? { className: row.className, pupilCount: 0, expected: 0, collected: 0, outstanding: 0 }
+                  existing.pupilCount = Math.max(existing.pupilCount, row.pupilCount)
+                  existing.expected += Number(row.expectedAmount)
+                  existing.collected += Number(row.collectedAmount)
+                  existing.outstanding += Number(row.outstandingAmount)
+                  classMap.set(row.classId, existing)
+                }
+                const allRows = [...classMap.values()].sort((a, b) => a.className.localeCompare(b.className))
+                if (allRows.length === 0) return null
+                const grandExpected = allRows.reduce((s, r) => s + r.expected, 0)
+                const grandCollected = allRows.reduce((s, r) => s + r.collected, 0)
+                const grandOutstanding = allRows.reduce((s, r) => s + r.outstanding, 0)
+
+                return (
+                  <GlassInnerCard>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <div className="inline-block w-1 h-5 rounded-full bg-magenta-500 shrink-0" aria-hidden="true" />
+                        <h3 className="text-[12px] font-bold text-cream-100">All Classes — Finance Summary</h3>
+                      </div>
+                      <span className="text-[11px] font-semibold text-cream-200/40">
+                        {finance.session?.name ?? 'No active session'} &middot; {finance.term?.name ?? 'No active term'}
+                      </span>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-[13px]">
+                        <thead>
+                          <tr className="border-b border-white/[0.06]">
+                            <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Class</th>
+                            <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Pupils</th>
+                            <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Expected</th>
+                            <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Collected</th>
+                            <th className="pb-2 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Outstanding</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {allRows.map((row) => (
+                            <tr key={row.className} className="border-b border-white/[0.04]">
+                              <td className="py-2.5 pr-4 font-semibold text-cream-100">{row.className}</td>
+                              <td className="py-2.5 pr-4 text-right text-cream-200/60">{row.pupilCount}</td>
+                              <td className="py-2.5 pr-4 text-right text-cream-200/60">{formatMoney(row.expected)}</td>
+                              <td className="py-2.5 pr-4 text-right font-semibold text-emerald-400">{formatMoney(row.collected)}</td>
+                              <td className="py-2.5 text-right font-semibold text-red-400">{formatMoney(row.outstanding)}</td>
+                            </tr>
+                          ))}
+                          <tr className="border-t border-magenta-500/20">
+                            <td colSpan={2} className="pt-3 pr-4 text-[12px] font-bold text-magenta-300">School Total</td>
+                            <td className="pt-3 pr-4 text-right text-[12px] font-bold text-magenta-300">{formatMoney(grandExpected)}</td>
+                            <td className="pt-3 pr-4 text-right text-[12px] font-bold text-magenta-300">{formatMoney(grandCollected)}</td>
+                            <td className="pt-3 text-right text-[12px] font-extrabold text-magenta-300">{formatMoney(grandOutstanding)}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                      <div className="mt-3 flex items-center gap-2">
+                        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/[0.08]">
+                          <div className="h-full rounded-full bg-gradient-to-r from-magenta-500 to-pink-400" style={{ width: `${grandExpected > 0 ? Math.min(Math.round((grandCollected / grandExpected) * 100), 100) : 0}%` }} />
+                        </div>
+                        <span className="text-[11px] font-bold text-cream-200/50 w-8 text-right">{grandExpected > 0 ? Math.min(Math.round((grandCollected / grandExpected) * 100), 100) : 0}%</span>
+                      </div>
+                    </div>
+                  </GlassInnerCard>
+                )
+              })()}
             </>
           )}
         </GlassCard>

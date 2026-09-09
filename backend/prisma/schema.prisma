@@ -311,6 +311,7 @@ enum FeeType {
   DAILY
   TERMLY
   OTHER
+  PA
 }
 
 /// How money is accepted at the school.
@@ -326,6 +327,14 @@ enum PaymentMethod {
 enum ChargeStatus {
   ACTIVE
   CANCELLED
+}
+
+/// Lifecycle of a fee assignment. ACTIVE = pupil is applicable.
+/// INACTIVE = assignment removed. EXEMPT = pupil is exempt from this fee.
+enum FeeAssignmentStatus {
+  ACTIVE
+  INACTIVE
+  EXEMPT
 }
 
 /// Lifecycle of a payment record. VOIDED reverses the payment (and its
@@ -410,15 +419,15 @@ model FinanceFee {
 /// A pupil assigned a fee structure. Deactivation is preferred over deletion:
 /// it stops future billing and cancels outstanding charges, but keeps history.
 model FeeAssignment {
-  id        String        @id @default(cuid())
+  id        String               @id @default(cuid())
   pupilId   String
   feeId     String
-  status    AccountStatus @default(ACTIVE)
-  pupil     Pupil         @relation(fields: [pupilId], references: [id], onDelete: Cascade)
-  fee       FinanceFee    @relation(fields: [feeId], references: [id], onDelete: Cascade)
+  status    FeeAssignmentStatus  @default(ACTIVE)
+  pupil     Pupil                @relation(fields: [pupilId], references: [id], onDelete: Cascade)
+  fee       FinanceFee           @relation(fields: [feeId], references: [id], onDelete: Cascade)
   charges   FeeCharge[]
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
 
   @@unique([pupilId, feeId])
   @@index([status])

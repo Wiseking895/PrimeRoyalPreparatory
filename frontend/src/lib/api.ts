@@ -20,6 +20,7 @@ import type {
   CreateStaffInput,
   CreateStaffResult,
   FeeAssignmentView,
+  FeeBatchCreateInput,
   FeeCreateInput,
   FeeUpdateInput,
   FeeView,
@@ -29,6 +30,7 @@ import type {
   GuardianAccountView,
   GuardianListResult,
   LoginResult,
+  MarkPaidInput,
   NotificationListResult,
   NotificationPreferenceUpdateInput,
   NotificationPreferenceView,
@@ -362,6 +364,7 @@ export const api = {
 
   // Finance
   financeSummary: () => request<FinanceSummaryView>('/api/finance/summary'),
+  financeOverview: () => request<OwnerFinanceOverviewView>('/api/finance/overview'),
   listFinancePupils: (params?: { q?: string; page?: number; pageSize?: number }) => {
     const search = new URLSearchParams()
     if (params?.q) search.set('q', params.q)
@@ -398,6 +401,8 @@ export const api = {
     }),
   generateSessionCharges: (sessionId: string) =>
     request<ChargeGenerateResult>('/api/finance/generate-charges', jsonBody({ sessionId })),
+  ensureCharges: () =>
+    request<{ feesProcessed: number; chargesCreated: number }>('/api/finance/ensure-charges', { method: 'POST' }),
 
   // Fees
   listFees: (params?: { sessionId?: string; status?: 'ACTIVE' | 'INACTIVE' }) => {
@@ -409,6 +414,7 @@ export const api = {
   },
   getFee: (id: string) => request<FeeView>(`/api/fees/${id}`),
   createFee: (input: FeeCreateInput) => request<FeeView>('/api/fees', jsonBody(input)),
+  createFeesBatch: (input: FeeBatchCreateInput) => request<FeeView[]>('/api/fees/batch', jsonBody(input)),
   updateFee: (id: string, input: FeeUpdateInput) =>
     request<FeeView>(`/api/fees/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
   setFeeStatus: (id: string, status: 'ACTIVE' | 'INACTIVE') =>
@@ -418,6 +424,10 @@ export const api = {
   listFeeAssignments: (id: string) => request<FeeAssignmentView[]>(`/api/fees/${id}/assignments`),
   deactivateAssignment: (id: string) =>
     request<FeeAssignmentView>(`/api/fees/assignments/${id}/deactivate`, { method: 'POST' }),
+  exemptPupilFromFee: (feeId: string, assignmentId: string) =>
+    request<FeeAssignmentView>(`/api/fees/${feeId}/assignments/${assignmentId}/exempt`, { method: 'POST' }),
+  removeExemption: (feeId: string, assignmentId: string) =>
+    request<FeeAssignmentView>(`/api/fees/${feeId}/assignments/${assignmentId}/remove-exemption`, { method: 'POST' }),
   generateFeeCharges: (id: string) =>
     request<ChargeGenerateResult>(`/api/fees/${id}/generate-charges`, { method: 'POST' }),
 
@@ -446,6 +456,7 @@ export const api = {
   },
   getPayment: (id: string) => request<PaymentView>(`/api/payments/${id}`),
   createPayment: (input: PaymentCreateInput) => request<PaymentView>('/api/payments', jsonBody(input)),
+  markPaid: (input: MarkPaidInput) => request<PaymentView>('/api/payments/mark-paid', jsonBody(input)),
   voidPayment: (id: string, input: PaymentVoidInput) =>
     request<PaymentView>(`/api/payments/${id}/void`, jsonBody(input)),
 

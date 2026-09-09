@@ -14,7 +14,7 @@ import { EmptyState, ErrorState } from '@/components/dashboard/States'
 import { StatCard } from '@/components/dashboard/StatCard'
 import { useToast } from '@/components/dashboard/Toast'
 import { api } from '@/lib/api'
-import { formatDate } from '@/lib/date'
+import { formatDate, elapsedSchoolDays, schoolDayLabel } from '@/lib/date'
 import { toDateInputValue } from '@/lib/dateInput'
 import type { AcademicSessionView, AcademicTermView, AccountStatusValue } from '@/types/portal'
 
@@ -461,7 +461,7 @@ export function SessionsPage() {
                           </div>
                           <p className="mt-1 text-xs text-ink-500">
                             {session?.name ?? 'Unknown session'} · Term {term.termNumber} ·{' '}
-                            {term.schoolDays} school day(s)
+                            {schoolDayLabel(elapsedSchoolDays(term.startDate, new Date(), term.schoolDays || undefined))}
                           </p>
                           <p className="mt-0.5 text-xs text-ink-500">
                             {formatDate(term.startDate)} — {formatDate(term.endDate)}

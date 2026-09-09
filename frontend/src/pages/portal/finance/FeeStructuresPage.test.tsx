@@ -7,7 +7,9 @@ import type { AcademicSessionView, FeeView } from '@/types/portal'
 const apiMock = vi.hoisted(() => ({
   listFees: vi.fn(),
   listSessions: vi.fn(),
+  listTerms: vi.fn(),
   createFee: vi.fn(),
+  createFeesBatch: vi.fn(),
   updateFee: vi.fn(),
   setFeeStatus: vi.fn(),
 }))
@@ -64,6 +66,8 @@ function feeFixture(overrides: Partial<FeeView> = {}): FeeView {
     id: 'fee-1',
     sessionId: 'session-1',
     sessionName: '2026/2027 Academic Session',
+    termId: 'term-1',
+    termName: 'First Term',
     name: 'School Fees',
     feeType: 'TERMLY',
     amount: '150000.00',
@@ -92,7 +96,9 @@ describe('FeeStructuresPage', () => {
     pushMock.mockReset()
     apiMock.listFees.mockResolvedValue([feeFixture()])
     apiMock.listSessions.mockResolvedValue([sessionFixture()])
+    apiMock.listTerms.mockResolvedValue([])
     apiMock.createFee.mockResolvedValue(feeFixture({ id: 'fee-2', name: 'Transport' }))
+    apiMock.createFeesBatch.mockResolvedValue([feeFixture({ id: 'fee-2', name: 'Transport' })])
     apiMock.updateFee.mockResolvedValue(feeFixture({ name: 'School Fees' }))
     apiMock.setFeeStatus.mockResolvedValue(feeFixture({ status: 'INACTIVE' }))
   })
@@ -118,19 +124,30 @@ describe('FeeStructuresPage', () => {
 
   it('creates a fee structure with fees.manage', async () => {
     PERMISSIONS = ['finance.view', 'fees.manage']
+    apiMock.listTerms.mockResolvedValue([{ id: 'term-1', sessionId: 'session-1', name: 'First Term', termNumber: 1, startDate: '2026-09-01T00:00:00.000Z', endDate: '2026-12-15T00:00:00.000Z', schoolDays: 80, status: 'ACTIVE', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' }])
     renderPage()
 
     await screen.findAllByText('School Fees')
     fireEvent.click(screen.getByRole('button', { name: /Add Fee Structure/i }))
 
+    await screen.findByLabelText(/^Term/)
+    await waitFor(() => {
+      expect(screen.getByLabelText(/^Term/).querySelector('option[value="term-1"]')).toBeTruthy()
+    })
+
     fireEvent.change(screen.getByLabelText(/^Fee name/), { target: { value: 'Transport' } })
+    fireEvent.change(screen.getByLabelText(/^Term/), { target: { value: 'term-1' } })
     fireEvent.change(screen.getByLabelText(/^Fee type/), { target: { value: 'TERMLY' } })
     fireEvent.change(screen.getByLabelText(/^Amount/), { target: { value: '12000.50' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Create fee structure' }))
+    fireEvent.click(screen.getByRole('button', { name: /Create fee/ }))
 
     await waitFor(() => {
-      expect(apiMock.createFee).toHaveBeenCalledWith(
-        expect.objectContaining({ name: 'Transport', feeType: 'TERMLY', amount: '12000.50' }),
+      expect(apiMock.createFeesBatch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sessionId: 'session-1',
+          termId: 'term-1',
+          fees: [expect.objectContaining({ name: 'Transport', feeType: 'TERMLY', amount: '12000.50' })],
+        }),
       )
     })
     expect(pushMock).toHaveBeenCalledWith('success', expect.stringContaining('created'))
@@ -146,10 +163,10 @@ describe('FeeStructuresPage', () => {
     fireEvent.change(screen.getByLabelText(/^Fee name/), { target: { value: 'Transport' } })
     fireEvent.change(screen.getByLabelText(/^Fee type/), { target: { value: 'TERMLY' } })
     fireEvent.change(screen.getByLabelText(/^Amount/), { target: { value: '12.345' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Create fee structure' }))
+    fireEvent.click(screen.getByRole('button', { name: /Create fee/ }))
 
     expect(await screen.findByText('Enter a valid amount with up to 2 decimal places.')).toBeInTheDocument()
-    expect(apiMock.createFee).not.toHaveBeenCalled()
+    expect(apiMock.createFeesBatch).not.toHaveBeenCalled()
   })
 
   it('keeps input focus while typing in the fee form', async () => {
@@ -158,6 +175,9 @@ describe('FeeStructuresPage', () => {
 
     await screen.findAllByText('School Fees')
     fireEvent.click(screen.getByRole('button', { name: /Add Fee Structure/i }))
+
+    const nameInput = screen.getByLabelText(/^Fee name/)
+    fireEvent.change(nameInput, { target: { value: 'Test' } })
 
     const amount = screen.getByLabelText(/^Amount/)
     amount.focus()

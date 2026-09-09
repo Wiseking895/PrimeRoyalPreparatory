@@ -232,14 +232,14 @@ export function OwnerDashboardPage() {
         <KpiCard
           icon={Wallet}
           label="Daily Fees — Today"
-          value={finance ? formatMoney(finance.paymentsThisTerm) : 'GHS 0'}
+          value={finance ? formatMoney(finance.paymentsThisTerm) : 'GH₵ 0'}
           accent
           supporting={finance ? `${finance.paymentsThisTermCount} payments this term` : 'Loading...'}
         />
         <KpiCard
           icon={CreditCard}
           label="PTA Fees — Today"
-          value={finance ? formatMoney(finance.collected) : 'GHS 0'}
+          value={finance ? formatMoney(finance.collected) : 'GH₵ 0'}
           supporting={finance ? `${finance.pupilsWithOutstanding} outstanding` : 'Loading...'}
         />
       </div>

@@ -63,6 +63,8 @@ function feeFixture(overrides: Partial<FeeView> = {}): FeeView {
     id: 'fee-1',
     sessionId: 'session-1',
     sessionName: '2026/2027 Academic Session',
+    termId: 'term-1',
+    termName: 'First Term',
     name: 'School Fees',
     feeType: 'TERMLY',
     amount: '150000.00',

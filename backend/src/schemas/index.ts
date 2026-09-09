@@ -227,7 +227,7 @@ const moneyField = z
   .regex(/^\d+(\.\d{1,2})?$/, 'Enter a valid amount with up to 2 decimal places.')
   .refine((value) => Number(value) > 0, { message: 'Amount must be greater than zero.' })
 
-const feeTypeEnum = z.enum(['TERMLY', 'DAILY', 'OTHER'], {
+const feeTypeEnum = z.enum(['TERMLY', 'DAILY', 'OTHER', 'PA'], {
   errorMap: () => ({ message: 'Select a valid fee type.' }),
 })
 
@@ -270,6 +270,7 @@ export const termUpdateSchema = z.object({
 
 export const feeCreateSchema = z.object({
   sessionId: z.string().trim().min(1, 'Select a session.').max(100),
+  termId: z.string().trim().min(1, 'Select a term.').max(100),
   name: z.string().trim().min(2, 'Fee name must be at least 2 characters.').max(120),
   feeType: feeTypeEnum,
   amount: moneyField,
@@ -278,6 +279,7 @@ export const feeCreateSchema = z.object({
 })
 
 export const feeUpdateSchema = z.object({
+  termId: z.string().trim().min(1).max(100).optional(),
   name: z.string().trim().min(2).max(120).optional(),
   feeType: feeTypeEnum.optional(),
   amount: moneyField.optional(),
@@ -290,6 +292,22 @@ export const feeAssignSchema = z.object({
     .array(z.string().trim().min(1).max(100))
     .min(1, 'Select at least one pupil.')
     .max(500, 'A maximum of 500 pupils can be assigned at once.'),
+})
+
+export const feeBatchCreateSchema = z.object({
+  sessionId: z.string().trim().min(1, 'Select a session.').max(100),
+  termId: z.string().trim().min(1, 'Select a term.').max(100),
+  fees: z
+    .array(
+      z.object({
+        name: z.string().trim().min(2, 'Fee name must be at least 2 characters.').max(120),
+        feeType: feeTypeEnum,
+        amount: moneyField,
+        description: optionalLongText(300),
+      }),
+    )
+    .min(1, 'Add at least one fee.')
+    .max(20, 'A maximum of 20 fees can be created at once.'),
 })
 
 export const paymentAllocationSchema = z.object({
@@ -311,6 +329,15 @@ export const paymentCreateSchema = z.object({
 
 export const paymentVoidSchema = z.object({
   reason: z.string().trim().min(3, 'Void reason must be at least 3 characters.').max(300),
+})
+
+export const markPaidSchema = z.object({
+  pupilId: z.string().trim().min(1, 'Select a pupil.').max(100),
+  paymentMethod: paymentMethodEnum.optional(),
+  paymentDate: dateField.optional(),
+  dailyPaid: z.boolean(),
+  paPaid: z.boolean(),
+  note: optionalLongText(500),
 })
 
 export const chargeGenerateSchema = z.object({

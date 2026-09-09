@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowLeft, ListChecks, Plus, UserRound } from 'lucide-react'
+import { ArrowLeft, ListChecks, Plus, ShieldCheck, ShieldOff, UserRound } from 'lucide-react'
 import { useParams } from 'react-router-dom'
 import { useAuth } from '@/auth/AuthContext'
 import { PageHeader } from '@/components/dashboard/PageHeader'
@@ -37,6 +37,8 @@ export function FeeAssignmentsPage() {
   const [searchError, setSearchError] = useState<string | null>(null)
 
   const [confirmDeactivate, setConfirmDeactivate] = useState<FeeAssignmentView | null>(null)
+  const [confirmExempt, setConfirmExempt] = useState<FeeAssignmentView | null>(null)
+  const [confirmRemoveExemption, setConfirmRemoveExemption] = useState<FeeAssignmentView | null>(null)
   const [confirmCharges, setConfirmCharges] = useState(false)
   const [busyAction, setBusyAction] = useState<string | null>(null)
 
@@ -116,6 +118,36 @@ export function FeeAssignmentsPage() {
     } finally {
       setBusyAction(null)
       setConfirmDeactivate(null)
+    }
+  }
+
+  const handleExempt = async () => {
+    if (!confirmExempt || !id) return
+    setBusyAction('exempt')
+    try {
+      const updated = await api.exemptPupilFromFee(id, confirmExempt.id)
+      setAssignments((current) => (current ?? []).map((entry) => (entry.id === updated.id ? updated : entry)))
+      push('success', `${updated.pupilName} exempted from this fee.`)
+    } catch (err) {
+      push('error', err instanceof Error ? err.message : 'Could not exempt pupil.')
+    } finally {
+      setBusyAction(null)
+      setConfirmExempt(null)
+    }
+  }
+
+  const handleRemoveExemption = async () => {
+    if (!confirmRemoveExemption || !id) return
+    setBusyAction('remove-exemption')
+    try {
+      const updated = await api.removeExemption(id, confirmRemoveExemption.id)
+      setAssignments((current) => (current ?? []).map((entry) => (entry.id === updated.id ? updated : entry)))
+      push('success', `Exemption removed for ${updated.pupilName}.`)
+    } catch (err) {
+      push('error', err instanceof Error ? err.message : 'Could not remove exemption.')
+    } finally {
+      setBusyAction(null)
+      setConfirmRemoveExemption(null)
     }
   }
 
@@ -245,17 +277,40 @@ export function FeeAssignmentsPage() {
                     </td>
                     <td className="px-5 py-3.5 text-ink-700">{entry.className}</td>
                     <td className="px-5 py-3.5 text-ink-700">{entry.chargeCount}</td>
-                    <td className="px-5 py-3.5"><StatusBadge status={entry.status} /></td>
+                    <td className="px-5 py-3.5">
+                      <Badge tone={entry.status === 'ACTIVE' ? 'green' : entry.status === 'EXEMPT' ? 'gold' : 'magenta'}>
+                        {entry.status === 'ACTIVE' ? 'Active' : entry.status === 'EXEMPT' ? 'Exempt' : 'Inactive'}
+                      </Badge>
+                    </td>
                     {canManage ? (
                       <td className="px-5 py-3.5">
                         <div className="flex justify-end gap-2">
                           {entry.status === 'ACTIVE' ? (
+                            <>
+                              <Button
+                                variant="soft"
+                                size="sm"
+                                onClick={() => setConfirmExempt(entry)}
+                              >
+                                <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+                                Exempt
+                              </Button>
+                              <Button
+                                variant="soft"
+                                size="sm"
+                                onClick={() => setConfirmDeactivate(entry)}
+                              >
+                                Deactivate
+                              </Button>
+                            </>
+                          ) : entry.status === 'EXEMPT' ? (
                             <Button
                               variant="soft"
                               size="sm"
-                              onClick={() => setConfirmDeactivate(entry)}
+                              onClick={() => setConfirmRemoveExemption(entry)}
                             >
-                              Deactivate
+                              <ShieldOff className="h-4 w-4" aria-hidden="true" />
+                              Remove Exemption
                             </Button>
                           ) : null}
                         </div>
@@ -381,6 +436,32 @@ export function FeeAssignmentsPage() {
           loading={busyAction === 'deactivate'}
           onConfirm={() => void handleDeactivate()}
           onCancel={() => setConfirmDeactivate(null)}
+        />
+      ) : null}
+
+      {/* Exempt pupil confirm */}
+      {confirmExempt ? (
+        <ConfirmDialog
+          open
+          title="Exempt pupil from fee"
+          message={`Exempting ${confirmExempt.pupilName} from "${fee?.name}" stops future charges for this fee while keeping the assignment visible. Historical records are preserved.`}
+          confirmLabel="Exempt"
+          loading={busyAction === 'exempt'}
+          onConfirm={() => void handleExempt()}
+          onCancel={() => setConfirmExempt(null)}
+        />
+      ) : null}
+
+      {/* Remove exemption confirm */}
+      {confirmRemoveExemption ? (
+        <ConfirmDialog
+          open
+          title="Remove exemption"
+          message={`Removing the exemption for ${confirmRemoveExemption.pupilName} from "${fee?.name}" restores future applicability. The pupil will be charged for future charges.`}
+          confirmLabel="Remove exemption"
+          loading={busyAction === 'remove-exemption'}
+          onConfirm={() => void handleRemoveExemption()}
+          onCancel={() => setConfirmRemoveExemption(null)}
         />
       ) : null}
 

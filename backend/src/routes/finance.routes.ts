@@ -6,6 +6,8 @@ import {
   createTermHandler,
   deactivateSessionHandler,
   deactivateTermHandler,
+  ensureChargesHandler,
+  financeOverviewHandler,
   financeSummaryHandler,
   generateChargesHandler,
   getPupilFinanceHandler,
@@ -33,9 +35,11 @@ const router = Router()
 router.use(requireAuth)
 
 router.get('/summary', requirePermission('finance.view'), financeSummaryHandler)
+router.get('/overview', requirePermission('finance.view'), financeOverviewHandler)
 router.get('/pupils', requirePermission('finance.view'), listFinancePupilsHandler)
 router.get('/pupils/:id', requirePermission('finance.view'), getPupilFinanceHandler)
 router.post('/generate-charges', requirePermission('fees.manage'), validate(chargeGenerateSchema), generateChargesHandler)
+router.post('/ensure-charges', requirePermission('fees.manage'), ensureChargesHandler)
 
 router.get('/sessions', requirePermission('academic.view'), listSessionsHandler)
 router.post('/sessions', requirePermission('academic.manage'), validate(sessionCreateSchema), createSessionHandler)

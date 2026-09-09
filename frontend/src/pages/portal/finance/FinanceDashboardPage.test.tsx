@@ -2,10 +2,12 @@ import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { FinanceDashboardPage } from './FinanceDashboardPage'
-import type { FinanceSummaryView } from '@/types/portal'
+import type { FinanceSummaryView, OwnerFinanceOverviewView } from '@/types/portal'
 
 const apiMock = vi.hoisted(() => ({
   financeSummary: vi.fn(),
+  financeOverview: vi.fn(),
+  ensureCharges: vi.fn().mockResolvedValue({ feesProcessed: 0, chargesCreated: 0 }),
 }))
 
 vi.mock('@/lib/api', () => ({ api: apiMock }))
@@ -63,7 +65,7 @@ function summaryFixture(overrides: Partial<FinanceSummaryView> = {}): FinanceSum
     pupilsWithOutstanding: 12,
     paymentsThisTerm: '200000.00',
     paymentsThisTermCount: 4,
-    feeSummary: { total: 2, active: 1, byType: { TERMLY: 1, DAILY: 1, OTHER: 0 } },
+    feeSummary: { total: 2, active: 1, byType: { TERMLY: 1, DAILY: 1, OTHER: 0, PA: 0 } },
     recentPayments: [
       {
         id: 'payment-1',
@@ -89,9 +91,28 @@ function summaryFixture(overrides: Partial<FinanceSummaryView> = {}): FinanceSum
   }
 }
 
+function overviewFixture(): OwnerFinanceOverviewView {
+  return {
+    session: { id: 'session-1', name: '2026/2027 Academic Session' },
+    term: { id: 'term-1', name: 'First Term' },
+    totals: {
+      totalExpected: '1500000.00',
+      totalCollected: '500000.00',
+      totalOutstanding: '1000000.00',
+      totalPupils: 150,
+      pupilsWithCharges: 120,
+      pupilsWithPayments: 80,
+    },
+    dailyFees: [],
+    ptaFees: [],
+    maintenanceFees: [],
+    paFees: [],
+  }
+}
+
 function renderPage() {
   return render(
-    <MemoryRouter initialEntries={['/accountant/dashboard']}>
+    <MemoryRouter initialEntries={['/accountant/finance/dashboard']}>
       <FinanceDashboardPage />
     </MemoryRouter>,
   )
@@ -102,23 +123,24 @@ describe('FinanceDashboardPage', () => {
     vi.clearAllMocks()
     PERMISSIONS = ['finance.view']
     apiMock.financeSummary.mockResolvedValue(summaryFixture())
+    apiMock.financeOverview.mockResolvedValue(overviewFixture())
   })
 
-  it('renders the finance summary stats', async () => {
+  it('renders the finance overview stats', async () => {
     renderPage()
 
-    expect(await screen.findByText('Expected Fees')).toBeInTheDocument()
-    expect(screen.getByText('1,500,000.00')).toBeInTheDocument()
-    expect(screen.getByText('Collected')).toBeInTheDocument()
+    expect(await screen.findByText('Total Expected')).toBeInTheDocument()
+    expect(screen.getByText('Total Collected')).toBeInTheDocument()
     expect(screen.getByText('Outstanding')).toBeInTheDocument()
-    expect(screen.getAllByText('Fee Structures').length).toBeGreaterThan(0)
+    expect(screen.getByText('Active Classes')).toBeInTheDocument()
   })
 
-  it('shows the active academic period', async () => {
+  it('shows finance overview without academic period card', async () => {
     renderPage()
 
-    expect(await screen.findByText('2026/2027 Academic Session')).toBeInTheDocument()
-    expect(screen.getByText('First Term')).toBeInTheDocument()
+    expect(await screen.findByText('Total Expected')).toBeInTheDocument()
+    expect(screen.getByText('Total Collected')).toBeInTheDocument()
+    expect(screen.getByText('Outstanding')).toBeInTheDocument()
   })
 
   it('shows a recent payment', async () => {
@@ -128,12 +150,34 @@ describe('FinanceDashboardPage', () => {
     expect(screen.getByText(/PAY-2026-0001/)).toBeInTheDocument()
   })
 
-  it('shows quick action links pointing at the accountant finance module', async () => {
+  it('shows quick action links pointing at the finance module', async () => {
     renderPage()
 
     expect(await screen.findByText('Quick Actions')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Record Payment/i })).toHaveAttribute('href', '/accountant/payments')
-    expect(screen.getByRole('link', { name: /Charge Generation/i })).toHaveAttribute('href', '/accountant/charges')
     expect(screen.getByRole('link', { name: /Pupil Finance/i })).toHaveAttribute('href', '/accountant/pupils')
+  })
+
+  it('shows fee category toggle buttons', async () => {
+    renderPage()
+
+    expect(await screen.findByText('Total Expected')).toBeInTheDocument()
+    expect(screen.getByText('Daily Fees')).toBeInTheDocument()
+    expect(screen.getByText('PTA Fees')).toBeInTheDocument()
+    expect(screen.getByText('Maintenance Fees')).toBeInTheDocument()
+  })
+
+  it('shows finance summary data without academic period card', async () => {
+    renderPage()
+
+    expect(await screen.findByText('Total Expected')).toBeInTheDocument()
+    expect(screen.getByText('Outstanding Arrears')).toBeInTheDocument()
+  })
+
+  it('shows outstanding arrears section', async () => {
+    renderPage()
+
+    expect(await screen.findByText('Total Expected')).toBeInTheDocument()
+    expect(screen.getByText('Outstanding Arrears')).toBeInTheDocument()
   })
 })

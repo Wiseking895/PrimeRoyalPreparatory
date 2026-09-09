@@ -2,13 +2,17 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import {
   BookOpenCheck,
+  Camera,
   ChevronLeft,
   ChevronRight,
   GraduationCap,
+  ImagePlus,
   Plus,
   Search,
+  Trash2,
   UserPlus,
   Users,
+  X,
 } from 'lucide-react'
 import { OWNER_ROLE } from '@/auth/roles'
 import { useAuth } from '@/auth/AuthContext'
@@ -119,6 +123,15 @@ export function PupilManagementPage() {
   const [submitting, setSubmitting] = useState(false)
   const [admissionFee, setAdmissionFee] = useState<AdmissionFeeView | null>(null)
 
+  const [profileFile, setProfileFile] = useState<File | null>(null)
+  const [profilePreview, setProfilePreview] = useState<string | null>(null)
+  const [cameraOpen, setCameraOpen] = useState(false)
+  const [cameraError, setCameraError] = useState<string | null>(null)
+  const profileInputRef = useRef<HTMLInputElement>(null)
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const streamRef = useRef<MediaStream | null>(null)
+
   const debounceRef = useRef<number | null>(null)
 
   const can = {
@@ -200,6 +213,13 @@ export function PupilManagementPage() {
     }
   }, [])
 
+  useEffect(() => {
+    return () => {
+      stopCamera()
+      if (profilePreview) URL.revokeObjectURL(profilePreview)
+    }
+  }, [])
+
   const set = (field: Exclude<keyof CreateForm, 'guardians'>, value: string) => {
     setForm((current) => ({ ...current, [field]: value }))
     setFieldErrors((current) => {
@@ -238,7 +258,78 @@ export function PupilManagementPage() {
   const openCreate = () => {
     setForm({ ...emptyCreate, guardians: [newGuardian()] })
     setFieldErrors({})
+    setProfileFile(null)
+    setProfilePreview(null)
+    setCameraOpen(false)
+    setCameraError(null)
+    stopCamera()
     setCreateOpen(true)
+  }
+
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop())
+      streamRef.current = null
+    }
+    setCameraOpen(false)
+  }
+
+  const openCamera = async () => {
+    setCameraError(null)
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false })
+      streamRef.current = stream
+      setCameraOpen(true)
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream
+          videoRef.current.play().catch(() => {})
+        }
+      }, 100)
+    } catch {
+      setCameraError('Camera unavailable. You can upload a photo from this device instead.')
+    }
+  }
+
+  const capturePhoto = () => {
+    if (!videoRef.current || !canvasRef.current) return
+    const video = videoRef.current
+    const canvas = canvasRef.current
+    canvas.width = video.videoWidth
+    canvas.height = video.videoHeight
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    ctx.drawImage(video, 0, 0)
+    canvas.toBlob((blob) => {
+      if (blob) {
+        const file = new File([blob], 'capture.jpg', { type: 'image/jpeg' })
+        setProfileFile(file)
+        setProfilePreview(URL.createObjectURL(blob))
+        stopCamera()
+      }
+    }, 'image/jpeg', 0.9)
+  }
+
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      push('error', 'Please select a JPG, PNG, or WebP image.')
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      push('error', 'Image must be 5 MB or smaller.')
+      return
+    }
+    setProfileFile(file)
+    setProfilePreview(URL.createObjectURL(file))
+    if (profileInputRef.current) profileInputRef.current.value = ''
+  }
+
+  const removePhoto = () => {
+    if (profilePreview) URL.revokeObjectURL(profilePreview)
+    setProfileFile(null)
+    setProfilePreview(null)
   }
 
   const handleCreate = async (event: FormEvent<HTMLFormElement>) => {
@@ -300,6 +391,17 @@ export function PupilManagementPage() {
     setSubmitting(true)
     try {
       const created = await api.createPupil(payload)
+      if (profileFile) {
+        try {
+          await api.uploadPupilPicture(created.id, profileFile)
+        } catch {
+          push('success', `${created.fullName} registered successfully, but the profile picture could not be uploaded.`)
+        }
+      }
+      if (profilePreview) URL.revokeObjectURL(profilePreview)
+      setProfileFile(null)
+      setProfilePreview(null)
+      stopCamera()
       push('success', `${created.fullName} registered successfully.`)
       setCreateOpen(false)
       await Promise.all([loadPupils(), loadStats()])
@@ -560,7 +662,7 @@ export function PupilManagementPage() {
       {/* Register pupil dialog */}
       <Modal
         open={createOpen}
-        onClose={() => setCreateOpen(false)}
+        onClose={() => { stopCamera(); setCreateOpen(false) }}
         title="Register pupil"
         description="Register a new pupil with their class placement and guardian contacts."
         size="xl"
@@ -568,6 +670,115 @@ export function PupilManagementPage() {
         <form onSubmit={handleCreate} noValidate className="grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
             <p className="text-xs font-bold uppercase tracking-wider text-ink-500">Pupil details</p>
+          </div>
+          <div className="sm:col-span-2">
+            <p className="text-xs font-bold uppercase tracking-wider text-ink-500">Pupil Profile Picture</p>
+            <p className="mt-0.5 text-xs text-ink-500">Optional · JPG, PNG, WebP · Max 5 MB</p>
+            <div className="mt-3 flex flex-col items-start gap-4 sm:flex-row sm:items-center">
+              <div className="relative">
+                {profilePreview ? (
+                  <img
+                    src={profilePreview}
+                    alt="Profile preview"
+                    className="h-24 w-24 rounded-full object-cover ring-4 ring-cream-200"
+                  />
+                ) : (
+                  <div className="flex h-24 w-24 items-center justify-center rounded-full border-2 border-dashed border-cream-300 bg-cream-50">
+                    <ImagePlus className="h-8 w-8 text-ink-400" aria-hidden="true" />
+                  </div>
+                )}
+                {profilePreview && (
+                  <button
+                    type="button"
+                    onClick={removePhoto}
+                    className="absolute -right-1 -top-1 flex h-7 w-7 items-center justify-center rounded-full bg-red-500 text-white shadow-md transition-colors hover:bg-red-600"
+                    aria-label="Remove photo"
+                  >
+                    <X className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                )}
+              </div>
+              <div className="flex flex-col gap-2">
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={openCamera}
+                    className="inline-flex items-center gap-2 rounded-xl border border-cream-300 bg-white px-4 py-2.5 text-sm font-semibold text-ink-700 transition-colors hover:bg-cream-50"
+                  >
+                    <Camera className="h-4 w-4" aria-hidden="true" />
+                    Take Photo
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => profileInputRef.current?.click()}
+                    className="inline-flex items-center gap-2 rounded-xl border border-cream-300 bg-white px-4 py-2.5 text-sm font-semibold text-ink-700 transition-colors hover:bg-cream-50"
+                  >
+                    <ImagePlus className="h-4 w-4" aria-hidden="true" />
+                    Upload Photo
+                  </button>
+                  {profilePreview && (
+                    <button
+                      type="button"
+                      onClick={removePhoto}
+                      className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-white px-4 py-2.5 text-sm font-semibold text-red-600 transition-colors hover:bg-red-50"
+                    >
+                      <Trash2 className="h-4 w-4" aria-hidden="true" />
+                      Remove
+                    </button>
+                  )}
+                </div>
+                <input
+                  ref={profileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="hidden"
+                  onChange={handleFileSelect}
+                />
+                {cameraError && (
+                  <p className="text-xs font-medium text-amber-600">{cameraError}</p>
+                )}
+              </div>
+            </div>
+            {cameraOpen && (
+              <div className="mt-4 rounded-xl border border-cream-200 bg-cream-50 p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-sm font-bold text-ink-900">Camera Preview</p>
+                  <button
+                    type="button"
+                    onClick={stopCamera}
+                    className="inline-flex items-center gap-1 text-sm font-semibold text-red-600 hover:text-red-700"
+                  >
+                    <X className="h-4 w-4" aria-hidden="true" />
+                    Close
+                  </button>
+                </div>
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="w-full max-w-sm rounded-lg bg-black"
+                />
+                <canvas ref={canvasRef} className="hidden" />
+                <div className="mt-3 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={capturePhoto}
+                    className="inline-flex items-center gap-2 rounded-xl bg-magenta-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-magenta-700"
+                  >
+                    <Camera className="h-4 w-4" aria-hidden="true" />
+                    Capture
+                  </button>
+                  <button
+                    type="button"
+                    onClick={stopCamera}
+                    className="inline-flex items-center gap-2 rounded-xl border border-cream-300 bg-white px-4 py-2.5 text-sm font-semibold text-ink-700 transition-colors hover:bg-cream-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
           <TextField
             label="First name"

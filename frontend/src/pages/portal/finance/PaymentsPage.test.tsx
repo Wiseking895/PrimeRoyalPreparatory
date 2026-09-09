@@ -2,12 +2,14 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PaymentsPage } from './PaymentsPage'
-import type { PaymentListResult, PaymentView } from '@/types/portal'
+import type { FeeView, PaymentListResult, PaymentView } from '@/types/portal'
 
 const apiMock = vi.hoisted(() => ({
   listPayments: vi.fn(),
   listFinancePupils: vi.fn(),
   createPayment: vi.fn(),
+  markPaid: vi.fn(),
+  listFees: vi.fn(),
 }))
 
 vi.mock('@/lib/api', () => ({ api: apiMock }))
@@ -78,6 +80,27 @@ function resultFixture(overrides: Partial<PaymentListResult> = {}): PaymentListR
   }
 }
 
+function feeFixture(overrides: Partial<FeeView> = {}): FeeView {
+  return {
+    id: 'fee-1',
+    sessionId: 'session-1',
+    sessionName: '2026/2027',
+    termId: 'term-1',
+    termName: 'First Term',
+    name: 'Daily Fee',
+    feeType: 'DAILY',
+    amount: '10.00',
+    description: 'Daily school fee',
+    status: 'ACTIVE',
+    assignmentCount: 50,
+    activeAssignmentCount: 48,
+    chargeCount: 50,
+    createdAt: '2026-08-01T00:00:00.000Z',
+    updatedAt: '2026-08-01T00:00:00.000Z',
+    ...overrides,
+  }
+}
+
 function renderPage() {
   return render(
     <MemoryRouter initialEntries={['/accountant/payments']}>
@@ -110,7 +133,11 @@ describe('PaymentsPage', () => {
       pageSize: 20,
       hasMore: false,
     })
-    apiMock.createPayment.mockResolvedValue(paymentFixture({ paymentReference: 'PAY-2026-0002' }))
+    apiMock.markPaid.mockResolvedValue(paymentFixture({ paymentReference: 'PAY-2026-0002' }))
+    apiMock.listFees.mockResolvedValue([
+      feeFixture({ id: 'fee-daily', name: 'Daily Fee', feeType: 'DAILY', amount: '10.00' }),
+      feeFixture({ id: 'fee-pa', name: 'PA Fee', feeType: 'PA', amount: '1.00' }),
+    ])
   })
 
   it('renders the payments list', async () => {
@@ -130,7 +157,7 @@ describe('PaymentsPage', () => {
     expect(screen.queryByRole('button', { name: /Record payment/i })).not.toBeInTheDocument()
   })
 
-  it('records a payment with a searched pupil and amount', async () => {
+  it('records a payment with Paid/Not Paid toggles without payment method', async () => {
     PERMISSIONS = ['finance.view', 'payments.record']
     renderPage()
 
@@ -143,37 +170,27 @@ describe('PaymentsPage', () => {
     const pupilOption = await screen.findByRole('button', { name: /Ama Mensah/ })
     fireEvent.click(pupilOption)
 
-    fireEvent.change(screen.getByLabelText(/^Amount paid/), { target: { value: '100000.00' } })
-    fireEvent.change(screen.getByLabelText(/^Payment method/), { target: { value: 'BANK_TRANSFER' } })
+    const dailyPaidBtns = screen.getAllByRole('button', { name: 'Paid' })
+    fireEvent.click(dailyPaidBtns[0])
+
     const dialog = await screen.findByRole('dialog', { name: 'Record payment' })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Record payment' }))
 
     await waitFor(() => {
-      expect(apiMock.createPayment).toHaveBeenCalledWith(
+      expect(apiMock.markPaid).toHaveBeenCalledWith(
         expect.objectContaining({
           pupilId: 'pupil-1',
-          amountPaid: '100000.00',
-          paymentMethod: 'BANK_TRANSFER',
+          dailyPaid: true,
+          paPaid: false,
         }),
       )
     })
+    expect(apiMock.markPaid).toHaveBeenCalledWith(
+      expect.not.objectContaining({
+        paymentMethod: expect.anything(),
+      }),
+    )
     expect(pushMock).toHaveBeenCalledWith('success', expect.stringContaining('PAY-2026-0002'))
-  })
-
-  it('keeps input focus while typing the amount in the record form', async () => {
-    PERMISSIONS = ['finance.view', 'payments.record']
-    renderPage()
-
-    await screen.findAllByText('PAY-2026-0001')
-    fireEvent.click(screen.getByRole('button', { name: /Record payment/i }))
-
-    const amount = screen.getByLabelText(/^Amount paid/)
-    amount.focus()
-    fireEvent.change(amount, { target: { value: '1' } })
-    fireEvent.change(amount, { target: { value: '12' } })
-    fireEvent.change(amount, { target: { value: '12000' } })
-
-    expect(amount).toBe(document.activeElement)
   })
 
   it('requires a pupil to be selected before recording', async () => {
@@ -183,13 +200,53 @@ describe('PaymentsPage', () => {
     await screen.findAllByText('PAY-2026-0001')
     fireEvent.click(screen.getByRole('button', { name: /Record payment/i }))
 
-    fireEvent.change(screen.getByLabelText(/^Amount paid/), { target: { value: '1000.00' } })
-    fireEvent.change(screen.getByLabelText(/^Payment method/), { target: { value: 'CASH' } })
     const dialog = await screen.findByRole('dialog', { name: 'Record payment' })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Record payment' }))
 
     expect(await screen.findByText('Select a pupil.')).toBeInTheDocument()
-    expect(apiMock.createPayment).not.toHaveBeenCalled()
+    expect(apiMock.markPaid).not.toHaveBeenCalled()
+  })
+
+  it('shows configured fee amounts from fee structure', async () => {
+    PERMISSIONS = ['finance.view', 'payments.record']
+    renderPage()
+
+    await screen.findAllByText('PAY-2026-0001')
+    fireEvent.click(screen.getByRole('button', { name: /Record payment/i }))
+
+    fireEvent.change(screen.getByLabelText(/^Search pupil/), { target: { value: 'Ama' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }))
+
+    const pupilOption = await screen.findByRole('button', { name: /Ama Mensah/ })
+    fireEvent.click(pupilOption)
+
+    expect(await screen.findAllByText('Configured amount:')).toHaveLength(2)
+    expect(screen.getByText('10.00')).toBeInTheDocument()
+    expect(screen.getByText('1.00')).toBeInTheDocument()
+  })
+
+  it('displays automatically determined payment date', async () => {
+    PERMISSIONS = ['finance.view', 'payments.record']
+    renderPage()
+
+    await screen.findAllByText('PAY-2026-0001')
+    fireEvent.click(screen.getByRole('button', { name: /Record payment/i }))
+
+    expect(screen.getByText('Payment Date')).toBeInTheDocument()
+    expect(screen.getByText('Automatically determined by the system.')).toBeInTheDocument()
+  })
+
+  it('does not show payment method, date, or note fields in the form', async () => {
+    PERMISSIONS = ['finance.view', 'payments.record']
+    renderPage()
+
+    await screen.findAllByText('PAY-2026-0001')
+    fireEvent.click(screen.getByRole('button', { name: /Record payment/i }))
+
+    const dialog = await screen.findByRole('dialog', { name: 'Record payment' })
+    expect(within(dialog).queryByLabelText(/Payment method/i)).not.toBeInTheDocument()
+    expect(within(dialog).queryByLabelText(/Payment date/i)).not.toBeInTheDocument()
+    expect(within(dialog).queryByLabelText(/Note/i)).not.toBeInTheDocument()
   })
 
   it('shows an empty state when there are no payments', async () => {

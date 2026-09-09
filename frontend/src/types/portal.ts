@@ -359,9 +359,11 @@ export interface ClassUpdateInput {
 // authoritative source of financial truth.
 // ---------------------------------------------------------------------------
 
-export type FeeTypeValue = 'TERMLY' | 'DAILY' | 'OTHER'
+export type FeeTypeValue = 'TERMLY' | 'DAILY' | 'OTHER' | 'PA'
 export type PaymentMethodValue = 'CASH' | 'BANK_TRANSFER' | 'MOBILE_MONEY' | 'CHEQUE'
 export type AccountStatusValue = 'ACTIVE' | 'INACTIVE'
+
+export type FeeAssignmentStatusValue = 'ACTIVE' | 'INACTIVE' | 'EXEMPT'
 export type PaymentRecordStatusValue = 'ACTIVE' | 'VOIDED'
 
 export interface AcademicSessionView {
@@ -391,6 +393,8 @@ export interface FeeView {
   id: string
   sessionId: string
   sessionName: string
+  termId: string
+  termName: string
   name: string
   feeType: FeeTypeValue
   amount: string
@@ -411,7 +415,7 @@ export interface FeeAssignmentView {
   className: string
   feeId: string
   feeName: string
-  status: AccountStatusValue
+  status: FeeAssignmentStatusValue
   chargeCount: number
   createdAt: string
 }
@@ -557,11 +561,23 @@ export interface TermUpdateInput {
 
 export interface FeeCreateInput {
   sessionId: string
+  termId: string
   name: string
   feeType: FeeTypeValue
   amount: string
   description?: string
   status?: AccountStatusValue
+}
+
+export interface FeeBatchCreateInput {
+  sessionId: string
+  termId: string
+  fees: Array<{
+    name: string
+    feeType: FeeTypeValue
+    amount: string
+    description?: string
+  }>
 }
 
 export interface FeeUpdateInput {
@@ -584,6 +600,15 @@ export interface PaymentCreateInput {
   paymentDate?: string
   note?: string
   allocations?: PaymentAllocationInput[]
+}
+
+export interface MarkPaidInput {
+  pupilId: string
+  paymentMethod?: PaymentMethodValue
+  paymentDate?: string
+  dailyPaid: boolean
+  paPaid: boolean
+  note?: string
 }
 
 export interface PaymentVoidInput {
@@ -1033,6 +1058,7 @@ export interface OwnerFinanceOverviewView {
   dailyFees: OwnerFinanceClassRow[]
   ptaFees: OwnerFinanceClassRow[]
   maintenanceFees: OwnerFinanceClassRow[]
+  paFees: OwnerFinanceClassRow[]
 }
 
 // =============================================================================

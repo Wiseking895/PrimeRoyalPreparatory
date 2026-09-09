@@ -15,6 +15,9 @@ const prismaMock = vi.hoisted(() => ({
   },
   schoolClass: { findUnique: vi.fn(), findMany: vi.fn() },
   guardian: { findFirst: vi.fn(), create: vi.fn() },
+  academicSession: { findFirst: vi.fn() },
+  financeFee: { findMany: vi.fn() },
+  feeAssignment: { createMany: vi.fn() },
   pupilGuardian: { create: vi.fn(), deleteMany: vi.fn() },
   auditLog: { create: vi.fn() },
   $transaction: vi.fn(),
@@ -168,6 +171,9 @@ describe('pupil routes (auth + RBAC enforcement)', () => {
       where.id === 'p-1' ? pupilRecord() : null,
     )
     prismaMock.guardian.findFirst.mockResolvedValue(null)
+    prismaMock.academicSession.findFirst.mockResolvedValue(null)
+    prismaMock.financeFee.findMany.mockResolvedValue([])
+    prismaMock.feeAssignment.createMany.mockResolvedValue({ count: 0 })
 
     const res = await request(app)
       .post('/api/pupils')

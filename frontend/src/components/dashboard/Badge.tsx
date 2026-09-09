@@ -36,12 +36,20 @@ export function Badge({ tone = 'neutral', className, children, title }: BadgePro
   )
 }
 
-export function StatusBadge({ status }: { status: 'ACTIVE' | 'INACTIVE' }) {
+export function StatusBadge({ status }: { status: 'ACTIVE' | 'INACTIVE' | 'EXEMPT' }) {
   if (status === 'ACTIVE') {
     return (
       <Badge tone="green">
         <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
         Active
+      </Badge>
+    )
+  }
+  if (status === 'EXEMPT') {
+    return (
+      <Badge tone="gold">
+        <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+        Exempt
       </Badge>
     )
   }

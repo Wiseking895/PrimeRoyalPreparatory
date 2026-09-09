@@ -4,11 +4,19 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PupilManagementPage } from './PupilManagementPage'
 import type { PupilStats, PupilView, SchoolClassView } from '@/types/portal'
 
+vi.stubGlobal('URL', {
+  ...URL,
+  createObjectURL: vi.fn(() => 'blob:mock-url'),
+  revokeObjectURL: vi.fn(),
+})
+
 const apiMock = vi.hoisted(() => ({
   listPupils: vi.fn(),
   pupilStats: vi.fn(),
   listClasses: vi.fn(),
   createPupil: vi.fn(),
+  admissionFee: vi.fn(),
+  uploadPupilPicture: vi.fn(),
 }))
 
 vi.mock('@/lib/api', () => ({ api: apiMock }))
@@ -118,6 +126,8 @@ describe('PupilManagementPage', () => {
     apiMock.pupilStats.mockResolvedValue(statsFixture())
     apiMock.listClasses.mockResolvedValue([classFixture()])
     apiMock.createPupil.mockResolvedValue(pupilFixture())
+    apiMock.admissionFee.mockResolvedValue(null)
+    apiMock.uploadPupilPicture.mockResolvedValue({ profilePictureUrl: '/uploads/pupil-pictures/test.jpg' })
   })
 
   it('renders the pupil list', async () => {
@@ -178,6 +188,7 @@ describe('PupilManagementPage', () => {
     fireEvent.change(screen.getByLabelText(/^Class/), { target: { value: 'class-1' } })
     fireEvent.change(screen.getByLabelText(/^Full name/), { target: { value: 'Yaw Mensah' } })
     fireEvent.change(screen.getByLabelText(/^Relationship/), { target: { value: 'Parent' } })
+    fireEvent.click(screen.getByRole('checkbox', { name: /I agree to the Guardian/i }))
     fireEvent.click(screen.getByRole('button', { name: 'Register pupil' }))
 
     await waitFor(() => {
@@ -240,5 +251,111 @@ describe('PupilManagementPage', () => {
     renderPage()
 
     expect(await screen.findByText('No pupils registered yet.')).toBeInTheDocument()
+  })
+
+  it('shows profile picture field in registration form', async () => {
+    renderPage()
+    await screen.findAllByText('Ama Boateng')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Register Pupil' }))
+
+    expect(await screen.findByText('Pupil Profile Picture')).toBeInTheDocument()
+    expect(screen.getByText('Optional · JPG, PNG, WebP · Max 5 MB')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Take Photo' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Upload Photo' })).toBeInTheDocument()
+  })
+
+  it('registration without a photo still succeeds', async () => {
+    renderPage()
+    await screen.findAllByText('Ama Boateng')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Register Pupil' }))
+    fireEvent.change(screen.getByLabelText(/^First name/), { target: { value: 'Kojo' } })
+    fireEvent.change(screen.getByLabelText(/^Last name/), { target: { value: 'Mensah' } })
+    fireEvent.change(screen.getByLabelText(/^Date of birth/), { target: { value: '2018-03-10' } })
+    fireEvent.change(screen.getByLabelText(/^Gender/), { target: { value: 'MALE' } })
+    fireEvent.change(screen.getByLabelText(/^Class/), { target: { value: 'class-1' } })
+    fireEvent.change(screen.getByLabelText(/^Full name/), { target: { value: 'Yaw Mensah' } })
+    fireEvent.change(screen.getByLabelText(/^Relationship/), { target: { value: 'Parent' } })
+    fireEvent.click(screen.getByRole('checkbox', { name: /I agree to the Guardian/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'Register pupil' }))
+
+    await waitFor(() => {
+      expect(apiMock.createPupil).toHaveBeenCalled()
+    })
+    expect(apiMock.uploadPupilPicture).not.toHaveBeenCalled()
+    expect(pushMock).toHaveBeenCalledWith(
+      'success',
+      expect.stringContaining('registered successfully'),
+    )
+  })
+
+  it('uploads profile picture after pupil creation when a file is selected', async () => {
+    renderPage()
+    await screen.findAllByText('Ama Boateng')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Register Pupil' }))
+
+    const file = new File(['dummy'], 'photo.jpg', { type: 'image/jpeg' })
+    const fileInput = document.querySelector('input[type="file"][accept="image/jpeg,image/png,image/webp"]') as HTMLInputElement
+    Object.defineProperty(fileInput, 'files', { value: [file] })
+    fireEvent.change(fileInput)
+
+    await waitFor(() => {
+      expect(screen.getByAltText('Profile preview')).toBeInTheDocument()
+    })
+
+    fireEvent.change(screen.getByLabelText(/^First name/), { target: { value: 'Kojo' } })
+    fireEvent.change(screen.getByLabelText(/^Last name/), { target: { value: 'Mensah' } })
+    fireEvent.change(screen.getByLabelText(/^Date of birth/), { target: { value: '2018-03-10' } })
+    fireEvent.change(screen.getByLabelText(/^Gender/), { target: { value: 'MALE' } })
+    fireEvent.change(screen.getByLabelText(/^Class/), { target: { value: 'class-1' } })
+    fireEvent.change(screen.getByLabelText(/^Full name/), { target: { value: 'Yaw Mensah' } })
+    fireEvent.change(screen.getByLabelText(/^Relationship/), { target: { value: 'Parent' } })
+    fireEvent.click(screen.getByRole('checkbox', { name: /I agree to the Guardian/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'Register pupil' }))
+
+    await waitFor(() => {
+      expect(apiMock.uploadPupilPicture).toHaveBeenCalledWith('pupil-1', file)
+    })
+  })
+
+  it('allows removing a selected photo', async () => {
+    renderPage()
+    await screen.findAllByText('Ama Boateng')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Register Pupil' }))
+
+    const file = new File(['dummy'], 'photo.jpg', { type: 'image/jpeg' })
+    const fileInput = document.querySelector('input[type="file"][accept="image/jpeg,image/png,image/webp"]') as HTMLInputElement
+    Object.defineProperty(fileInput, 'files', { value: [file] })
+    fireEvent.change(fileInput)
+
+    await waitFor(() => {
+      expect(screen.getByAltText('Profile preview')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove photo' }))
+
+    await waitFor(() => {
+      expect(screen.queryByAltText('Profile preview')).not.toBeInTheDocument()
+    })
+  })
+
+  it('existing admission fields remain available with profile picture', async () => {
+    renderPage()
+    await screen.findAllByText('Ama Boateng')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Register Pupil' }))
+
+    expect(await screen.findByText('Pupil Profile Picture')).toBeInTheDocument()
+    expect(screen.getByLabelText(/^First name/)).toBeInTheDocument()
+    expect(screen.getByLabelText(/^Last name/)).toBeInTheDocument()
+    expect(screen.getByLabelText(/^Date of birth/)).toBeInTheDocument()
+    expect(screen.getByLabelText(/^Gender/)).toBeInTheDocument()
+    expect(screen.getByLabelText(/^Class/)).toBeInTheDocument()
+    expect(screen.getByText('Guardians')).toBeInTheDocument()
+    expect(screen.getByText('Admission information')).toBeInTheDocument()
+    expect(screen.getByText("Guardian's Declaration")).toBeInTheDocument()
   })
 })

@@ -1,10 +1,12 @@
 import { HttpStatus } from '../config/enums'
 import { ok } from '../lib/api-response'
+import { getOwnerFinanceOverview } from '../services/owner.service'
 import type { AuthRequest } from '../types/auth'
 import { asyncHandler } from '../utils/async-handler'
 import {
   createSession,
   createTerm,
+  ensureChargesForActiveSession,
   generateChargesForSession,
   getFinanceSummary,
   getPupilFinance,
@@ -22,6 +24,11 @@ import {
 export const financeSummaryHandler = asyncHandler(async (_req, res) => {
   const summary = await getFinanceSummary()
   res.json(ok(summary))
+})
+
+export const financeOverviewHandler = asyncHandler(async (_req, res) => {
+  const overview = await getOwnerFinanceOverview()
+  res.json(ok(overview))
 })
 
 export const listFinancePupilsHandler = asyncHandler(async (req, res) => {
@@ -104,4 +111,9 @@ export const deactivateTermHandler = asyncHandler(async (req: AuthRequest, res) 
 export const generateChargesHandler = asyncHandler(async (req: AuthRequest, res) => {
   const result = await generateChargesForSession(req.user!, req.body.sessionId, req.ip)
   res.json(ok(result, 'Charges generated successfully.'))
+})
+
+export const ensureChargesHandler = asyncHandler(async (_req: AuthRequest, res) => {
+  const result = await ensureChargesForActiveSession()
+  res.json(ok(result, 'Charge reconciliation complete.'))
 })

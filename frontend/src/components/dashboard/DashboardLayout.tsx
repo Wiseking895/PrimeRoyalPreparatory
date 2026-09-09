@@ -137,9 +137,7 @@ const accountantNavGroups: NavGroup[] = [
   {
     label: 'Finance',
     items: [
-      { label: 'Sessions & Terms', to: '/accountant/sessions', icon: BookOpenCheck, permission: 'finance.view' },
       { label: 'Fee Structures', to: '/accountant/fees', icon: Receipt, permission: 'finance.view' },
-      { label: 'Charge Generation', to: '/accountant/charges', icon: ListChecks, permission: 'finance.view' },
       { label: 'Payments', to: '/accountant/payments', icon: Wallet, permission: 'finance.view' },
       { label: 'Pupil Finance', to: '/accountant/pupils', icon: Users, permission: 'finance.view' },
       { label: 'Summary', to: '/accountant/summary', icon: ScrollText, permission: 'finance.view' },
@@ -256,7 +254,7 @@ function NavGroupSection({
   )
 }
 
-function SidebarFooter({ onLogout, isOwner, isHeadteacher }: { onLogout: () => void; isOwner: boolean; isHeadteacher: boolean }) {
+function SidebarFooter({ onLogout, isOwner, isHeadteacher, isAccountant }: { onLogout: () => void; isOwner: boolean; isHeadteacher: boolean; isAccountant: boolean }) {
   const { user } = useAuth()
   return (
     <div className="border-t border-white/[0.06] p-4">
@@ -264,7 +262,7 @@ function SidebarFooter({ onLogout, isOwner, isHeadteacher }: { onLogout: () => v
         <Avatar name={user?.fullName ?? 'User'} imageUrl={user?.profilePictureUrl} size="sm" className="ring-2 ring-white/10" />
         <div className="min-w-0 flex-1">
           <p className="truncate text-[13px] font-bold text-white">{user?.fullName}</p>
-          <p className="truncate text-[11px] text-cream-200/50">{isOwner ? 'School Owner' : isHeadteacher ? 'Headteacher' : user?.staffId ?? user?.email}</p>
+          <p className="truncate text-[11px] text-cream-200/50">{isOwner ? 'School Owner' : isHeadteacher ? 'Headteacher' : isAccountant ? 'Accountant' : user?.staffId ?? user?.email}</p>
         </div>
       </div>
       <button
@@ -281,6 +279,9 @@ function SidebarFooter({ onLogout, isOwner, isHeadteacher }: { onLogout: () => v
 
 function OwnerTopBar({ pageTitle, pageSubtitle }: { pageTitle: string; pageSubtitle?: string }) {
   const { user } = useAuth()
+  const isOwner = user?.roles.includes('OWNER') ?? false
+  const isHeadteacher = user?.roles.includes('HEADTEACHER') ?? false
+  const isAccountant = user?.roles.includes('ACCOUNTANT') ?? false
   return (
     <div className="flex items-center justify-between border-b border-white/[0.06] bg-[#081536]/80 backdrop-blur-md px-6 py-3">
       <div>
@@ -297,7 +298,7 @@ function OwnerTopBar({ pageTitle, pageSubtitle }: { pageTitle: string; pageSubti
           <Avatar name={user?.fullName ?? 'Owner'} imageUrl={user?.profilePictureUrl} size="sm" className="ring-1 ring-magenta-500/30" />
           <div className="hidden sm:block">
             <p className="text-[12px] font-bold text-white">{user?.fullName}</p>
-            <p className="text-[10px] text-magenta-300">Owner</p>
+            <p className="text-[10px] text-magenta-300">{isOwner ? 'Owner' : isHeadteacher ? 'Headteacher' : isAccountant ? 'Accountant' : 'Staff'}</p>
           </div>
         </div>
       </div>
@@ -340,7 +341,7 @@ export function DashboardLayout() {
   }
 
   const pageTitle = isOwner ? 'School Overview' : isHeadteacher ? 'Headteacher Dashboard' : isAccountant ? 'Finance Dashboard' : isTeacher ? 'Teacher Dashboard' : 'Dashboard'
-  const pageSubtitle = isOwner ? 'Real-time school-wide overview' : isHeadteacher ? 'Operational school management' : undefined
+  const pageSubtitle = isOwner ? 'Real-time school-wide overview' : isHeadteacher ? 'Operational school management' : isAccountant ? 'Finance operations dashboard' : undefined
 
   const roleBadge = isOwner ? (
     <Badge tone="gold" className="bg-gold-400/20 text-gold-400 ring-gold-500/30">
@@ -362,8 +363,8 @@ export function DashboardLayout() {
     <Badge tone="magenta">Staff</Badge>
   )
 
-  // ── DARK GLASSMOPIC LAYOUT (Owner + Headteacher) ──
-  if (isOwner || isHeadteacher) {
+  // ── DARK GLASSMOPIC LAYOUT (Owner + Headteacher + Accountant) ──
+  if (isOwner || isHeadteacher || isAccountant) {
     return (
       <div className="min-h-screen bg-[#081536]">
         {/* Desktop sidebar */}
@@ -372,14 +373,14 @@ export function DashboardLayout() {
           <div className="flex items-center gap-3 border-b border-white/[0.06] px-5 py-4">
             <Logo dark />
             <span className="truncate text-[10px] font-bold uppercase tracking-wider text-cream-200/30">
-              {isOwner ? 'Owner Portal' : 'Headteacher Portal'}
+              {isOwner ? 'Owner Portal' : isAccountant ? 'Finance Portal' : 'Headteacher Portal'}
             </span>
           </div>
 
           {/* Nav groups */}
           <nav aria-label="Dashboard navigation" className="flex-1 overflow-y-auto px-3 py-4 space-y-3">
             {navGroups.map((group, i) => (
-              <NavGroupSection key={i} group={group} hasPermission={hasPermission} isOwner />
+              <NavGroupSection key={i} group={group} hasPermission={hasPermission} isOwner={isOwner} />
             ))}
           </nav>
 
@@ -394,7 +395,7 @@ export function DashboardLayout() {
             </NavLink>
           </div>
 
-          <SidebarFooter onLogout={handleLogout} isOwner={isOwner} isHeadteacher={isHeadteacher} />
+          <SidebarFooter onLogout={handleLogout} isOwner={isOwner} isHeadteacher={isHeadteacher} isAccountant={isAccountant} />
         </aside>
 
         {/* Mobile top bar */}
@@ -454,7 +455,7 @@ export function DashboardLayout() {
             </div>
             <nav aria-label="Dashboard navigation" className="flex-1 overflow-y-auto px-3 py-4 space-y-3">
               {navGroups.map((group, i) => (
-                <NavGroupSection key={i} group={group} hasPermission={hasPermission} isOwner onNavigate={() => setDrawerOpen(false)} />
+                <NavGroupSection key={i} group={group} hasPermission={hasPermission} isOwner={isOwner} onNavigate={() => setDrawerOpen(false)} />
               ))}
             </nav>
             <div className="px-4 pb-2">
@@ -466,7 +467,7 @@ export function DashboardLayout() {
                 View public website
               </NavLink>
             </div>
-            <SidebarFooter onLogout={handleLogout} isOwner={isOwner} isHeadteacher={isHeadteacher} />
+            <SidebarFooter onLogout={handleLogout} isOwner={isOwner} isHeadteacher={isHeadteacher} isAccountant={isAccountant} />
           </div>
         </div>
 
@@ -513,7 +514,7 @@ export function DashboardLayout() {
           </NavLink>
         </div>
 
-        <SidebarFooter onLogout={handleLogout} isOwner={false} isHeadteacher={false} />
+        <SidebarFooter onLogout={handleLogout} isOwner={false} isHeadteacher={false} isAccountant={false} />
       </aside>
 
       {/* Mobile top bar */}
@@ -585,7 +586,7 @@ export function DashboardLayout() {
               View public website
             </NavLink>
           </div>
-          <SidebarFooter onLogout={handleLogout} isOwner={false} isHeadteacher={false} />
+          <SidebarFooter onLogout={handleLogout} isOwner={false} isHeadteacher={false} isAccountant={false} />
         </div>
       </div>
 

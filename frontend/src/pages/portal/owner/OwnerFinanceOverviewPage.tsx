@@ -190,7 +190,7 @@ function FeeTable({
 
 // ── Fee category toggle pills ──────────────────────────────────────────
 
-type FeeCategory = 'daily' | 'pta' | 'maintenance'
+type FeeCategory = 'daily' | 'pta' | 'maintenance' | 'pa'
 
 function FeeToggle({
   active,
@@ -202,6 +202,7 @@ function FeeToggle({
   const options: Array<{ key: FeeCategory; label: string }> = [
     { key: 'daily', label: 'Daily Fees' },
     { key: 'pta', label: 'PTA Fees' },
+    { key: 'pa', label: 'PA Fees' },
     { key: 'maintenance', label: 'Maintenance Fees' },
   ]
   return (
@@ -242,7 +243,7 @@ function ArrearsPanel({
         <>
           <div className="space-y-2.5 mb-4">
             {/* Aggregate by class from all fee types */}
-            {[...summary.dailyFees, ...summary.ptaFees, ...summary.maintenanceFees]
+            {[...summary.dailyFees, ...summary.ptaFees, ...summary.maintenanceFees, ...summary.paFees]
               .filter((r) => Number(r.outstandingAmount) > 0)
               .sort((a, b) => Number(b.outstandingAmount) - Number(a.outstandingAmount))
               .slice(0, 8)
@@ -392,8 +393,8 @@ export function OwnerFinanceOverviewPage() {
           <KpiCard
             icon={Coins}
             label="Active Classes"
-            value={summary.dailyFees.length + summary.ptaFees.length + summary.maintenanceFees.length > 0
-              ? new Set([...summary.dailyFees, ...summary.ptaFees, ...summary.maintenanceFees].map((r) => r.classId)).size
+            value={summary.dailyFees.length + summary.ptaFees.length + summary.maintenanceFees.length + summary.paFees.length > 0
+              ? new Set([...summary.dailyFees, ...summary.ptaFees, ...summary.maintenanceFees, ...summary.paFees].map((r) => r.classId)).size
               : 0}
             supporting={`${summary.totals.totalPupils} total active pupils`}
           />
@@ -427,7 +428,7 @@ export function OwnerFinanceOverviewPage() {
               totalOutstanding={summary.totals.totalOutstanding}
               emptyMessage="No PTA fee data available yet."
             />
-          ) : (
+          ) : activeCategory === 'maintenance' ? (
             <FeeTable
               title="Maintenance Fees by Class"
               icon={Construction}
@@ -436,6 +437,26 @@ export function OwnerFinanceOverviewPage() {
               totalCollected={summary.totals.totalCollected}
               totalOutstanding={summary.totals.totalOutstanding}
               emptyMessage="No maintenance fee data available yet."
+            />
+          ) : activeCategory === 'pa' ? (
+            <FeeTable
+              title="PA Fees by Class"
+              icon={Coins}
+              rows={summary.paFees}
+              totalExpected={summary.totals.totalExpected}
+              totalCollected={summary.totals.totalCollected}
+              totalOutstanding={summary.totals.totalOutstanding}
+              emptyMessage="No PA fee data available yet."
+            />
+          ) : (
+            <FeeTable
+              title="All Fees by Class"
+              icon={Receipt}
+              rows={[...summary.dailyFees, ...summary.ptaFees, ...summary.maintenanceFees, ...summary.paFees]}
+              totalExpected={summary.totals.totalExpected}
+              totalCollected={summary.totals.totalCollected}
+              totalOutstanding={summary.totals.totalOutstanding}
+              emptyMessage="No fee data available yet."
             />
           )}
         </div>

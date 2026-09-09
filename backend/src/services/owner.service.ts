@@ -237,6 +237,7 @@ export interface OwnerFinanceOverviewView {
   dailyFees: ClassFinanceRow[]
   ptaFees: ClassFinanceRow[]
   maintenanceFees: ClassFinanceRow[]
+  paFees: ClassFinanceRow[]
 }
 
 export async function getOwnerFinanceOverview(): Promise<OwnerFinanceOverviewView> {
@@ -260,7 +261,7 @@ export async function getOwnerFinanceOverview(): Promise<OwnerFinanceOverviewVie
     orderBy: { sortOrder: 'asc' },
   })
 
-  if (classes.length === 0) {
+  if (classes.length === 0 || !session || !term) {
     return {
       session,
       term,
@@ -275,17 +276,23 @@ export async function getOwnerFinanceOverview(): Promise<OwnerFinanceOverviewVie
       dailyFees: [],
       ptaFees: [],
       maintenanceFees: [],
+      paFees: [],
     }
   }
 
   const classIds = classes.map((c) => c.id)
 
-  // Get all active charges with their assignments (pupil → class) and fee type
+  // Get active charges for the current session+term, scoped to active classes.
+  // Charges are scoped through: feeCharge → feeAssignment → financeFee (has sessionId, termId)
+  // The charge's own termId tells us which term it belongs to.
   const charges = await prisma.feeCharge.findMany({
     where: {
       status: 'ACTIVE',
+      termId: term.id,
       assignment: {
-        pupil: { classId: { in: classIds } },
+        status: 'ACTIVE',
+        fee: { sessionId: session.id },
+        pupil: { classId: { in: classIds }, status: 'ACTIVE' },
       },
     },
     select: {
@@ -298,38 +305,17 @@ export async function getOwnerFinanceOverview(): Promise<OwnerFinanceOverviewVie
           fee: { select: { feeType: true } },
         },
       },
-      allocations: { select: { amount: true } },
-    },
-  })
-
-  // Get all active payments for pupils in these classes
-  const payments = await prisma.payment.findMany({
-    where: {
-      status: 'ACTIVE',
-      pupil: { classId: { in: classIds } },
-    },
-    select: {
-      id: true,
-      amountPaid: true,
-      pupilId: true,
-      pupil: { select: { classId: true } },
       allocations: {
         select: {
           amount: true,
-          charge: {
-            select: {
-              assignment: {
-                select: { fee: { select: { feeType: true } } },
-              },
-            },
-          },
+          payment: { select: { status: true } },
         },
       },
     },
   })
 
   // Aggregate charges by class and fee type
-  type FeeTypeKey = 'DAILY' | 'TERMLY' | 'OTHER'
+  type FeeTypeKey = 'DAILY' | 'TERMLY' | 'OTHER' | 'PA'
   const byClassAndType = new Map<string, Map<FeeTypeKey, { expected: Prisma.Decimal; collected: Prisma.Decimal; pupilCount: Set<string> }>>()
 
   for (const cls of classes) {
@@ -337,8 +323,14 @@ export async function getOwnerFinanceOverview(): Promise<OwnerFinanceOverviewVie
       ['DAILY', { expected: new Prisma.Decimal(0), collected: new Prisma.Decimal(0), pupilCount: new Set() }],
       ['TERMLY', { expected: new Prisma.Decimal(0), collected: new Prisma.Decimal(0), pupilCount: new Set() }],
       ['OTHER', { expected: new Prisma.Decimal(0), collected: new Prisma.Decimal(0), pupilCount: new Set() }],
+      ['PA', { expected: new Prisma.Decimal(0), collected: new Prisma.Decimal(0), pupilCount: new Set() }],
     ]))
   }
+
+  const allPupilsWithCharges = new Set<string>()
+  const allPupilsWithPayments = new Set<string>()
+  let totalExpected = new Prisma.Decimal(0)
+  let totalCollected = new Prisma.Decimal(0)
 
   for (const charge of charges) {
     const classId = charge.assignment.pupil.classId
@@ -348,21 +340,16 @@ export async function getOwnerFinanceOverview(): Promise<OwnerFinanceOverviewVie
 
     bucket.expected = bucket.expected.plus(charge.amount)
     bucket.pupilCount.add(charge.assignment.pupilId)
+    allPupilsWithCharges.add(charge.assignment.pupilId)
+    totalExpected = totalExpected.plus(charge.amount)
 
+    // Only count allocations from active (non-voided) payments
     for (const alloc of charge.allocations) {
-      bucket.collected = bucket.collected.plus(alloc.amount)
-    }
-  }
-
-  // Aggregate payments by class and fee type (from allocation breakdown)
-  for (const payment of payments) {
-    const classId = payment.pupil.classId
-    for (const alloc of payment.allocations) {
-      const feeType = alloc.charge?.assignment?.fee?.feeType as FeeTypeKey | undefined
-      if (!feeType) continue
-      const bucket = byClassAndType.get(classId)?.get(feeType)
-      if (!bucket) continue
-      // Payments are already captured via charge allocations above
+      if (alloc.payment.status === 'ACTIVE') {
+        bucket.collected = bucket.collected.plus(alloc.amount)
+        totalCollected = totalCollected.plus(alloc.amount)
+        allPupilsWithPayments.add(charge.assignment.pupilId)
+      }
     }
   }
 
@@ -391,22 +378,7 @@ export async function getOwnerFinanceOverview(): Promise<OwnerFinanceOverviewVie
   const dailyFees = buildRows('DAILY')
   const ptaFees = buildRows('TERMLY')
   const maintenanceFees = buildRows('OTHER')
-
-  // Compute totals
-  let totalExpected = new Prisma.Decimal(0)
-  let totalCollected = new Prisma.Decimal(0)
-  const allPupilsWithCharges = new Set<string>()
-  const allPupilsWithPayments = new Set<string>()
-
-  for (const charge of charges) {
-    totalExpected = totalExpected.plus(charge.amount)
-    allPupilsWithCharges.add(charge.assignment.pupilId)
-  }
-
-  for (const payment of payments) {
-    totalCollected = totalCollected.plus(payment.amountPaid)
-    allPupilsWithPayments.add(payment.pupilId)
-  }
+  const paFees = buildRows('PA')
 
   const totalPupils = await prisma.pupil.count({
     where: { classId: { in: classIds }, status: 'ACTIVE' },
@@ -426,6 +398,7 @@ export async function getOwnerFinanceOverview(): Promise<OwnerFinanceOverviewVie
     dailyFees,
     ptaFees,
     maintenanceFees,
+    paFees,
   }
 }
 

@@ -102,7 +102,7 @@ export function ChargeGenerationPage() {
       <PageHeader
         eyebrow="Fees & Finance"
         title="Charge Generation"
-        description="Generate charges for assigned pupils. Termly fees are charged once per term; daily fees are charged for each school day of the active term."
+        description="Generate charges for assigned pupils. Termly fees are charged once per term; daily and PA fees are charged for each school day of the active term."
       />
 
       <div className="flex flex-wrap items-end gap-3">
@@ -178,8 +178,8 @@ export function ChargeGenerationPage() {
                       <tr key={fee.id} className="transition-colors hover:bg-cream-50">
                         <td className="px-5 py-3.5 font-bold text-ink-900">{fee.name}</td>
                         <td className="px-5 py-3.5">
-                          <Badge tone={fee.feeType === 'TERMLY' ? 'royal' : fee.feeType === 'DAILY' ? 'magenta' : 'gold'}>
-                            {fee.feeType}
+                          <Badge tone={fee.feeType === 'TERMLY' ? 'royal' : fee.feeType === 'DAILY' ? 'magenta' : fee.feeType === 'PA' ? 'green' : 'gold'}>
+                            {fee.feeType === 'PA' ? 'PA Fees' : fee.feeType}
                           </Badge>
                         </td>
                         <td className="px-5 py-3.5 font-semibold text-ink-900">{formatMoney(fee.amount)}</td>
@@ -248,7 +248,7 @@ export function ChargeGenerationPage() {
       <ConfirmDialog
         open={confirmAll}
         title="Generate all charges"
-        message={`Generate charges for every active fee with assigned pupils in this session? Termly fees are charged once; daily fees are charged for each school day of the active term. Existing charges are not duplicated.`}
+        message={`Generate charges for every active fee with assigned pupils in this session? Termly fees are charged once; daily and PA fees are charged for each school day of the active term. Existing charges are not duplicated.`}
         confirmLabel="Generate charges"
         loading={busyAction === 'all'}
         onConfirm={() => void handleGenerateAll()}

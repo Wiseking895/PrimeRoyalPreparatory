@@ -160,9 +160,15 @@ describe('finance routes (auth + RBAC enforcement)', () => {
     prismaMock.academicSession.findFirst.mockResolvedValue(financeSession())
     prismaMock.academicTerm.findFirst.mockResolvedValue(financeTerm())
     prismaMock.feeCharge.aggregate.mockResolvedValue({ _sum: { amount: new Prisma.Decimal('1000.00') } })
-    prismaMock.payment.aggregate.mockResolvedValue({ _sum: { amountPaid: new Prisma.Decimal('400.00') } })
+    prismaMock.payment.aggregate.mockResolvedValue({ _sum: { amountPaid: null }, _count: 0 })
     prismaMock.financeFee.findMany.mockResolvedValue([])
-    prismaMock.feeCharge.findMany.mockResolvedValue([])
+    prismaMock.feeCharge.findMany.mockResolvedValue([
+      {
+        amount: new Prisma.Decimal('600.00'),
+        assignment: { pupilId: 'p-1' },
+        allocations: [{ amount: new Prisma.Decimal('400.00') }],
+      },
+    ])
     prismaMock.payment.findMany.mockResolvedValue([])
 
     const res = await request(app).get('/api/finance/summary').set('Authorization', 'Bearer token')
@@ -189,9 +195,11 @@ describe('finance routes (auth + RBAC enforcement)', () => {
       baseUser({ roles: [roleEntry('ACCOUNTANT', FINANCE_ROLES.accountant)] }),
     )
     prismaMock.academicSession.findUnique.mockResolvedValue(financeSession())
+    prismaMock.academicTerm.findUnique.mockResolvedValue(financeTerm())
     prismaMock.financeFee.create.mockResolvedValue({
       id: 'f-1',
       sessionId: 's-1',
+      termId: 't-1',
       name: 'Tuition',
       feeType: 'TERMLY',
       amount: new Prisma.Decimal('120.50'),
@@ -200,12 +208,18 @@ describe('finance routes (auth + RBAC enforcement)', () => {
       createdAt: new Date('2026-01-01T00:00:00.000Z'),
       updatedAt: new Date('2026-01-01T00:00:00.000Z'),
       session: { name: '2025/2026 Academic Year' },
+      term: { id: 't-1', name: 'First Term', schoolDays: 80 },
       assignments: [],
-      _count: { assignments: 0, charges: 0 },
+      _count: { assignments: 0 },
     })
+    prismaMock.pupil.findMany.mockResolvedValue([{ id: 'p-1' }])
+    prismaMock.feeAssignment.createMany.mockResolvedValue({ count: 1 })
+    prismaMock.feeAssignment.findMany.mockResolvedValue([{ id: 'a-1' }])
+    prismaMock.feeCharge.createMany.mockResolvedValue({ count: 1 })
     prismaMock.financeFee.findUnique.mockResolvedValue({
       id: 'f-1',
       sessionId: 's-1',
+      termId: 't-1',
       name: 'Tuition',
       feeType: 'TERMLY',
       amount: new Prisma.Decimal('120.50'),
@@ -214,6 +228,7 @@ describe('finance routes (auth + RBAC enforcement)', () => {
       createdAt: new Date('2026-01-01T00:00:00.000Z'),
       updatedAt: new Date('2026-01-01T00:00:00.000Z'),
       session: { name: '2025/2026 Academic Year' },
+      term: { id: 't-1', name: 'First Term', schoolDays: 80 },
       assignments: [],
       _count: { assignments: 0, charges: 0 },
     })
@@ -221,7 +236,7 @@ describe('finance routes (auth + RBAC enforcement)', () => {
     const res = await request(app)
       .post('/api/fees')
       .set('Authorization', 'Bearer token')
-      .send({ sessionId: 's-1', name: 'Tuition', feeType: 'TERMLY', amount: '120.50' })
+      .send({ sessionId: 's-1', termId: 't-1', name: 'Tuition', feeType: 'TERMLY', amount: '120.50' })
     expect(res.status).toBe(201)
     expect(res.body.success).toBe(true)
     expect(res.body.data.amount).toBe('120.50')

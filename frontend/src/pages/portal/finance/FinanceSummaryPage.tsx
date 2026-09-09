@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowRight, BookOpenCheck, ListChecks, Receipt, ScrollText, Wallet } from 'lucide-react'
+import { ArrowRight, BookOpenCheck, ListChecks, Receipt, Wallet } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '@/auth/AuthContext'
 import { PageHeader } from '@/components/dashboard/PageHeader'
@@ -37,6 +37,7 @@ export function FinanceSummaryPage() {
     ? ([
         { type: 'TERMLY' as const, label: 'Termly fees' },
         { type: 'DAILY' as const, label: 'Daily fees' },
+        { type: 'PA' as const, label: 'PA fees' },
         { type: 'OTHER' as const, label: 'Other fees' },
       ].map(({ type, label }) => ({
         type,
@@ -95,7 +96,7 @@ export function FinanceSummaryPage() {
             )}
           </div>
 
-          <div className="grid gap-6 lg:grid-cols-3">
+          <div className="grid gap-6 lg:grid-cols-2">
             {/* Fee summary */}
             <Card className="p-6">
               <div className="flex items-center justify-between">
@@ -122,42 +123,6 @@ export function FinanceSummaryPage() {
                     </li>
                   ))}
                 </ul>
-              )}
-            </Card>
-
-            {/* Academic period */}
-            <Card className="p-6">
-              <div className="flex items-center justify-between">
-                <h2 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-ink-500">
-                  <ScrollText className="h-5 w-5 text-royal-500" aria-hidden="true" />
-                  Academic Period
-                </h2>
-              </div>
-              {summary === null ? (
-                <div className="mt-6 space-y-3">
-                  <CardSkeleton className="border-0 p-0" />
-                </div>
-              ) : !summary.session ? (
-                <EmptyState title="No active session." description="Sessions are managed by academic administration." />
-              ) : (
-                <div className="mt-5 space-y-4">
-                  <div className="rounded-xl border border-cream-200 bg-cream-50 p-4">
-                    <p className="text-sm font-bold text-ink-900">{summary.session.name}</p>
-                    <p className="mt-1 text-xs text-ink-500">
-                      {formatDate(summary.session.startDate)} — {formatDate(summary.session.endDate)}
-                    </p>
-                  </div>
-                  {summary.term ? (
-                    <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-                      <p className="text-sm font-bold text-ink-900">{summary.term.name}</p>
-                      <p className="mt-1 text-xs text-ink-500">
-                        Term {summary.term.termNumber} · {summary.term.schoolDays} school day(s)
-                      </p>
-                    </div>
-                  ) : (
-                    <EmptyState title="No active term." />
-                  )}
-                </div>
               )}
             </Card>
 

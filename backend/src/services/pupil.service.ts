@@ -4,6 +4,7 @@ import { prisma } from '../lib/prisma'
 import type { AuthenticatedUser } from '../types/auth'
 import { AppError } from '../utils/app-error'
 import { recordAudit } from './audit.service'
+import { ensureChargesForFee } from './finance.service'
 import { toPupilView, type PupilRecord, type PupilView } from './pupil-mapper'
 
 const pupilInclude = {
@@ -245,6 +246,8 @@ export async function createPupil(
     await assertAdmissionNumberAvailable(admissionNumber)
   }
 
+  const assignedFeeIds: string[] = []
+
   const pupil = await prisma.$transaction(async (tx) => {
     const created = await tx.pupil.create({
       data: {
@@ -266,8 +269,30 @@ export async function createPupil(
       },
     })
     await linkGuardians(tx, created.id, input.guardians ?? [])
+
+    if ((input.status ?? 'ACTIVE') === 'ACTIVE') {
+      const activeSession = await tx.academicSession.findFirst({ where: { status: 'ACTIVE' } })
+      if (activeSession) {
+        const activeFees = await tx.financeFee.findMany({
+          where: { sessionId: activeSession.id, status: 'ACTIVE' },
+          select: { id: true },
+        })
+        if (activeFees.length > 0) {
+          await tx.feeAssignment.createMany({
+            data: activeFees.map((fee) => ({ pupilId: created.id, feeId: fee.id, status: 'ACTIVE' })),
+            skipDuplicates: true,
+          })
+          assignedFeeIds.push(...activeFees.map((f) => f.id))
+        }
+      }
+    }
+
     return created
   })
+
+  for (const feeId of assignedFeeIds) {
+    await ensureChargesForFee(feeId)
+  }
 
   await recordAudit({
     actorUserId: actor.id,

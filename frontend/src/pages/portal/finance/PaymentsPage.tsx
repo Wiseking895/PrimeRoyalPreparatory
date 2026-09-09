@@ -12,7 +12,7 @@ import { Spinner, TableSkeleton } from '@/components/dashboard/Loaders'
 import { EmptyState, ErrorState } from '@/components/dashboard/States'
 import { useToast } from '@/components/dashboard/Toast'
 import { api } from '@/lib/api'
-import { formatMoney, isValidMoney } from '@/lib/money'
+import { formatMoney } from '@/lib/money'
 import { formatDate } from '@/lib/date'
 import { financeRoute } from './financeRoute'
 import type { PaymentListResult, PaymentMethodValue } from '@/types/portal'
@@ -27,19 +27,24 @@ const methodOptions: Array<{ value: PaymentMethodValue; label: string }> = [
 interface RecordForm {
   pupilId: string
   pupilLabel: string
-  amountPaid: string
-  paymentMethod: PaymentMethodValue | ''
-  paymentDate: string
-  note: string
+  dailyPaid: boolean
+  paPaid: boolean
 }
 
 const emptyForm: RecordForm = {
   pupilId: '',
   pupilLabel: '',
-  amountPaid: '',
-  paymentMethod: '',
-  paymentDate: '',
-  note: '',
+  dailyPaid: false,
+  paPaid: false,
+}
+
+function todayDisplay(): string {
+  return new Date().toLocaleDateString('en-GB', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  })
 }
 
 export function PaymentsPage() {
@@ -65,6 +70,9 @@ export function PaymentsPage() {
   const [pupilSearchError, setPupilSearchError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
+  const [dailyFeeAmount, setDailyFeeAmount] = useState<string | null>(null)
+  const [paFeeAmount, setPaFeeAmount] = useState<string | null>(null)
+
   const load = useCallback(async () => {
     setError(null)
     try {
@@ -85,13 +93,29 @@ export function PaymentsPage() {
     void load()
   }, [load])
 
+  const loadFeeAmounts = useCallback(async () => {
+    try {
+      const fees = await api.listFees({ status: 'ACTIVE' })
+      const daily = fees.find((f) => f.feeType === 'DAILY')
+      const pa = fees.find((f) => f.feeType === 'PA')
+      setDailyFeeAmount(daily?.amount ?? null)
+      setPaFeeAmount(pa?.amount ?? null)
+    } catch {
+      setDailyFeeAmount(null)
+      setPaFeeAmount(null)
+    }
+  }, [])
+
   const openRecord = () => {
     setForm(emptyForm)
     setFieldErrors({})
     setPupilSearch('')
     setPupilResults([])
     setPupilSearchError(null)
+    setDailyFeeAmount(null)
+    setPaFeeAmount(null)
     setRecordOpen(true)
+    void loadFeeAmounts()
   }
 
   const runPupilSearch = async () => {
@@ -107,12 +131,13 @@ export function PaymentsPage() {
     }
   }
 
-  const set = (field: keyof RecordForm, value: string) => {
+  const set = (field: keyof RecordForm, value: string | boolean) => {
     setForm((current) => ({ ...current, [field]: value }))
     setFieldErrors((current) => {
-      if (!current[field]) return current
+      const key = field as string
+      if (!current[key]) return current
       const next = { ...current }
-      delete next[field]
+      delete next[key]
       return next
     })
   }
@@ -126,8 +151,7 @@ export function PaymentsPage() {
     event.preventDefault()
     const errors: Record<string, string> = {}
     if (!form.pupilId) errors.pupilId = 'Select a pupil.'
-    if (!isValidMoney(form.amountPaid)) errors.amountPaid = 'Enter a valid amount with up to 2 decimal places.'
-    if (!form.paymentMethod) errors.paymentMethod = 'Select a payment method.'
+    if (!form.dailyPaid && !form.paPaid) errors.feeStatus = 'Select at least one fee as Paid.'
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors)
       return
@@ -135,12 +159,10 @@ export function PaymentsPage() {
 
     setSubmitting(true)
     try {
-      const created = await api.createPayment({
+      const created = await api.markPaid({
         pupilId: form.pupilId,
-        amountPaid: form.amountPaid.trim(),
-        paymentMethod: form.paymentMethod as PaymentMethodValue,
-        paymentDate: form.paymentDate || undefined,
-        note: form.note.trim() || undefined,
+        dailyPaid: form.dailyPaid,
+        paPaid: form.paPaid,
       })
       setRecordOpen(false)
       setQ('')
@@ -158,6 +180,13 @@ export function PaymentsPage() {
       setSubmitting(false)
     }
   }
+
+  const calculatedTotal = (() => {
+    let total = 0
+    if (form.dailyPaid && dailyFeeAmount) total += Number(dailyFeeAmount)
+    if (form.paPaid && paFeeAmount) total += Number(paFeeAmount)
+    return total
+  })()
 
   const totalPages = result ? Math.max(1, Math.ceil(result.total / result.pageSize)) : 1
 
@@ -228,7 +257,7 @@ export function PaymentsPage() {
           title="No payments found."
           description={
             result.total === 0
-              ? 'Record a payment against a pupil’s outstanding fee charges.'
+              ? 'Record a payment against a pupil\'s outstanding fee charges.'
               : 'No payments match the selected filters.'
           }
           action={
@@ -349,10 +378,17 @@ export function PaymentsPage() {
         open={recordOpen}
         onClose={() => setRecordOpen(false)}
         title="Record payment"
-        description="Select a pupil and the amount paid. The payment is allocated to the pupil’s outstanding charges automatically."
+        description="Select a pupil and mark Daily Fee / PA Fee as Paid or Not Paid. Amounts are resolved automatically from the active fee structures."
         size="lg"
       >
         <form onSubmit={handleRecord} noValidate className="space-y-4">
+          {/* Today's date */}
+          <div className="rounded-xl border border-cream-200 bg-cream-50 p-4">
+            <p className="text-xs font-bold uppercase tracking-wider text-ink-500">Payment Date</p>
+            <p className="mt-1 text-sm font-semibold text-ink-900">{todayDisplay()}</p>
+            <p className="text-xs text-ink-500">Automatically determined by the system.</p>
+          </div>
+
           {!form.pupilId ? (
             <div className="rounded-xl border border-cream-200 bg-cream-50 p-4">
               <div className="flex gap-2">
@@ -412,48 +448,95 @@ export function PaymentsPage() {
             <p role="alert" className="text-xs font-medium text-red-600">{fieldErrors.pupilId}</p>
           ) : null}
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <TextField
-              label="Amount paid"
-              name="amountPaid"
-              inputMode="decimal"
-              value={form.amountPaid}
-              onChange={(event) => set('amountPaid', event.target.value)}
-              error={fieldErrors.amountPaid}
-              hint="Up to 2 decimal places."
-              required
-              autoComplete="off"
-            />
-            <SelectField
-              label="Payment method"
-              name="paymentMethod"
-              value={form.paymentMethod}
-              onChange={(event) => set('paymentMethod', event.target.value)}
-              options={methodOptions}
-              placeholder="Select a method"
-              error={fieldErrors.paymentMethod}
-              required
-            />
-            <TextField
-              label="Payment date"
-              name="paymentDate"
-              type="date"
-              value={form.paymentDate}
-              onChange={(event) => set('paymentDate', event.target.value)}
-              error={fieldErrors.paymentDate}
-              hint="Defaults to today."
-            />
-            <div className="sm:col-span-2">
-              <TextField
-                label="Note"
-                name="note"
-                value={form.note}
-                onChange={(event) => set('note', event.target.value)}
-                error={fieldErrors.note}
-                autoComplete="off"
-              />
+          {/* Fee status toggles */}
+          {form.pupilId ? (
+            <div className="rounded-xl border border-cream-200 bg-cream-50 p-4 space-y-4">
+              <p className="text-xs font-bold uppercase tracking-wider text-ink-500">Fee Payment Status</p>
+
+              {/* Daily Fee */}
+              <div className="flex items-center justify-between gap-4">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-bold text-ink-900">Daily Fee</p>
+                  <p className="text-xs text-ink-500">Monday – Friday school day fee</p>
+                  {dailyFeeAmount ? (
+                    <p className="mt-0.5 text-xs text-ink-500">Configured amount: <span className="font-semibold text-ink-700">{formatMoney(dailyFeeAmount)}</span></p>
+                  ) : null}
+                </div>
+                <div className="flex gap-1">
+                  <button
+                    type="button"
+                    onClick={() => set('dailyPaid', true)}
+                    className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
+                      form.dailyPaid
+                        ? 'bg-emerald-600 text-white shadow-sm'
+                        : 'bg-white text-ink-700 border border-cream-200 hover:border-emerald-300'
+                    }`}
+                  >
+                    Paid
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => set('dailyPaid', false)}
+                    className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
+                      !form.dailyPaid
+                        ? 'bg-ink-200 text-ink-700 shadow-sm'
+                        : 'bg-white text-ink-700 border border-cream-200 hover:border-ink-300'
+                    }`}
+                  >
+                    Not Paid
+                  </button>
+                </div>
+              </div>
+
+              {/* PA Fee */}
+              <div className="flex items-center justify-between gap-4">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-bold text-ink-900">PA Fee</p>
+                  <p className="text-xs text-ink-500">Monday – Friday PA contribution</p>
+                  {paFeeAmount ? (
+                    <p className="mt-0.5 text-xs text-ink-500">Configured amount: <span className="font-semibold text-ink-700">{formatMoney(paFeeAmount)}</span></p>
+                  ) : null}
+                </div>
+                <div className="flex gap-1">
+                  <button
+                    type="button"
+                    onClick={() => set('paPaid', true)}
+                    className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
+                      form.paPaid
+                        ? 'bg-emerald-600 text-white shadow-sm'
+                        : 'bg-white text-ink-700 border border-cream-200 hover:border-emerald-300'
+                    }`}
+                  >
+                    Paid
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => set('paPaid', false)}
+                    className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
+                      !form.paPaid
+                        ? 'bg-ink-200 text-ink-700 shadow-sm'
+                        : 'bg-white text-ink-700 border border-cream-200 hover:border-ink-300'
+                    }`}
+                  >
+                    Not Paid
+                  </button>
+                </div>
+              </div>
+
+              {fieldErrors.feeStatus ? (
+                <p role="alert" className="text-xs font-medium text-red-600">{fieldErrors.feeStatus}</p>
+              ) : null}
+
+              {/* Calculated total */}
+              {(form.dailyPaid || form.paPaid) && calculatedTotal > 0 ? (
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+                  <p className="text-xs font-bold uppercase tracking-wider text-ink-500">Automatically Recorded</p>
+                  <p className="mt-1 text-lg font-bold text-emerald-700">{formatMoney(calculatedTotal)}</p>
+                  <p className="text-xs text-ink-500">Amount is calculated from the active fee structure.</p>
+                </div>
+              ) : null}
             </div>
-          </div>
+          ) : null}
 
           <div className="flex items-center justify-end gap-2">
             <Button variant="cream" type="button" onClick={() => setRecordOpen(false)}>

@@ -137,6 +137,7 @@ function feeRecord(id = 'f-1', overrides: Record<string, unknown> = {}) {
   return {
     id,
     sessionId: 's-1',
+    termId: 't-1',
     name: 'Tuition',
     feeType: 'TERMLY',
     amount: new Prisma.Decimal('120.50'),
@@ -145,8 +146,9 @@ function feeRecord(id = 'f-1', overrides: Record<string, unknown> = {}) {
     createdAt: now,
     updatedAt: now,
     session: { name: '2025/2026 Academic Year' },
+    term: { id: 't-1', name: 'First Term', schoolDays: 80 },
     assignments: [{ id: 'a-1' }],
-    _count: { assignments: 2, charges: 3 },
+    _count: { assignments: 2 },
     ...overrides,
   }
 }
@@ -462,11 +464,17 @@ describe('finance.service', () => {
   describe('fees', () => {
     it('creates a fee and audits it with the money as a string', async () => {
       prismaMock.academicSession.findUnique.mockResolvedValue(sessionRecord())
+      prismaMock.academicTerm.findUnique.mockResolvedValue(termRecord())
       prismaMock.financeFee.create.mockResolvedValue(feeRecord())
+      prismaMock.pupil.findMany.mockResolvedValue([{ id: 'p-1' }, { id: 'p-2' }])
+      prismaMock.feeAssignment.createMany.mockResolvedValue({ count: 2 })
+      prismaMock.feeAssignment.findMany.mockResolvedValue([{ id: 'a-1' }, { id: 'a-2' }])
+      prismaMock.feeCharge.createMany.mockResolvedValue({ count: 2 })
       setupFeeLookup()
 
       const result = await createFee(accountant, {
         sessionId: 's-1',
+        termId: 't-1',
         name: 'Tuition',
         feeType: 'TERMLY',
         amount: '120.50',
@@ -493,17 +501,18 @@ describe('finance.service', () => {
 
     it('maps a duplicate fee name in a session to 409', async () => {
       prismaMock.academicSession.findUnique.mockResolvedValue(sessionRecord())
+      prismaMock.academicTerm.findUnique.mockResolvedValue(termRecord())
       prismaMock.financeFee.create.mockRejectedValue(Object.assign(new Error('dup'), { code: 'P2002' }))
 
       await expect(
-        createFee(accountant, { sessionId: 's-1', name: 'Tuition', feeType: 'TERMLY', amount: '100.00' }),
+        createFee(accountant, { sessionId: 's-1', termId: 't-1', name: 'Tuition', feeType: 'TERMLY', amount: '100.00' }),
       ).rejects.toMatchObject({ statusCode: HttpStatus.Conflict })
     })
 
     it('rejects creating a fee for a missing session', async () => {
       prismaMock.academicSession.findUnique.mockResolvedValue(null)
       await expect(
-        createFee(accountant, { sessionId: 'missing', name: 'Tuition', feeType: 'TERMLY', amount: '100.00' }),
+        createFee(accountant, { sessionId: 'missing', termId: 't-1', name: 'Tuition', feeType: 'TERMLY', amount: '100.00' }),
       ).rejects.toMatchObject({ statusCode: HttpStatus.NotFound })
     })
 
@@ -555,7 +564,7 @@ describe('finance.service', () => {
         sessionName: '2025/2026 Academic Year',
         assignmentCount: 2,
         activeAssignmentCount: 1,
-        chargeCount: 3,
+        chargeCount: 0,
       })
     })
   })
@@ -636,15 +645,15 @@ describe('finance.service', () => {
       prismaMock.academicTerm.findMany.mockResolvedValue([termRecord(), termRecord('t-2', { termNumber: 2 })])
     })
 
-    it('generates one TERMLY charge per active term per assignment', async () => {
-      prismaMock.feeCharge.createMany.mockResolvedValue({ count: 4 })
+    it('generates one TERMLY charge per assignment', async () => {
+      prismaMock.feeCharge.createMany.mockResolvedValue({ count: 2 })
 
       const result = await generateChargesForFee(accountant, 'f-1')
 
       expect(prismaMock.feeCharge.createMany).toHaveBeenCalledWith({
         data: expect.arrayContaining([
           { assignmentId: 'a-1', termId: 't-1', amount: expect.any(Prisma.Decimal) },
-          { assignmentId: 'a-2', termId: 't-2', amount: expect.any(Prisma.Decimal) },
+          { assignmentId: 'a-2', termId: 't-1', amount: expect.any(Prisma.Decimal) },
         ]),
         skipDuplicates: true,
       })
@@ -652,11 +661,11 @@ describe('finance.service', () => {
         expect.objectContaining({
           data: expect.objectContaining({
             action: 'finance.charge.generate',
-            metadata: expect.objectContaining({ feeId: 'f-1', created: 4 }),
+            metadata: expect.objectContaining({ feeId: 'f-1', created: 2 }),
           }),
         }),
       )
-      expect(result.created).toBe(4)
+      expect(result.created).toBe(2)
     })
 
     it('multiplies DAILY fees by the term school days', async () => {
@@ -672,8 +681,9 @@ describe('finance.service', () => {
     })
 
     it('rejects DAILY generation when a term has no school days', async () => {
-      prismaMock.financeFee.findUnique.mockResolvedValue(feeRecord('f-1', { feeType: 'DAILY' }))
-      prismaMock.academicTerm.findMany.mockResolvedValue([termRecord('t-1', { schoolDays: 0 })])
+      prismaMock.financeFee.findUnique.mockResolvedValue(
+        feeRecord('f-1', { feeType: 'DAILY', term: { id: 't-1', name: 'First Term', schoolDays: 0 } }),
+      )
 
       await expect(generateChargesForFee(accountant, 'f-1')).rejects.toMatchObject({
         statusCode: HttpStatus.BadRequest,
@@ -995,9 +1005,7 @@ describe('finance.service', () => {
       prismaMock.academicSession.findFirst.mockResolvedValue(sessionRecord())
       prismaMock.academicTerm.findFirst.mockResolvedValue(termRecord())
       prismaMock.feeCharge.aggregate.mockResolvedValue({ _sum: { amount: new Prisma.Decimal('1000.00') } })
-      prismaMock.payment.aggregate
-        .mockResolvedValueOnce({ _sum: { amountPaid: new Prisma.Decimal('400.00') } })
-        .mockResolvedValue({ _sum: { amountPaid: null }, _count: 0 })
+      prismaMock.payment.aggregate.mockResolvedValue({ _sum: { amountPaid: null }, _count: 0 })
       prismaMock.financeFee.findMany.mockResolvedValue([
         { feeType: 'TERMLY', status: 'ACTIVE' },
         { feeType: 'DAILY', status: 'ACTIVE' },
@@ -1006,12 +1014,17 @@ describe('finance.service', () => {
       ])
       prismaMock.feeCharge.findMany.mockResolvedValue([
         {
+          amount: new Prisma.Decimal('300.00'),
+          assignment: { pupilId: 'p-1' },
+          allocations: [{ amount: new Prisma.Decimal('300.00') }],
+        },
+        {
           amount: new Prisma.Decimal('100.00'),
           assignment: { pupilId: 'p-1' },
           allocations: [{ amount: new Prisma.Decimal('100.00') }],
         },
         {
-          amount: new Prisma.Decimal('50.00'),
+          amount: new Prisma.Decimal('200.00'),
           assignment: { pupilId: 'p-2' },
           allocations: [],
         },
@@ -1026,7 +1039,7 @@ describe('finance.service', () => {
       expect(summary.collected).toBe('400.00')
       expect(summary.outstanding).toBe('600.00')
       expect(summary.pupilsWithOutstanding).toBe(1)
-      expect(summary.feeSummary).toEqual({ total: 4, active: 3, byType: { TERMLY: 1, DAILY: 2, OTHER: 1 } })
+      expect(summary.feeSummary).toEqual({ total: 4, active: 3, byType: { TERMLY: 1, DAILY: 2, OTHER: 1, PA: 0 } })
       expect(summary.paymentsThisTerm).toBe('0.00')
       expect(summary.paymentsThisTermCount).toBe(0)
     })

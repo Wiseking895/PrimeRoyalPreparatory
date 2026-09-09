@@ -113,6 +113,15 @@ export interface PaymentCreateInput {
   allocations?: PaymentAllocationInput[]
 }
 
+export interface MarkPaidInput {
+  pupilId: string
+  paymentMethod?: PaymentMethodValue
+  paymentDate?: string
+  dailyPaid: boolean
+  paPaid: boolean
+  note?: string
+}
+
 export interface PaymentVoidInput {
   reason: string
 }
@@ -159,6 +168,19 @@ function assertEndAfterStart(start: Date, end: Date): void {
   if (end.getTime() <= start.getTime()) {
     throw new AppError('The end date must be after the start date.', HttpStatus.BadRequest)
   }
+}
+
+function countWeekdays(start: Date, end: Date): number {
+  const s = new Date(start.getFullYear(), start.getMonth(), start.getDate())
+  const e = new Date(end.getFullYear(), end.getMonth(), end.getDate())
+  let count = 0
+  const cursor = new Date(s)
+  while (cursor.getTime() <= e.getTime()) {
+    const dow = cursor.getDay()
+    if (dow !== 0 && dow !== 6) count++
+    cursor.setDate(cursor.getDate() + 1)
+  }
+  return count
 }
 
 function sumDecimal(values: Prisma.Decimal[]): Prisma.Decimal {
@@ -390,6 +412,8 @@ export async function createTerm(
   const endDate = new Date(input.endDate)
   assertEndAfterStart(startDate, endDate)
 
+  const schoolDays = input.schoolDays ?? countWeekdays(startDate, endDate)
+
   const status = input.status ?? 'ACTIVE'
   let term
   try {
@@ -407,7 +431,7 @@ export async function createTerm(
           termNumber: input.termNumber,
           startDate,
           endDate,
-          schoolDays: input.schoolDays ?? 0,
+          schoolDays,
           status,
         },
       })
@@ -557,7 +581,7 @@ const feeInclude = {
   session: { select: { name: true } },
   term: { select: { id: true, name: true } },
   assignments: { where: { status: 'ACTIVE' }, select: { id: true } },
-  _count: { select: { assignments: true, charges: true } },
+  _count: { select: { assignments: true } },
 } as const
 
 function toFeeViewRecord(fee: Prisma.FinanceFeeGetPayload<{ include: typeof feeInclude }>): FeeRecord {
@@ -576,7 +600,7 @@ function toFeeViewRecord(fee: Prisma.FinanceFeeGetPayload<{ include: typeof feeI
     updatedAt: fee.updatedAt,
     assignmentCount: fee._count.assignments,
     activeAssignmentCount: fee.assignments.length,
-    chargeCount: fee._count.charges,
+    chargeCount: 0,
   }
 }
 
@@ -598,6 +622,22 @@ export async function getFee(id: string): Promise<FeeView> {
     throw new AppError('Fee not found.', HttpStatus.NotFound)
   }
   return toFeeView(toFeeViewRecord(fee))
+}
+
+async function assignFeeToActivePupils(feeId: string): Promise<void> {
+  const fee = await prisma.financeFee.findUnique({ where: { id: feeId }, select: { sessionId: true } })
+  if (!fee) return
+
+  const activePupils = await prisma.pupil.findMany({
+    where: { status: 'ACTIVE' },
+    select: { id: true },
+  })
+  if (activePupils.length === 0) return
+
+  await prisma.feeAssignment.createMany({
+    data: activePupils.map((pupil) => ({ pupilId: pupil.id, feeId, status: 'ACTIVE' })),
+    skipDuplicates: true,
+  })
 }
 
 export async function createFee(
@@ -635,6 +675,9 @@ export async function createFee(
     throw error
   })
 
+  await assignFeeToActivePupils(fee.id)
+  await ensureChargesForFee(fee.id)
+
   await recordAudit({
     actorUserId: actor.id,
     action: 'finance.fee.create',
@@ -645,6 +688,76 @@ export async function createFee(
   })
 
   return getFee(fee.id)
+}
+
+export interface FeeBatchCreateInput {
+  sessionId: string
+  termId: string
+  fees: Array<{
+    name: string
+    feeType: FeeTypeValue
+    amount: string
+    description?: string
+  }>
+}
+
+export async function createFeesBatch(
+  actor: AuthenticatedUser,
+  input: FeeBatchCreateInput,
+  ip?: string,
+): Promise<FeeView[]> {
+  const session = await prisma.academicSession.findUnique({ where: { id: input.sessionId } })
+  if (!session) {
+    throw new AppError('Academic session not found.', HttpStatus.NotFound)
+  }
+
+  const term = await prisma.academicTerm.findUnique({ where: { id: input.termId } })
+  if (!term) {
+    throw new AppError('Academic term not found.', HttpStatus.NotFound)
+  }
+  if (term.sessionId !== input.sessionId) {
+    throw new AppError('The selected term does not belong to the selected session.', HttpStatus.BadRequest)
+  }
+
+  const createdIds: string[] = []
+
+  await prisma.$transaction(async (tx) => {
+    for (const item of input.fees) {
+      const fee = await tx.financeFee.create({
+        data: {
+          sessionId: input.sessionId,
+          termId: input.termId,
+          name: item.name.trim(),
+          feeType: item.feeType,
+          amount: new Prisma.Decimal(item.amount),
+          description: item.description?.trim() || null,
+          status: 'ACTIVE',
+        },
+      }).catch((error: unknown) => {
+        if (isUniqueViolation(error)) {
+          throw new AppError(`A fee with the name "${item.name.trim()}" already exists in this session and term.`, HttpStatus.Conflict)
+        }
+        throw error
+      })
+      createdIds.push(fee.id)
+    }
+  })
+
+  for (const feeId of createdIds) {
+    await assignFeeToActivePupils(feeId)
+    await ensureChargesForFee(feeId)
+    await recordAudit({
+      actorUserId: actor.id,
+      action: 'finance.fee.create',
+      resourceType: 'financeFee',
+      resourceId: feeId,
+      metadata: { sessionId: input.sessionId, termId: input.termId, batch: true },
+      ip: ip ?? null,
+    })
+  }
+
+  const results = await Promise.all(createdIds.map((id) => getFee(id)))
+  return results
 }
 
 export async function updateFee(
@@ -886,6 +999,64 @@ export async function deactivateAssignment(
   return getFeeAssignment(assignmentId)
 }
 
+export async function exemptPupilFromFee(
+  actor: AuthenticatedUser,
+  feeId: string,
+  assignmentId: string,
+  ip?: string,
+): Promise<FeeAssignmentView> {
+  const assignment = await prisma.feeAssignment.findUnique({
+    where: { id: assignmentId, feeId },
+    include: { fee: { select: { name: true } }, pupil: { select: { pupilId: true } } },
+  })
+  if (!assignment) {
+    throw new AppError('Fee assignment not found.', HttpStatus.NotFound)
+  }
+
+  if (assignment.status !== 'EXEMPT') {
+    await prisma.feeAssignment.update({ where: { id: assignmentId }, data: { status: 'EXEMPT' } })
+    await recordAudit({
+      actorUserId: actor.id,
+      action: 'finance.fee.assign_exempt',
+      resourceType: 'feeAssignment',
+      resourceId: assignmentId,
+      metadata: { feeName: assignment.fee.name, pupilId: assignment.pupil.pupilId },
+      ip: ip ?? null,
+    })
+  }
+
+  return getFeeAssignment(assignmentId)
+}
+
+export async function removeExemption(
+  actor: AuthenticatedUser,
+  feeId: string,
+  assignmentId: string,
+  ip?: string,
+): Promise<FeeAssignmentView> {
+  const assignment = await prisma.feeAssignment.findUnique({
+    where: { id: assignmentId, feeId },
+    include: { fee: { select: { name: true } }, pupil: { select: { pupilId: true } } },
+  })
+  if (!assignment) {
+    throw new AppError('Fee assignment not found.', HttpStatus.NotFound)
+  }
+
+  if (assignment.status === 'EXEMPT') {
+    await prisma.feeAssignment.update({ where: { id: assignmentId }, data: { status: 'ACTIVE' } })
+    await recordAudit({
+      actorUserId: actor.id,
+      action: 'finance.fee.assign_remove_exemption',
+      resourceType: 'feeAssignment',
+      resourceId: assignmentId,
+      metadata: { feeName: assignment.fee.name, pupilId: assignment.pupil.pupilId },
+      ip: ip ?? null,
+    })
+  }
+
+  return getFeeAssignment(assignmentId)
+}
+
 // =============================================================================
 // Charge generation
 // =============================================================================
@@ -905,7 +1076,7 @@ async function generateChargesForFeeInner(feeId: string): Promise<number> {
   })
   if (assignments.length === 0) return 0
 
-  if (fee.feeType === 'DAILY') {
+  if (fee.feeType === 'DAILY' || fee.feeType === 'PA') {
     if (fee.term.schoolDays <= 0) {
       throw new AppError(
         `Term "${fee.term.name}" has no school days. Set the school day count before generating daily charges.`,
@@ -969,6 +1140,36 @@ export async function generateChargesForFee(
     ip: ip ?? null,
   })
   return { created }
+}
+
+/**
+ * Ensure charges exist for a specific fee. Called automatically when a fee is
+ * created, when a pupil is registered, or for manual reconciliation. Idempotent
+ * — running multiple times never duplicates charges.
+ */
+export async function ensureChargesForFee(feeId: string): Promise<number> {
+  return generateChargesForFeeInner(feeId)
+}
+
+/**
+ * Ensure charges exist for all active fees in the active session. Used for
+ * manual reconciliation and automatic sync. Idempotent.
+ */
+export async function ensureChargesForActiveSession(): Promise<{ feesProcessed: number; chargesCreated: number }> {
+  const activeSession = await prisma.academicSession.findFirst({ where: { status: 'ACTIVE' } })
+  if (!activeSession) return { feesProcessed: 0, chargesCreated: 0 }
+
+  const fees = await prisma.financeFee.findMany({
+    where: { sessionId: activeSession.id, status: 'ACTIVE' },
+    select: { id: true },
+  })
+
+  let chargesCreated = 0
+  for (const fee of fees) {
+    chargesCreated += await generateChargesForFeeInner(fee.id)
+  }
+
+  return { feesProcessed: fees.length, chargesCreated }
 }
 
 export async function generateChargesForSession(
@@ -1130,6 +1331,174 @@ export async function createPayment(
           amountPaid: money(amountPaid),
           paymentMethod: input.paymentMethod,
           allocationCount: allocationRows.length,
+        },
+        ip: ip ?? null,
+      })
+
+      const userNames = await resolveUserNames([payment.receivedById])
+      return toPaymentView(payment as never, userNames)
+    } catch (error) {
+      if (isUniqueViolation(error)) continue
+      throw error
+    }
+  }
+  throw new AppError('Could not generate a unique payment reference. Please try again.', HttpStatus.Conflict)
+}
+
+/**
+ * Record a payment for DAILY and/or PA fees using Paid/Not Paid status.
+ * The backend retrieves authoritative fee amounts from the database.
+ * The frontend cannot manipulate amounts.
+ */
+export async function markPaid(
+  actor: AuthenticatedUser,
+  input: MarkPaidInput,
+  ip?: string,
+): Promise<PaymentView> {
+  if (!input.dailyPaid && !input.paPaid) {
+    throw new AppError('Select at least one fee to mark as paid.', HttpStatus.BadRequest)
+  }
+
+  const pupil = await prisma.pupil.findUnique({
+    where: { id: input.pupilId },
+    select: { id: true, pupilId: true, status: true },
+  })
+  if (!pupil) {
+    throw new AppError('Pupil record not found.', HttpStatus.NotFound)
+  }
+  if (pupil.status !== 'ACTIVE') {
+    throw new AppError('Cannot record payment for an inactive pupil.', HttpStatus.BadRequest)
+  }
+
+  const activeSession = await prisma.academicSession.findFirst({ where: { status: 'ACTIVE' } })
+  if (!activeSession) {
+    throw new AppError('No active academic session found.', HttpStatus.BadRequest)
+  }
+
+  const activeTerm = await prisma.academicTerm.findFirst({
+    where: { sessionId: activeSession.id, status: 'ACTIVE' },
+  })
+  if (!activeTerm) {
+    throw new AppError('No active academic term found.', HttpStatus.BadRequest)
+  }
+
+  const paymentDate = input.paymentDate ? new Date(input.paymentDate) : new Date()
+  const dayOfWeek = paymentDate.getUTCDay()
+  if (dayOfWeek === 0 || dayOfWeek === 6) {
+    throw new AppError('Cannot record a school fee payment for a weekend date.', HttpStatus.BadRequest)
+  }
+
+  const fees = await prisma.financeFee.findMany({
+    where: { sessionId: activeSession.id, termId: activeTerm.id, status: 'ACTIVE' },
+    select: { id: true, name: true, feeType: true, amount: true },
+  })
+
+  const dailyFee = fees.find((f) => f.feeType === 'DAILY')
+  const paFee = fees.find((f) => f.feeType === 'PA')
+
+  if (input.dailyPaid && !dailyFee) {
+    throw new AppError('No active Daily Fee structure found for the current term.', HttpStatus.BadRequest)
+  }
+  if (input.paPaid && !paFee) {
+    throw new AppError('No active PA Fee structure found for the current term.', HttpStatus.BadRequest)
+  }
+
+  const allocations: Array<{ chargeId: string; amount: Prisma.Decimal; feeName: string }> = []
+  let totalAmount = new Prisma.Decimal(0)
+
+  const feeChecks = [
+    { paid: input.dailyPaid, fee: dailyFee, label: 'Daily Fee' },
+    { paid: input.paPaid, fee: paFee, label: 'PA Fee' },
+  ]
+
+  for (const check of feeChecks) {
+    if (!check.paid || !check.fee) continue
+
+    const assignment = await prisma.feeAssignment.findFirst({
+      where: { pupilId: input.pupilId, feeId: check.fee.id, status: 'ACTIVE' },
+      select: { id: true },
+    })
+    if (!assignment) {
+      throw new AppError(`${check.label} is not applicable to this pupil.`, HttpStatus.BadRequest)
+    }
+
+    const charge = await prisma.feeCharge.findFirst({
+      where: { assignmentId: assignment.id, termId: activeTerm.id, status: 'ACTIVE' },
+      include: { allocations: { select: { amount: true } } },
+    })
+    if (!charge) {
+      throw new AppError(`No ${check.label} charge found for this pupil.`, HttpStatus.BadRequest)
+    }
+
+    const alreadyPaid = sumDecimal(charge.allocations.map((a) => a.amount))
+    const outstanding = charge.amount.minus(alreadyPaid)
+    if (outstanding.lte(0)) {
+      throw new AppError(`${check.label} is already fully paid for this pupil.`, HttpStatus.BadRequest)
+    }
+
+    const alreadyPaidToday = await prisma.paymentAllocation.findFirst({
+      where: {
+        chargeId: charge.id,
+        payment: { pupilId: input.pupilId, status: 'ACTIVE', paymentDate: paymentDate },
+      },
+      select: { id: true },
+    })
+    if (alreadyPaidToday) {
+      throw new AppError(`${check.label} was already recorded for this pupil on this date.`, HttpStatus.BadRequest)
+    }
+
+    const payAmount = check.fee.amount.lt(outstanding) ? check.fee.amount : outstanding
+    allocations.push({ chargeId: charge.id, amount: payAmount, feeName: check.fee.name })
+    totalAmount = totalAmount.plus(payAmount)
+  }
+
+  if (allocations.length === 0) {
+    throw new AppError('No applicable fees to record.', HttpStatus.BadRequest)
+  }
+
+  const paymentMethod = input.paymentMethod || 'CASH'
+
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    try {
+      const count = await prisma.payment.count()
+      const paymentReference = `PRPS-PAY-${String(count + attempt + 1).padStart(6, '0')}`
+
+      const allocationData = allocations.map((a) => ({
+        chargeId: a.chargeId,
+        amount: a.amount,
+      }))
+
+      const payment = await prisma.$transaction(async (tx) =>
+        tx.payment.create({
+          data: {
+            paymentReference,
+            pupilId: input.pupilId,
+            amountPaid: totalAmount,
+            paymentMethod,
+            paymentDate,
+            note: input.note?.trim() || null,
+            receivedById: actor.id,
+            allocations: { create: allocationData },
+          },
+          include: paymentInclude,
+        }),
+      )
+
+      const feeNames = allocations.map((a) => a.feeName).join(', ')
+      await recordAudit({
+        actorUserId: actor.id,
+        action: 'finance.payment.create',
+        resourceType: 'payment',
+        resourceId: payment.id,
+        metadata: {
+          paymentReference,
+          pupilId: pupil.pupilId,
+          amountPaid: money(totalAmount),
+          paymentMethod,
+          allocationCount: allocationData.length,
+          feeNames,
+          dailyPaid: input.dailyPaid,
+          paPaid: input.paPaid,
         },
         ip: ip ?? null,
       })
@@ -1398,20 +1767,40 @@ export async function getFinanceSummary(): Promise<FinanceSummaryView> {
       })
     : null
 
-  const [chargeAgg, paymentAgg, fees, pupilsWithOutstanding, recentPayments, termPayments] = await Promise.all([
-    prisma.feeCharge.aggregate({ where: { status: 'ACTIVE' }, _sum: { amount: true } }),
-    prisma.payment.aggregate({ where: { status: 'ACTIVE' }, _sum: { amountPaid: true } }),
-    prisma.financeFee.findMany({ select: { feeType: true, status: true } }),
+  // Session-scoped charge aggregation: charges belong to fees which belong to sessions,
+  // and the charge's termId scopes it to a specific term.
+  const chargeWhere: Prisma.FeeChargeWhereInput = { status: 'ACTIVE' }
+  if (session) {
+    chargeWhere.assignment = { fee: { sessionId: session.id } }
+  }
+  if (term) {
+    chargeWhere.termId = term.id
+  }
+
+  const [chargeAgg, fees, sessionCharges, recentPayments, termPayments] = await Promise.all([
+    prisma.feeCharge.aggregate({ where: chargeWhere, _sum: { amount: true } }),
+    prisma.financeFee.findMany({
+      where: session ? { sessionId: session.id } : undefined,
+      select: { feeType: true, status: true },
+    }),
     prisma.feeCharge.findMany({
-      where: { status: 'ACTIVE' },
+      where: chargeWhere,
       select: {
         amount: true,
         assignment: { select: { pupilId: true } },
-        allocations: { select: { amount: true } },
+        allocations: {
+          where: { payment: { status: 'ACTIVE' } },
+          select: { amount: true },
+        },
       },
     }),
     prisma.payment.findMany({
-      where: { status: 'ACTIVE' },
+      where: {
+        status: 'ACTIVE',
+        ...(term
+          ? { paymentDate: { gte: term.startDate, lte: term.endDate } }
+          : {}),
+      },
       include: paymentInclude,
       orderBy: { paymentDate: 'desc' },
       take: 5,
@@ -1426,10 +1815,17 @@ export async function getFinanceSummary(): Promise<FinanceSummaryView> {
   ])
 
   const expected = chargeAgg._sum.amount ?? new Prisma.Decimal(0)
-  const collected = paymentAgg._sum.amountPaid ?? new Prisma.Decimal(0)
+
+  // Collected = sum of active payment allocations against session+term charges
+  let collected = new Prisma.Decimal(0)
+  for (const charge of sessionCharges) {
+    for (const allocation of charge.allocations) {
+      collected = collected.plus(allocation.amount)
+    }
+  }
 
   const byPupil = new Map<string, { due: Prisma.Decimal; paid: Prisma.Decimal }>()
-  for (const charge of pupilsWithOutstanding) {
+  for (const charge of sessionCharges) {
     const bucket = byPupil.get(charge.assignment.pupilId) ?? {
       due: new Prisma.Decimal(0),
       paid: new Prisma.Decimal(0),
@@ -1442,7 +1838,7 @@ export async function getFinanceSummary(): Promise<FinanceSummaryView> {
   }
   const pupilsOutstanding = [...byPupil.values()].filter((bucket) => bucket.due.minus(bucket.paid).gt(0)).length
 
-  const byType: Record<FeeTypeValue, number> = { TERMLY: 0, DAILY: 0, OTHER: 0 }
+  const byType: Record<FeeTypeValue, number> = { TERMLY: 0, DAILY: 0, OTHER: 0, PA: 0 }
   for (const fee of fees) byType[fee.feeType] += 1
   const activeFees = fees.filter((fee) => fee.status === 'ACTIVE').length
 

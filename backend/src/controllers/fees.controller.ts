@@ -5,11 +5,14 @@ import { asyncHandler } from '../utils/async-handler'
 import {
   assignPupilsToFee,
   createFee,
+  createFeesBatch,
   deactivateAssignment,
+  exemptPupilFromFee,
   generateChargesForFee,
   getFee,
   listFeeAssignments,
   listFees,
+  removeExemption,
   setFeeStatus,
   updateFee,
 } from '../services/finance.service'
@@ -29,6 +32,11 @@ export const getFeeHandler = asyncHandler(async (req, res) => {
 export const createFeeHandler = asyncHandler(async (req: AuthRequest, res) => {
   const fee = await createFee(req.user!, req.body, req.ip)
   res.status(HttpStatus.Created).json(ok(fee, 'Fee structure created successfully.'))
+})
+
+export const createFeesBatchHandler = asyncHandler(async (req: AuthRequest, res) => {
+  const fees = await createFeesBatch(req.user!, req.body, req.ip)
+  res.status(HttpStatus.Created).json(ok(fees, 'Fee structures created successfully.'))
 })
 
 export const updateFeeHandler = asyncHandler(async (req: AuthRequest, res) => {
@@ -64,4 +72,14 @@ export const deactivateAssignmentHandler = asyncHandler(async (req: AuthRequest,
 export const generateFeeChargesHandler = asyncHandler(async (req: AuthRequest, res) => {
   const result = await generateChargesForFee(req.user!, req.params.id, req.ip)
   res.json(ok(result, 'Charges generated successfully.'))
+})
+
+export const exemptPupilHandler = asyncHandler(async (req: AuthRequest, res) => {
+  const assignment = await exemptPupilFromFee(req.user!, req.params.id, req.params.assignmentId, req.ip)
+  res.json(ok(assignment, 'Pupil exempted from fee successfully.'))
+})
+
+export const removeExemptionHandler = asyncHandler(async (req: AuthRequest, res) => {
+  const assignment = await removeExemption(req.user!, req.params.id, req.params.assignmentId, req.ip)
+  res.json(ok(assignment, 'Exemption removed successfully.'))
 })

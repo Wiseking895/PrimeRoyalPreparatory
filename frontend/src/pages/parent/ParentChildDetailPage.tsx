@@ -164,11 +164,11 @@ export function ParentChildDetailPage() {
             <div className="grid gap-4 sm:grid-cols-3">
               <div className="rounded-2xl border border-cream-300/70 bg-white p-5">
                 <p className="text-xs font-bold uppercase tracking-wider text-ink-500">Total due</p>
-                <p className="mt-2 text-2xl font-extrabold text-ink-900">₦{formatMoney(finance.totalDue)}</p>
+                <p className="mt-2 text-2xl font-extrabold text-ink-900">GH₵{formatMoney(finance.totalDue)}</p>
               </div>
               <div className="rounded-2xl border border-cream-300/70 bg-white p-5">
                 <p className="text-xs font-bold uppercase tracking-wider text-ink-500">Total paid</p>
-                <p className="mt-2 text-2xl font-extrabold text-emerald-600">₦{formatMoney(finance.totalPaid)}</p>
+                <p className="mt-2 text-2xl font-extrabold text-emerald-600">GH₵{formatMoney(finance.totalPaid)}</p>
               </div>
               <div className="rounded-2xl border border-cream-300/70 bg-white p-5">
                 <p className="text-xs font-bold uppercase tracking-wider text-ink-500">Outstanding</p>
@@ -178,7 +178,7 @@ export function ParentChildDetailPage() {
                     Number(finance.outstanding) > 0 ? 'text-red-600' : 'text-emerald-600',
                   )}
                 >
-                  ₦{formatMoney(finance.outstanding)}
+                  GH₵{formatMoney(finance.outstanding)}
                 </p>
               </div>
             </div>
@@ -206,13 +206,13 @@ export function ParentChildDetailPage() {
                             ) : null}
                           </td>
                           <td className="py-3 pr-4 text-right tabular-nums text-ink-700">
-                            ₦{formatMoney(charge.amount)}
+                            GH₵{formatMoney(charge.amount)}
                           </td>
                           <td className="py-3 pr-4 text-right tabular-nums text-emerald-600">
-                            ₦{formatMoney(charge.paid)}
+                            GH₵{formatMoney(charge.paid)}
                           </td>
                           <td className="py-3 text-right tabular-nums font-bold text-ink-900">
-                            ₦{formatMoney(charge.balance)}
+                            GH₵{formatMoney(charge.balance)}
                           </td>
                         </tr>
                       ))}

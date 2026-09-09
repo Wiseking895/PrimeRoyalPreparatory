@@ -6,9 +6,11 @@ import { Prisma } from '@prisma/client'
  * boundary, and the backend remains authoritative for financial truth.
  */
 
-export type FeeTypeValue = 'TERMLY' | 'DAILY' | 'OTHER'
+export type FeeTypeValue = 'TERMLY' | 'DAILY' | 'OTHER' | 'PA'
 export type PaymentMethodValue = 'CASH' | 'BANK_TRANSFER' | 'MOBILE_MONEY' | 'CHEQUE'
 export type AccountStatusValue = 'ACTIVE' | 'INACTIVE'
+
+export type FeeAssignmentStatusValue = 'ACTIVE' | 'INACTIVE' | 'EXEMPT'
 export type PaymentRecordStatusValue = 'ACTIVE' | 'VOIDED'
 
 export function money(value: Prisma.Decimal | string | number | null | undefined): string {
@@ -92,6 +94,8 @@ export interface FeeRecord {
   id: string
   sessionId: string
   sessionName?: string
+  termId?: string
+  termName?: string
   name: string
   feeType: FeeTypeValue
   amount: Prisma.Decimal
@@ -108,6 +112,8 @@ export interface FeeView {
   id: string
   sessionId: string
   sessionName: string
+  termId: string
+  termName: string
   name: string
   feeType: FeeTypeValue
   amount: string
@@ -125,6 +131,8 @@ export function toFeeView(fee: FeeRecord): FeeView {
     id: fee.id,
     sessionId: fee.sessionId,
     sessionName: fee.sessionName ?? '—',
+    termId: fee.termId ?? '',
+    termName: fee.termName ?? '—',
     name: fee.name,
     feeType: fee.feeType,
     amount: money(fee.amount),
@@ -146,7 +154,7 @@ export interface FeeAssignmentView {
   className: string
   feeId: string
   feeName: string
-  status: AccountStatusValue
+  status: FeeAssignmentStatusValue
   chargeCount: number
   createdAt: string
 }
