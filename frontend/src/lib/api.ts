@@ -8,6 +8,8 @@ import type {
   AnnouncementView,
   AssignFeesResult,
   AttendanceAdminRecord,
+  AttendanceCreateInput,
+  AttendanceUpdateInput,
   AttendanceView,
   AuditPage,
   ChargeGenerateResult,
@@ -15,10 +17,13 @@ import type {
   ClassTeacherAssignInput,
   ClassTeacherView,
   ClassUpdateInput,
+  CombinedReconciliationView,
   CreateHeadteacherInput,
   CreateHeadteacherResult,
   CreateStaffInput,
   CreateStaffResult,
+  DailyPupilFinanceListResult,
+  DailyReconciliationCloseView,
   FeeAssignmentView,
   FeeBatchCreateInput,
   FeeCreateInput,
@@ -37,6 +42,7 @@ import type {
   NotificationView,
   OwnerFinanceOverviewView,
   OwnerSetupInput,
+  ReconciliationView,
   OwnerSummary,
   ParentAccountResult,
   ParentChildView,
@@ -365,6 +371,22 @@ export const api = {
   // Finance
   financeSummary: () => request<FinanceSummaryView>('/api/finance/summary'),
   financeOverview: () => request<OwnerFinanceOverviewView>('/api/finance/overview'),
+  getReconciliation: (date: string, feeType: 'DAILY' | 'PA') => {
+    const search = new URLSearchParams({ date, feeType })
+    return request<ReconciliationView>(`/api/finance/reconciliation?${search.toString()}`)
+  },
+  getCombinedReconciliation: (date: string, classId?: string, q?: string) => {
+    const search = new URLSearchParams({ date })
+    if (classId) search.set('classId', classId)
+    if (q) search.set('q', q)
+    return request<CombinedReconciliationView>(`/api/finance/reconciliation/combined?${search.toString()}`)
+  },
+  closeDailyReconciliation: (date: string) =>
+    request<DailyReconciliationCloseView>('/api/finance/reconciliation/close', jsonBody({ date })),
+  getReconciliationCloseStatus: (date: string) => {
+    const search = new URLSearchParams({ date })
+    return request<DailyReconciliationCloseView | null>(`/api/finance/reconciliation/close-status?${search.toString()}`)
+  },
   listFinancePupils: (params?: { q?: string; page?: number; pageSize?: number }) => {
     const search = new URLSearchParams()
     if (params?.q) search.set('q', params.q)
@@ -372,6 +394,12 @@ export const api = {
     if (params?.pageSize) search.set('pageSize', String(params.pageSize))
     const query = search.toString()
     return request<FinancePupilListResult>(`/api/finance/pupils${query ? `?${query}` : ''}`)
+  },
+  listDailyPupilFinance: (params: { date: string; classId?: string; q?: string }) => {
+    const search = new URLSearchParams({ date: params.date })
+    if (params.classId) search.set('classId', params.classId)
+    if (params.q) search.set('q', params.q)
+    return request<DailyPupilFinanceListResult>(`/api/finance/pupils/daily?${search.toString()}`)
   },
   getPupilFinance: (id: string) => request<PupilFinanceView>(`/api/finance/pupils/${id}`),
 
@@ -588,7 +616,7 @@ export const api = {
       { method: 'POST' },
     ),
 
-  // Phase 8 — Attendance (admin read-only)
+  // Phase 8 — Attendance
   listAttendance: (params?: { pupilId?: string; status?: string; staffId?: string; sessionId?: string; classId?: string; dateFrom?: string; dateTo?: string }) => {
     const search = new URLSearchParams()
     if (params?.pupilId) search.set('pupilId', params.pupilId)
@@ -609,6 +637,8 @@ export const api = {
     const query = search.toString()
     return request<AttendanceAdminRecord[]>(`/api/attendance/admin${query ? `?${query}` : ''}`)
   },
+  createAttendance: (input: AttendanceCreateInput) => request<AttendanceView>('/api/attendance', jsonBody(input)),
+  updateAttendance: (id: string, input: AttendanceUpdateInput) => request<AttendanceView>(`/api/attendance/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
 
   // Phase 9 — Notifications
   listNotifications: (params?: { limit?: number; offset?: number; unread?: boolean }) => {

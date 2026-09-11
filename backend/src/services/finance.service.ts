@@ -15,6 +15,13 @@ import {
   type AcademicTermView,
   type AssignFeesResult,
   type ChargeGenerateResult,
+  type CombinedReconciliationClassSummary,
+  type CombinedReconciliationPupilRow,
+  type CombinedReconciliationView,
+  type DailyFinanceStatus,
+  type DailyPupilFinanceListResult,
+  type DailyPupilFinanceRow,
+  type DailyReconciliationCloseView,
   type FeeAssignmentView,
   type FeeRecord,
   type FeeTypeValue,
@@ -26,6 +33,10 @@ import {
   type PaymentView,
   type PupilChargeView,
   type PupilFinanceView,
+  type ReconciliationClassSummary,
+  type ReconciliationPupilRow,
+  type ReconciliationStatus,
+  type ReconciliationView,
 } from './finance-mapper'
 
 /**
@@ -1388,6 +1399,10 @@ export async function markPaid(
     throw new AppError('Cannot record a school fee payment for a weekend date.', HttpStatus.BadRequest)
   }
 
+  // Check if this day's reconciliation is locked
+  const paymentDateOnly = new Date(paymentDate.toISOString().slice(0, 10) + 'T00:00:00.000Z')
+  await assertReconciliationNotLocked(paymentDateOnly)
+
   const fees = await prisma.financeFee.findMany({
     where: { sessionId: activeSession.id, termId: activeTerm.id, status: 'ACTIVE' },
     select: { id: true, name: true, feeType: true, amount: true },
@@ -1529,6 +1544,10 @@ export async function voidPayment(
   if (payment.status === 'VOIDED') {
     throw new AppError('This payment has already been voided.', HttpStatus.BadRequest)
   }
+
+  // Check if this day's reconciliation is locked
+  const paymentDateOnly = new Date(payment.paymentDate.toISOString().slice(0, 10) + 'T00:00:00.000Z')
+  await assertReconciliationNotLocked(paymentDateOnly)
 
   const reason = input.reason.trim()
   await prisma.$transaction(async (tx) => {
@@ -1884,5 +1903,1062 @@ export async function getAdmissionFee(): Promise<AdmissionFeeView | null> {
     name: fee.name,
     amount: money(fee.amount),
     description: fee.description,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Daily Pupil Finance — per-pupil collection state for a given school day.
+// Combines DAILY and PA fee payment status into a single view.
+// ---------------------------------------------------------------------------
+
+export interface DailyPupilFinanceOptions {
+  date: string
+  classId?: string
+  q?: string
+}
+
+export async function getDailyPupilFinance(
+  options: DailyPupilFinanceOptions,
+): Promise<DailyPupilFinanceListResult> {
+  const { date, classId, q } = options
+
+  const dateObj = new Date(date + 'T00:00:00.000Z')
+  const dayOfWeek = dateObj.getUTCDay()
+  if (dayOfWeek === 0 || dayOfWeek === 6) {
+    throw new AppError('Cannot view daily finance for a weekend date. Select a school day.', HttpStatus.BadRequest)
+  }
+
+  const session = await prisma.academicSession.findFirst({
+    where: { status: 'ACTIVE' },
+    select: { id: true, name: true },
+    orderBy: { createdAt: 'desc' },
+  })
+  if (!session) {
+    throw new AppError('No active academic session found.', HttpStatus.BadRequest)
+  }
+
+  const term = await prisma.academicTerm.findFirst({
+    where: { sessionId: session.id, status: 'ACTIVE' },
+    select: { id: true, name: true },
+    orderBy: { termNumber: 'desc' },
+  })
+  if (!term) {
+    throw new AppError('No active academic term found.', HttpStatus.BadRequest)
+  }
+
+  // Find DAILY and PA fee structures for this session+term
+  const [dailyFee, paFee] = await Promise.all([
+    prisma.financeFee.findFirst({
+      where: { sessionId: session.id, termId: term.id, feeType: 'DAILY', status: 'ACTIVE' },
+      select: { id: true, amount: true },
+    }),
+    prisma.financeFee.findFirst({
+      where: { sessionId: session.id, termId: term.id, feeType: 'PA', status: 'ACTIVE' },
+      select: { id: true, amount: true },
+    }),
+  ])
+
+  if (!dailyFee) {
+    throw new AppError('No active Daily Fee structure found for the current term.', HttpStatus.BadRequest)
+  }
+  if (!paFee) {
+    throw new AppError('No active PA Fee structure found for the current term.', HttpStatus.BadRequest)
+  }
+
+  // Fetch active pupils (optionally filtered by class)
+  const pupilWhere: Prisma.PupilWhereInput = { status: 'ACTIVE' }
+  if (classId) {
+    pupilWhere.classId = classId
+  }
+  if (q) {
+    pupilWhere.OR = [
+      { pupilId: { contains: q, mode: 'insensitive' } },
+      { firstName: { contains: q, mode: 'insensitive' } },
+      { lastName: { contains: q, mode: 'insensitive' } },
+    ]
+  }
+
+  const pupils = await prisma.pupil.findMany({
+    where: pupilWhere,
+    include: { class: { select: { id: true, name: true } } },
+    orderBy: { firstName: 'asc' },
+  })
+
+  const pupilIds = pupils.map((p) => p.id)
+
+  // Attendance for the date
+  const attendanceRecords = pupilIds.length > 0
+    ? await prisma.attendance.findMany({
+        where: {
+          date: dateObj,
+          pupilId: { in: pupilIds },
+          sessionId: session.id,
+        },
+        select: { pupilId: true, status: true },
+      })
+    : []
+  const attendanceMap = new Map<string, string>()
+  for (const r of attendanceRecords) {
+    if (r.pupilId) attendanceMap.set(r.pupilId, r.status)
+  }
+
+  // Fee assignments for DAILY and PA
+  const [dailyAssignments, paAssignments] = await Promise.all([
+    dailyFee
+      ? prisma.feeAssignment.findMany({
+          where: { feeId: dailyFee.id, pupilId: { in: pupilIds }, status: { in: ['ACTIVE', 'EXEMPT'] } },
+          select: { pupilId: true, status: true },
+        })
+      : [],
+    paFee
+      ? prisma.feeAssignment.findMany({
+          where: { feeId: paFee.id, pupilId: { in: pupilIds }, status: { in: ['ACTIVE', 'EXEMPT'] } },
+          select: { pupilId: true, status: true },
+        })
+      : [],
+  ])
+
+  const dailyAssignmentMap = new Map<string, 'ACTIVE' | 'EXEMPT'>()
+  for (const a of dailyAssignments) dailyAssignmentMap.set(a.pupilId, a.status as 'ACTIVE' | 'EXEMPT')
+
+  const paAssignmentMap = new Map<string, 'ACTIVE' | 'EXEMPT'>()
+  for (const a of paAssignments) paAssignmentMap.set(a.pupilId, a.status as 'ACTIVE' | 'EXEMPT')
+
+  // Payments for this date — look at allocations for charges belonging to DAILY and PA fees
+  const [dailyDayPayments, paDayPayments] = await Promise.all([
+    dailyFee
+      ? prisma.paymentAllocation.findMany({
+          where: {
+            payment: { status: 'ACTIVE', paymentDate: dateObj },
+            charge: {
+              assignment: {
+                feeId: dailyFee.id,
+                pupilId: { in: pupilIds },
+              },
+            },
+          },
+          select: {
+            amount: true,
+            charge: { select: { assignment: { select: { pupilId: true } } } },
+          },
+        })
+      : [],
+    paFee
+      ? prisma.paymentAllocation.findMany({
+          where: {
+            payment: { status: 'ACTIVE', paymentDate: dateObj },
+            charge: {
+              assignment: {
+                feeId: paFee.id,
+                pupilId: { in: pupilIds },
+              },
+            },
+          },
+          select: {
+            amount: true,
+            charge: { select: { assignment: { select: { pupilId: true } } } },
+          },
+        })
+      : [],
+  ])
+
+  const dailyPaidByPupil = new Map<string, Prisma.Decimal>()
+  for (const alloc of dailyDayPayments) {
+    const pid = alloc.charge.assignment.pupilId
+    dailyPaidByPupil.set(pid, (dailyPaidByPupil.get(pid) ?? new Prisma.Decimal(0)).plus(alloc.amount))
+  }
+
+  const paPaidByPupil = new Map<string, Prisma.Decimal>()
+  for (const alloc of paDayPayments) {
+    const pid = alloc.charge.assignment.pupilId
+    paPaidByPupil.set(pid, (paPaidByPupil.get(pid) ?? new Prisma.Decimal(0)).plus(alloc.amount))
+  }
+
+  // Build per-pupil rows
+  const dailyFeeAmt = dailyFee?.amount ?? new Prisma.Decimal(0)
+  const paFeeAmt = paFee?.amount ?? new Prisma.Decimal(0)
+
+  const items: DailyPupilFinanceRow[] = pupils.map((pupil) => {
+    const attendanceStatus = attendanceMap.get(pupil.id) ?? null
+    const isAbsent = !attendanceStatus || attendanceStatus !== 'PRESENT'
+
+    const dailyAssignmentStatus = dailyAssignmentMap.get(pupil.id) ?? null
+    const paAssignmentStatus = paAssignmentMap.get(pupil.id) ?? null
+
+    const dailyExempt = dailyAssignmentStatus === 'EXEMPT'
+    const paExempt = paAssignmentStatus === 'EXEMPT'
+
+    const dailyPaid = isAbsent
+      ? new Prisma.Decimal(0)
+      : dailyExempt
+        ? new Prisma.Decimal(0)
+        : (dailyPaidByPupil.get(pupil.id) ?? new Prisma.Decimal(0))
+
+    const paPaid = isAbsent
+      ? new Prisma.Decimal(0)
+      : paExempt
+        ? new Prisma.Decimal(0)
+        : (paPaidByPupil.get(pupil.id) ?? new Prisma.Decimal(0))
+
+    // Outstanding = (dailyFee - dailyPaid) + (paFee - paPaid), but only for non-absent, non-exempt
+    const dailyOutstanding = isAbsent || dailyExempt || dailyPaid.gte(dailyFeeAmt)
+      ? new Prisma.Decimal(0)
+      : dailyFeeAmt.minus(dailyPaid)
+
+    const paOutstanding = isAbsent || paExempt || paPaid.gte(paFeeAmt)
+      ? new Prisma.Decimal(0)
+      : paFeeAmt.minus(paPaid)
+
+    const outstanding = dailyOutstanding.plus(paOutstanding)
+
+    // Determine finance status
+    let financeStatus: DailyFinanceStatus
+    if (isAbsent) {
+      financeStatus = 'ABSENT'
+    } else if (dailyExempt && paExempt) {
+      financeStatus = 'EXEMPT'
+    } else if (dailyExempt || paExempt) {
+      // One exempt - status should reflect exemption
+      financeStatus = 'EXEMPT'
+    } else if (dailyPaid.gte(dailyFeeAmt) && paPaid.gte(paFeeAmt)) {
+      financeStatus = 'PAID'
+    } else if (dailyPaid.gte(dailyFeeAmt) || paPaid.gte(paFeeAmt)) {
+      financeStatus = outstanding.gt(0) ? 'PARTIALLY_PAID' : 'PAID'
+    } else if (outstanding.gt(0)) {
+      financeStatus = 'NOT_PAID'
+    } else {
+      financeStatus = 'PAID'
+    }
+
+    return {
+      id: pupil.id,
+      pupilId: pupil.pupilId,
+      fullName: `${pupil.firstName} ${pupil.lastName}`.trim(),
+      className: pupil.class.name,
+      classId: pupil.classId,
+      status: pupil.status,
+      dailyPaid: money(dailyPaid),
+      paPaid: money(paPaid),
+      outstanding: money(outstanding),
+      financeStatus,
+      attendanceStatus,
+      dailyAssignmentStatus,
+      paAssignmentStatus,
+    }
+  })
+
+  return {
+    items,
+    date,
+    sessionName: session.name,
+    termName: term.name,
+    dailyFeeAmount: money(dailyFeeAmt),
+    paFeeAmount: money(paFeeAmt),
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Reconciliation — per-pupil payment status for a given date and fee type.
+// Returns class-by-class breakdown of PAID / NOT_PAID / ABSENT / EXEMPT.
+// ---------------------------------------------------------------------------
+
+export interface ReconciliationOptions {
+  date: string
+  feeType: 'DAILY' | 'PA'
+}
+
+export async function getReconciliation(options: ReconciliationOptions): Promise<ReconciliationView> {
+  const { date, feeType } = options
+
+  const dateObj = new Date(date + 'T00:00:00.000Z')
+  const dayOfWeek = dateObj.getUTCDay()
+  if (dayOfWeek === 0 || dayOfWeek === 6) {
+    throw new AppError('Cannot reconcile for a weekend date. Select a school day.', HttpStatus.BadRequest)
+  }
+
+  const session = await prisma.academicSession.findFirst({
+    where: { status: 'ACTIVE' },
+    select: { id: true, name: true },
+    orderBy: { createdAt: 'desc' },
+  })
+  if (!session) {
+    throw new AppError('No active academic session found.', HttpStatus.BadRequest)
+  }
+
+  const term = await prisma.academicTerm.findFirst({
+    where: { sessionId: session.id, status: 'ACTIVE' },
+    select: { id: true, name: true },
+    orderBy: { termNumber: 'desc' },
+  })
+  if (!term) {
+    throw new AppError('No active academic term found.', HttpStatus.BadRequest)
+  }
+
+  const fee = await prisma.financeFee.findFirst({
+    where: { sessionId: session.id, termId: term.id, feeType, status: 'ACTIVE' },
+    select: { id: true, amount: true, name: true },
+  })
+  if (!fee) {
+    throw new AppError(`No active ${feeType === 'DAILY' ? 'Daily Fee' : 'PA Fee'} structure found for the current term.`, HttpStatus.BadRequest)
+  }
+
+  const classes = await prisma.schoolClass.findMany({
+    where: { status: 'ACTIVE' },
+    select: { id: true, name: true },
+    orderBy: { sortOrder: 'asc' },
+  })
+  const classIds = classes.map((c) => c.id)
+
+  // All active pupils by class
+  const allPupils = await prisma.pupil.findMany({
+    where: { classId: { in: classIds }, status: 'ACTIVE' },
+    select: { id: true, pupilId: true, firstName: true, lastName: true, classId: true },
+    orderBy: { firstName: 'asc' },
+  })
+  const pupilByClass = new Map<string, typeof allPupils>()
+  for (const cls of classes) pupilByClass.set(cls.id, [])
+  for (const p of allPupils) {
+    const arr = pupilByClass.get(p.classId)
+    if (arr) arr.push(p)
+  }
+
+  // Attendance for the date — pupils with PRESENT status
+  const attendanceRecords = await prisma.attendance.findMany({
+    where: {
+      date: dateObj,
+      pupilId: { not: null },
+      sessionId: session.id,
+      classId: { in: classIds },
+    },
+    select: { pupilId: true, status: true },
+  })
+  const attendanceMap = new Map<string, string>()
+  for (const r of attendanceRecords) {
+    if (r.pupilId) attendanceMap.set(r.pupilId, r.status)
+  }
+
+  // Fee assignments for this fee type
+  const assignments = await prisma.feeAssignment.findMany({
+    where: { feeId: fee.id, status: { in: ['ACTIVE', 'EXEMPT'] } },
+    select: { pupilId: true, status: true },
+  })
+  const assignmentMap = new Map<string, 'ACTIVE' | 'EXEMPT'>()
+  for (const a of assignments) {
+    assignmentMap.set(a.pupilId, a.status as 'ACTIVE' | 'EXEMPT')
+  }
+
+  // Payments for this date — look at allocations for charges belonging to this fee
+  const dayPayments = await prisma.paymentAllocation.findMany({
+    where: {
+      payment: {
+        status: 'ACTIVE',
+        paymentDate: dateObj,
+      },
+      charge: {
+        assignment: {
+          feeId: fee.id,
+          pupil: { classId: { in: classIds }, status: 'ACTIVE' },
+        },
+      },
+    },
+    select: {
+      amount: true,
+      charge: {
+        select: {
+          assignment: {
+            select: { pupilId: true },
+          },
+        },
+      },
+    },
+  })
+  const paidAmountByPupil = new Map<string, Prisma.Decimal>()
+  for (const alloc of dayPayments) {
+    const pupilId = alloc.charge.assignment.pupilId
+    const current = paidAmountByPupil.get(pupilId) ?? new Prisma.Decimal(0)
+    paidAmountByPupil.set(pupilId, current.plus(alloc.amount))
+  }
+
+  // Build reconciliation per class
+  const classSummaries: ReconciliationClassSummary[] = []
+  let totalPupils = 0
+  let totalPaid = 0
+  let totalNotPaid = 0
+  let totalAbsent = 0
+  let totalExempt = 0
+  let totalExpected = new Prisma.Decimal(0)
+  let totalCollected = new Prisma.Decimal(0)
+
+  for (const cls of classes) {
+    const pupils = pupilByClass.get(cls.id) ?? []
+    const pupilRows: ReconciliationPupilRow[] = []
+    let clsPaid = 0
+    let clsNotPaid = 0
+    let clsAbsent = 0
+    let clsExempt = 0
+    let clsExpected = new Prisma.Decimal(0)
+    let clsCollected = new Prisma.Decimal(0)
+
+    for (const pupil of pupils) {
+      const attendanceStatus = attendanceMap.get(pupil.id)
+      const assignmentStatus = assignmentMap.get(pupil.id) ?? null
+      const paidAmount = paidAmountByPupil.get(pupil.id)
+      const paid = paidAmount ? paidAmount.toFixed(2) : '0.00'
+      const feeAmt = money(fee.amount)
+      const isAbsent = !attendanceStatus || attendanceStatus !== 'PRESENT'
+
+      let status: ReconciliationStatus
+
+      if (assignmentStatus === 'EXEMPT') {
+        // Exempt from this fee
+        status = 'EXEMPT'
+        clsExempt += 1
+      } else if (assignmentStatus === 'ACTIVE' && paidAmountByPupil.has(pupil.id)) {
+        // Has assignment and payment exists for this date
+        status = 'PAID'
+        clsPaid += 1
+        clsCollected = clsCollected.plus(paidAmount ?? 0)
+      } else if (assignmentStatus === 'ACTIVE') {
+        // Has assignment but no payment
+        status = 'NOT_PAID'
+        clsNotPaid += 1
+        clsExpected = clsExpected.plus(fee.amount)
+      } else {
+        // No assignment at all — treat as NOT PAID (shouldn't normally happen)
+        status = 'NOT_PAID'
+        clsNotPaid += 1
+        clsExpected = clsExpected.plus(fee.amount)
+      }
+
+      if (isAbsent) {
+        clsAbsent += 1
+      }
+
+      pupilRows.push({
+        pupilId: pupil.id,
+        pupilCode: pupil.pupilId,
+        fullName: `${pupil.firstName} ${pupil.lastName}`,
+        className: cls.name,
+        status,
+        feeAmount: feeAmt,
+        paidAmount: paid,
+        assignmentStatus,
+      })
+    }
+
+    classSummaries.push({
+      classId: cls.id,
+      className: cls.name,
+      totalPupils: pupils.length,
+      paidCount: clsPaid,
+      notPaidCount: clsNotPaid,
+      absentCount: clsAbsent,
+      exemptCount: clsExempt,
+      expectedRevenue: money(clsExpected),
+      collectedRevenue: money(clsCollected),
+      pupils: pupilRows,
+    })
+
+    totalPupils += pupils.length
+    totalPaid += clsPaid
+    totalNotPaid += clsNotPaid
+    totalAbsent += clsAbsent
+    totalExempt += clsExempt
+    totalExpected = totalExpected.plus(clsExpected)
+    totalCollected = totalCollected.plus(clsCollected)
+  }
+
+  return {
+    date,
+    feeType,
+    sessionName: session.name,
+    termName: term.name,
+    feeAmount: money(fee.amount),
+    classes: classSummaries,
+    totals: {
+      totalPupils,
+      paidCount: totalPaid,
+      notPaidCount: totalNotPaid,
+      absentCount: totalAbsent,
+      exemptCount: totalExempt,
+      expectedRevenue: money(totalExpected),
+      collectedRevenue: money(totalCollected),
+    },
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Combined Daily Reconciliation — per-pupil payment status for DAILY and PA fees together.
+// ---------------------------------------------------------------------------
+
+export interface CombinedReconciliationOptions {
+  date: string
+  classId?: string
+  q?: string
+}
+
+export async function getCombinedReconciliation(options: CombinedReconciliationOptions): Promise<CombinedReconciliationView> {
+  const { date, classId, q } = options
+
+  const dateObj = new Date(date + 'T00:00:00.000Z')
+  const dayOfWeek = dateObj.getUTCDay()
+  if (dayOfWeek === 0 || dayOfWeek === 6) {
+    throw new AppError('Cannot reconcile for a weekend date. Select a school day.', HttpStatus.BadRequest)
+  }
+
+  const session = await prisma.academicSession.findFirst({
+    where: { status: 'ACTIVE' },
+    select: { id: true, name: true },
+    orderBy: { createdAt: 'desc' },
+  })
+  if (!session) {
+    throw new AppError('No active academic session found.', HttpStatus.BadRequest)
+  }
+
+  const term = await prisma.academicTerm.findFirst({
+    where: { sessionId: session.id, status: 'ACTIVE' },
+    select: { id: true, name: true },
+    orderBy: { termNumber: 'desc' },
+  })
+  if (!term) {
+    throw new AppError('No active academic term found.', HttpStatus.BadRequest)
+  }
+
+  // Find DAILY and PA fee structures for this session+term
+  const [dailyFee, paFee] = await Promise.all([
+    prisma.financeFee.findFirst({
+      where: { sessionId: session.id, termId: term.id, feeType: 'DAILY', status: 'ACTIVE' },
+      select: { id: true, amount: true },
+    }),
+    prisma.financeFee.findFirst({
+      where: { sessionId: session.id, termId: term.id, feeType: 'PA', status: 'ACTIVE' },
+      select: { id: true, amount: true },
+    }),
+  ])
+
+  if (!dailyFee) {
+    throw new AppError('No active Daily Fee structure found for the current term.', HttpStatus.BadRequest)
+  }
+  if (!paFee) {
+    throw new AppError('No active PA Fee structure found for the current term.', HttpStatus.BadRequest)
+  }
+
+  // Fetch active pupils (optionally filtered by class and search)
+  const pupilWhere: Prisma.PupilWhereInput = { status: 'ACTIVE' }
+  if (classId) {
+    pupilWhere.classId = classId
+  }
+  if (q) {
+    pupilWhere.OR = [
+      { pupilId: { contains: q, mode: 'insensitive' } },
+      { firstName: { contains: q, mode: 'insensitive' } },
+      { lastName: { contains: q, mode: 'insensitive' } },
+    ]
+  }
+
+  const pupils = await prisma.pupil.findMany({
+    where: pupilWhere,
+    include: { class: { select: { id: true, name: true } } },
+    orderBy: { firstName: 'asc' },
+  })
+
+  const pupilIds = pupils.map((p) => p.id)
+
+  // Attendance for the date
+  const attendanceRecords = pupilIds.length > 0
+    ? await prisma.attendance.findMany({
+        where: {
+          date: dateObj,
+          pupilId: { in: pupilIds },
+          sessionId: session.id,
+        },
+        select: { pupilId: true, status: true },
+      })
+    : []
+  const attendanceMap = new Map<string, string>()
+  for (const r of attendanceRecords) {
+    if (r.pupilId) attendanceMap.set(r.pupilId, r.status)
+  }
+
+  // Fee assignments for DAILY and PA
+  const [dailyAssignments, paAssignments] = await Promise.all([
+    dailyFee
+      ? prisma.feeAssignment.findMany({
+          where: { feeId: dailyFee.id, pupilId: { in: pupilIds }, status: { in: ['ACTIVE', 'EXEMPT'] } },
+          select: { pupilId: true, status: true },
+        })
+      : [],
+    paFee
+      ? prisma.feeAssignment.findMany({
+          where: { feeId: paFee.id, pupilId: { in: pupilIds }, status: { in: ['ACTIVE', 'EXEMPT'] } },
+          select: { pupilId: true, status: true },
+        })
+      : [],
+  ])
+
+  const dailyAssignmentMap = new Map<string, 'ACTIVE' | 'EXEMPT'>()
+  for (const a of dailyAssignments) dailyAssignmentMap.set(a.pupilId, a.status as 'ACTIVE' | 'EXEMPT')
+
+  const paAssignmentMap = new Map<string, 'ACTIVE' | 'EXEMPT'>()
+  for (const a of paAssignments) paAssignmentMap.set(a.pupilId, a.status as 'ACTIVE' | 'EXEMPT')
+
+  // Payments for this date — look at allocations for charges belonging to DAILY and PA fees
+  const [dailyDayPayments, paDayPayments] = await Promise.all([
+    dailyFee
+      ? prisma.paymentAllocation.findMany({
+          where: {
+            payment: { status: 'ACTIVE', paymentDate: dateObj },
+            charge: {
+              assignment: {
+                feeId: dailyFee.id,
+                pupilId: { in: pupilIds },
+              },
+            },
+          },
+          select: {
+            amount: true,
+            charge: { select: { assignment: { select: { pupilId: true } } } },
+          },
+        })
+      : [],
+    paFee
+      ? prisma.paymentAllocation.findMany({
+          where: {
+            payment: { status: 'ACTIVE', paymentDate: dateObj },
+            charge: {
+              assignment: {
+                feeId: paFee.id,
+                pupilId: { in: pupilIds },
+              },
+            },
+          },
+          select: {
+            amount: true,
+            charge: { select: { assignment: { select: { pupilId: true } } } },
+          },
+        })
+      : [],
+  ])
+
+  const dailyPaidByPupil = new Map<string, Prisma.Decimal>()
+  for (const alloc of dailyDayPayments) {
+    const pid = alloc.charge.assignment.pupilId
+    dailyPaidByPupil.set(pid, (dailyPaidByPupil.get(pid) ?? new Prisma.Decimal(0)).plus(alloc.amount))
+  }
+
+  const paPaidByPupil = new Map<string, Prisma.Decimal>()
+  for (const alloc of paDayPayments) {
+    const pid = alloc.charge.assignment.pupilId
+    paPaidByPupil.set(pid, (paPaidByPupil.get(pid) ?? new Prisma.Decimal(0)).plus(alloc.amount))
+  }
+
+  // Group pupils by class
+  const classMap = new Map<string, { id: string; name: string; pupils: typeof pupils }>()
+  for (const pupil of pupils) {
+    const classId = pupil.classId
+    if (!classMap.has(classId)) {
+      classMap.set(classId, { id: classId, name: pupil.class.name, pupils: [] })
+    }
+    classMap.get(classId)!.pupils.push(pupil)
+  }
+
+  // Check if this day is closed
+  const closeRecord = await prisma.dailyReconciliationClose.findUnique({
+    where: { date: dateObj },
+    include: { closedBy: { select: { fullName: true } } },
+  })
+  const isClosed = !!closeRecord
+  const closedAt = closeRecord?.closedAt?.toISOString() ?? null
+  const closedByName = closeRecord?.closedBy?.fullName ?? null
+
+  // Build per-pupil rows
+  const dailyFeeAmt = dailyFee.amount
+  const paFeeAmt = paFee.amount
+
+  const classSummaries: CombinedReconciliationClassSummary[] = []
+  let totalPupils = 0
+  let presentCount = 0
+  let absentCount = 0
+  let dailyPaidCount = 0
+  let dailyNotPaidCount = 0
+  let paPaidCount = 0
+  let paNotPaidCount = 0
+  let fullyPaidCount = 0
+  let partiallyPaidCount = 0
+  let notPaidCount = 0
+  let exemptCount = 0
+  let totalOutstanding = new Prisma.Decimal(0)
+  let totalDailyCollected = new Prisma.Decimal(0)
+  let totalPaCollected = new Prisma.Decimal(0)
+
+  for (const [clsId, clsData] of classMap.entries()) {
+    const pupilRows: CombinedReconciliationPupilRow[] = []
+    let clsPresent = 0
+    let clsAbsent = 0
+
+    for (const pupil of clsData.pupils) {
+      const attendanceStatus = attendanceMap.get(pupil.id) ?? null
+      const isAbsent = !attendanceStatus || attendanceStatus !== 'PRESENT'
+
+      const dailyAssignmentStatus = dailyAssignmentMap.get(pupil.id) ?? null
+      const paAssignmentStatus = paAssignmentMap.get(pupil.id) ?? null
+
+      const dailyExempt = dailyAssignmentStatus === 'EXEMPT'
+      const paExempt = paAssignmentStatus === 'EXEMPT'
+
+      // Payment amounts are independent of attendance
+      const dailyPaidAmt = dailyExempt
+        ? new Prisma.Decimal(0)
+        : (dailyPaidByPupil.get(pupil.id) ?? new Prisma.Decimal(0))
+
+      const paPaidAmt = paExempt
+        ? new Prisma.Decimal(0)
+        : (paPaidByPupil.get(pupil.id) ?? new Prisma.Decimal(0))
+
+      // Daily Fee status: attendance and payment are independent
+      let dailyStatus: ReconciliationStatus
+      if (dailyExempt) {
+        dailyStatus = 'EXEMPT'
+      } else if (dailyPaidAmt.gte(dailyFeeAmt)) {
+        dailyStatus = 'PAID'
+      } else if (dailyPaidAmt.gt(0)) {
+        dailyStatus = 'PAID' // Partially paid treated as PAID for per-fee status
+      } else {
+        dailyStatus = 'NOT_PAID'
+      }
+
+      // PA Fee status: attendance and payment are independent
+      let paStatus: ReconciliationStatus
+      if (paExempt) {
+        paStatus = 'EXEMPT'
+      } else if (paPaidAmt.gte(paFeeAmt)) {
+        paStatus = 'PAID'
+      } else if (paPaidAmt.gt(0)) {
+        paStatus = 'PAID'
+      } else {
+        paStatus = 'NOT_PAID'
+      }
+
+      // Outstanding calculation — attendance does not zero out outstanding
+      const dailyOutstanding = dailyExempt || dailyPaidAmt.gte(dailyFeeAmt)
+        ? new Prisma.Decimal(0)
+        : dailyFeeAmt.minus(dailyPaidAmt)
+
+      const paOutstanding = paExempt || paPaidAmt.gte(paFeeAmt)
+        ? new Prisma.Decimal(0)
+        : paFeeAmt.minus(paPaidAmt)
+
+      const outstanding = dailyOutstanding.plus(paOutstanding)
+
+      // Overall finance status
+      let overallStatus: DailyFinanceStatus
+      if (isAbsent) {
+        overallStatus = 'ABSENT'
+      } else if (dailyExempt && paExempt) {
+        overallStatus = 'EXEMPT'
+      } else if (dailyExempt || paExempt) {
+        overallStatus = 'EXEMPT'
+      } else if (dailyPaidAmt.gte(dailyFeeAmt) && paPaidAmt.gte(paFeeAmt)) {
+        overallStatus = 'PAID'
+      } else if (dailyPaidAmt.gte(dailyFeeAmt) || paPaidAmt.gte(paFeeAmt)) {
+        overallStatus = outstanding.gt(0) ? 'PARTIALLY_PAID' : 'PAID'
+      } else if (outstanding.gt(0)) {
+        overallStatus = 'NOT_PAID'
+      } else {
+        overallStatus = 'PAID'
+      }
+
+      // Update counters
+      if (isAbsent) {
+        absentCount += 1
+        clsAbsent += 1
+      } else {
+        presentCount += 1
+        clsPresent += 1
+        if (dailyExempt || paExempt) {
+          exemptCount += 1
+        } else {
+          if (dailyStatus === 'PAID') dailyPaidCount += 1
+          else dailyNotPaidCount += 1
+          if (paStatus === 'PAID') paPaidCount += 1
+          else paNotPaidCount += 1
+          if (overallStatus === 'PAID') fullyPaidCount += 1
+          else if (overallStatus === 'PARTIALLY_PAID') partiallyPaidCount += 1
+          else notPaidCount += 1
+        }
+      }
+
+      totalOutstanding = totalOutstanding.plus(outstanding)
+      totalDailyCollected = totalDailyCollected.plus(dailyPaidAmt)
+      totalPaCollected = totalPaCollected.plus(paPaidAmt)
+
+      pupilRows.push({
+        pupilId: pupil.id,
+        pupilCode: pupil.pupilId,
+        fullName: `${pupil.firstName} ${pupil.lastName}`.trim(),
+        className: pupil.class.name,
+        classId: pupil.classId,
+        attendanceStatus,
+        dailyAssignmentStatus,
+        paAssignmentStatus,
+        dailyFeeAmount: money(dailyFeeAmt),
+        dailyPaidAmount: money(dailyPaidAmt),
+        dailyStatus,
+        paFeeAmount: money(paFeeAmt),
+        paPaidAmount: money(paPaidAmt),
+        paStatus,
+        outstanding: money(outstanding),
+        overallStatus,
+      })
+    }
+
+    classSummaries.push({
+      classId: clsId,
+      className: clsData.name,
+      totalPupils: clsData.pupils.length,
+      presentCount: clsPresent,
+      absentCount: clsAbsent,
+      pupils: pupilRows,
+    })
+
+    totalPupils += clsData.pupils.length
+  }
+
+  return {
+    date,
+    sessionId: session.id,
+    sessionName: session.name,
+    termName: term.name,
+    dailyFeeAmount: money(dailyFeeAmt),
+    paFeeAmount: money(paFeeAmt),
+    isClosed,
+    closedAt,
+    closedByName,
+    classes: classSummaries,
+    totals: {
+      totalPupils,
+      presentCount,
+      absentCount,
+      dailyPaidCount,
+      dailyNotPaidCount,
+      paPaidCount,
+      paNotPaidCount,
+      fullyPaidCount,
+      partiallyPaidCount,
+      notPaidCount,
+      exemptCount,
+      totalOutstanding: money(totalOutstanding),
+      totalDailyCollected: money(totalDailyCollected),
+      totalPaCollected: money(totalPaCollected),
+    },
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Daily Reconciliation Close / Sign-off — locks a specific school day.
+// ---------------------------------------------------------------------------
+
+export async function closeDailyReconciliation(
+  actor: AuthenticatedUser,
+  date: string,
+  ip?: string,
+): Promise<DailyReconciliationCloseView> {
+  const dateObj = new Date(date + 'T00:00:00.000Z')
+  const dayOfWeek = dateObj.getUTCDay()
+  if (dayOfWeek === 0 || dayOfWeek === 6) {
+    throw new AppError('Cannot close reconciliation for a weekend date.', HttpStatus.BadRequest)
+  }
+
+  const session = await prisma.academicSession.findFirst({
+    where: { status: 'ACTIVE' },
+    select: { id: true, name: true },
+  })
+  if (!session) {
+    throw new AppError('No active academic session found.', HttpStatus.BadRequest)
+  }
+
+  const term = await prisma.academicTerm.findFirst({
+    where: { sessionId: session.id, status: 'ACTIVE' },
+    select: { id: true, name: true },
+  })
+  if (!term) {
+    throw new AppError('No active academic term found.', HttpStatus.BadRequest)
+  }
+
+  // Check if already closed
+  const existing = await prisma.dailyReconciliationClose.findUnique({
+    where: { date: dateObj },
+  })
+  if (existing) {
+    throw new AppError(
+      'This day\'s financial reconciliation has already been closed and signed.',
+      HttpStatus.Conflict,
+    )
+  }
+
+  // Build summary metadata
+  const summary = await buildDailyReconciliationSummary(dateObj, session.id, term.id)
+
+  const closeRecord = await prisma.dailyReconciliationClose.create({
+    data: {
+      date: dateObj,
+      sessionId: session.id,
+      termId: term.id,
+      closedById: actor.id,
+      metadata: summary as unknown as Prisma.InputJsonValue,
+    },
+    include: { closedBy: { select: { fullName: true } } },
+  })
+
+  await recordAudit({
+    actorUserId: actor.id,
+    action: 'finance.reconciliation.close',
+    resourceType: 'daily_reconciliation_close',
+    resourceId: closeRecord.id,
+    metadata: {
+      date,
+      sessionName: session.name,
+      termName: term.name,
+      totalPupils: summary.totalPupils,
+      presentCount: summary.presentCount,
+      absentCount: summary.absentCount,
+      totalOutstanding: summary.totalOutstanding,
+    },
+    ip: ip ?? null,
+  })
+
+  return {
+    id: closeRecord.id,
+    date: date,
+    sessionId: session.id,
+    termId: term.id,
+    closedById: actor.id,
+    closedByName: closeRecord.closedBy.fullName,
+    closedAt: closeRecord.closedAt.toISOString(),
+  }
+}
+
+export async function getDailyReconciliationCloseStatus(
+  date: string,
+): Promise<DailyReconciliationCloseView | null> {
+  const dateObj = new Date(date + 'T00:00:00.000Z')
+  const closeRecord = await prisma.dailyReconciliationClose.findUnique({
+    where: { date: dateObj },
+    include: { closedBy: { select: { id: true, fullName: true } } },
+  })
+  if (!closeRecord) return null
+  return {
+    id: closeRecord.id,
+    date: date,
+    sessionId: closeRecord.sessionId,
+    termId: closeRecord.termId,
+    closedById: closeRecord.closedBy.id,
+    closedByName: closeRecord.closedBy.fullName,
+    closedAt: closeRecord.closedAt.toISOString(),
+  }
+}
+
+/**
+ * Check if a given date's reconciliation is locked.
+ * Throws 409 Conflict if locked.
+ */
+async function assertReconciliationNotLocked(date: Date): Promise<void> {
+  const existing = await prisma.dailyReconciliationClose.findUnique({
+    where: { date },
+  })
+  if (existing) {
+    throw new AppError(
+      'This day\'s financial reconciliation has already been closed and signed and cannot be changed.',
+      HttpStatus.Conflict,
+    )
+  }
+}
+
+async function buildDailyReconciliationSummary(
+  dateObj: Date,
+  sessionId: string,
+  termId: string,
+): Promise<{ totalPupils: number; presentCount: number; absentCount: number; totalOutstanding: string; totalDailyCollected: string; totalPaCollected: string }> {
+  const dailyFee = await prisma.financeFee.findFirst({
+    where: { sessionId, termId, feeType: 'DAILY', status: 'ACTIVE' },
+    select: { id: true, amount: true },
+  })
+  const paFee = await prisma.financeFee.findFirst({
+    where: { sessionId, termId, feeType: 'PA', status: 'ACTIVE' },
+    select: { id: true, amount: true },
+  })
+
+  const pupils = await prisma.pupil.findMany({
+    where: { status: 'ACTIVE' },
+    select: { id: true },
+  })
+  const pupilIds = pupils.map((p) => p.id)
+
+  const attendanceRecords = pupilIds.length > 0
+    ? await prisma.attendance.findMany({
+        where: { date: dateObj, pupilId: { in: pupilIds }, sessionId },
+        select: { pupilId: true, status: true },
+      })
+    : []
+  const attendanceMap = new Map<string, string>()
+  for (const r of attendanceRecords) {
+    if (r.pupilId) attendanceMap.set(r.pupilId, r.status)
+  }
+
+  let presentCount = 0
+  let absentCount = 0
+  for (const pid of pupilIds) {
+    const st = attendanceMap.get(pid)
+    if (st === 'PRESENT') presentCount += 1
+    else absentCount += 1
+  }
+
+  let totalOutstanding = '0.00'
+  let totalDailyCollected = '0.00'
+  let totalPaCollected = '0.00'
+
+  if (dailyFee || paFee) {
+    const [dailyAllocs, paAllocs] = await Promise.all([
+      dailyFee
+        ? prisma.paymentAllocation.findMany({
+            where: {
+              payment: { status: 'ACTIVE', paymentDate: dateObj },
+              charge: { assignment: { feeId: dailyFee.id, pupilId: { in: pupilIds } } },
+            },
+            select: { amount: true },
+          })
+        : [],
+      paFee
+        ? prisma.paymentAllocation.findMany({
+            where: {
+              payment: { status: 'ACTIVE', paymentDate: dateObj },
+              charge: { assignment: { feeId: paFee.id, pupilId: { in: pupilIds } } },
+            },
+            select: { amount: true },
+          })
+        : [],
+    ])
+
+    const dailyCollected = dailyAllocs.reduce((s, a) => s.plus(a.amount), new Prisma.Decimal(0))
+    const paCollected = paAllocs.reduce((s, a) => s.plus(a.amount), new Prisma.Decimal(0))
+
+    const expectedDaily = dailyFee ? new Prisma.Decimal(dailyFee.amount).times(presentCount) : new Prisma.Decimal(0)
+    const expectedPa = paFee ? new Prisma.Decimal(paFee.amount).times(presentCount) : new Prisma.Decimal(0)
+
+    const dailyOutstanding = expectedDaily.minus(dailyCollected)
+    const paOutstanding = expectedPa.minus(paCollected)
+
+    totalOutstanding = dailyOutstanding.plus(paOutstanding).toFixed(2)
+    totalDailyCollected = dailyCollected.toFixed(2)
+    totalPaCollected = paCollected.toFixed(2)
+  }
+
+  return {
+    totalPupils: pupils.length,
+    presentCount,
+    absentCount,
+    totalOutstanding,
+    totalDailyCollected,
+    totalPaCollected,
   }
 }

@@ -305,3 +305,158 @@ export interface AssignFeesResult {
 export interface ChargeGenerateResult {
   created: number
 }
+
+// ---------------------------------------------------------------------------
+// Daily Pupil Finance — per-pupil collection state for a given school day.
+// ---------------------------------------------------------------------------
+
+export type DailyFinanceStatus = 'PAID' | 'PARTIALLY_PAID' | 'NOT_PAID' | 'ABSENT' | 'EXEMPT'
+
+export interface DailyPupilFinanceRow {
+  id: string
+  pupilId: string
+  fullName: string
+  className: string
+  classId: string
+  status: AccountStatusValue
+  dailyPaid: string
+  paPaid: string
+  outstanding: string
+  financeStatus: DailyFinanceStatus
+  attendanceStatus: string | null
+  dailyAssignmentStatus: FeeAssignmentStatusValue | null
+  paAssignmentStatus: FeeAssignmentStatusValue | null
+}
+
+export interface DailyPupilFinanceListResult {
+  items: DailyPupilFinanceRow[]
+  date: string
+  sessionName: string
+  termName: string
+  dailyFeeAmount: string
+  paFeeAmount: string
+}
+
+// ---------------------------------------------------------------------------
+// Reconciliation — per-pupil payment status for a given date and fee type.
+// Attendance and payment status are completely independent.
+// ---------------------------------------------------------------------------
+
+export type ReconciliationStatus = 'PAID' | 'NOT_PAID' | 'EXEMPT'
+
+export interface ReconciliationPupilRow {
+  pupilId: string
+  pupilCode: string
+  fullName: string
+  className: string
+  status: ReconciliationStatus
+  feeAmount: string
+  paidAmount: string
+  assignmentStatus: FeeAssignmentStatusValue | null
+}
+
+export interface ReconciliationClassSummary {
+  classId: string
+  className: string
+  totalPupils: number
+  paidCount: number
+  notPaidCount: number
+  absentCount: number
+  exemptCount: number
+  expectedRevenue: string
+  collectedRevenue: string
+  pupils: ReconciliationPupilRow[]
+}
+
+export interface ReconciliationView {
+  date: string
+  feeType: FeeTypeValue
+  sessionName: string
+  termName: string
+  feeAmount: string
+  classes: ReconciliationClassSummary[]
+  totals: {
+    totalPupils: number
+    paidCount: number
+    notPaidCount: number
+    absentCount: number
+    exemptCount: number
+    expectedRevenue: string
+    collectedRevenue: string
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Combined Daily Reconciliation — per-pupil payment status for DAILY and PA fees together.
+// ---------------------------------------------------------------------------
+
+export interface CombinedReconciliationPupilRow {
+  pupilId: string
+  pupilCode: string
+  fullName: string
+  className: string
+  classId: string
+  attendanceStatus: string | null
+  dailyAssignmentStatus: FeeAssignmentStatusValue | null
+  paAssignmentStatus: FeeAssignmentStatusValue | null
+  dailyFeeAmount: string
+  dailyPaidAmount: string
+  dailyStatus: ReconciliationStatus
+  paFeeAmount: string
+  paPaidAmount: string
+  paStatus: ReconciliationStatus
+  outstanding: string
+  overallStatus: DailyFinanceStatus
+}
+
+export interface CombinedReconciliationClassSummary {
+  classId: string
+  className: string
+  totalPupils: number
+  presentCount: number
+  absentCount: number
+  pupils: CombinedReconciliationPupilRow[]
+}
+
+export interface CombinedReconciliationView {
+  date: string
+  sessionId: string
+  sessionName: string
+  termName: string
+  dailyFeeAmount: string
+  paFeeAmount: string
+  isClosed: boolean
+  closedAt: string | null
+  closedByName: string | null
+  classes: CombinedReconciliationClassSummary[]
+  totals: {
+    totalPupils: number
+    presentCount: number
+    absentCount: number
+    dailyPaidCount: number
+    dailyNotPaidCount: number
+    paPaidCount: number
+    paNotPaidCount: number
+    fullyPaidCount: number
+    partiallyPaidCount: number
+    notPaidCount: number
+    exemptCount: number
+    totalOutstanding: string
+    totalDailyCollected: string
+    totalPaCollected: string
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Daily Reconciliation Close — records that a day's reconciliation was signed off.
+// ---------------------------------------------------------------------------
+
+export interface DailyReconciliationCloseView {
+  id: string
+  date: string
+  sessionId: string
+  termId: string
+  closedById: string
+  closedByName: string
+  closedAt: string
+}

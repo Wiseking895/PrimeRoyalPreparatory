@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   BookOpenCheck,
   CircleUserRound,
+  ClipboardCheck,
   ClipboardList,
   Eye,
   LayoutDashboard,
@@ -55,6 +56,7 @@ const ownerNavGroups: NavGroup[] = [
     label: 'Finance',
     items: [
       { label: 'Finance Overview', to: '/owner/finance/overview', icon: Wallet, permission: 'finance.view' },
+      { label: 'Reconciliation', to: '/owner/finance/reconciliation', icon: ClipboardCheck, permission: 'finance.view' },
     ],
   },
   {
@@ -105,6 +107,7 @@ const headteacherNavGroups: NavGroup[] = [
     label: 'Finance',
     items: [
       { label: 'Finance', to: '/headteacher/finance', icon: Wallet, permission: 'finance.view' },
+      { label: 'Reconciliation', to: '/headteacher/finance/reconciliation', icon: ClipboardCheck, permission: 'finance.view' },
     ],
   },
   {
@@ -139,6 +142,7 @@ const accountantNavGroups: NavGroup[] = [
     items: [
       { label: 'Fee Structures', to: '/accountant/fees', icon: Receipt, permission: 'finance.view' },
       { label: 'Payments', to: '/accountant/payments', icon: Wallet, permission: 'finance.view' },
+      { label: 'Reconciliation', to: '/accountant/reconciliation', icon: ClipboardCheck, permission: 'finance.view' },
       { label: 'Pupil Finance', to: '/accountant/pupils', icon: Users, permission: 'finance.view' },
       { label: 'Summary', to: '/accountant/summary', icon: ScrollText, permission: 'finance.view' },
     ],

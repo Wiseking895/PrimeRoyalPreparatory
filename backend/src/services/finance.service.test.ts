@@ -11,8 +11,10 @@ import {
   deactivateAssignment,
   generateChargesForFee,
   generateChargesForSession,
+  getDailyPupilFinance,
   getFinanceSummary,
   getPupilFinance,
+  getReconciliation,
   getSession,
   getTerm,
   listFees,
@@ -48,6 +50,7 @@ const prismaMock = vi.hoisted(() => ({
   financeFee: {
     findMany: vi.fn(),
     findUnique: vi.fn(),
+    findFirst: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
   },
@@ -76,6 +79,7 @@ const prismaMock = vi.hoisted(() => ({
     update: vi.fn(),
   },
   paymentAllocation: {
+    findMany: vi.fn(),
     deleteMany: vi.fn(),
   },
   pupil: {
@@ -83,10 +87,20 @@ const prismaMock = vi.hoisted(() => ({
     findUnique: vi.fn(),
     count: vi.fn(),
   },
+  schoolClass: {
+    findMany: vi.fn(),
+  },
+  attendance: {
+    findMany: vi.fn(),
+  },
   user: {
     findMany: vi.fn(),
   },
   auditLog: { create: vi.fn() },
+  dailyReconciliationClose: {
+    findUnique: vi.fn(),
+    create: vi.fn(),
+  },
   $transaction: vi.fn(),
 }))
 
@@ -239,6 +253,7 @@ describe('finance.service', () => {
     prismaMock.financeFee.findUnique.mockResolvedValue(null)
     prismaMock.feeAssignment.findUnique.mockResolvedValue(null)
     prismaMock.payment.findUnique.mockResolvedValue(null)
+    prismaMock.dailyReconciliationClose.findUnique.mockResolvedValue(null)
     prismaMock.$transaction.mockImplementation((arg: unknown) => {
       if (typeof arg === 'function') return arg(prismaMock)
       return Promise.resolve(arg)
@@ -1042,6 +1057,527 @@ describe('finance.service', () => {
       expect(summary.feeSummary).toEqual({ total: 4, active: 3, byType: { TERMLY: 1, DAILY: 2, OTHER: 1, PA: 0 } })
       expect(summary.paymentsThisTerm).toBe('0.00')
       expect(summary.paymentsThisTermCount).toBe(0)
+    })
+  })
+
+  describe('reconciliation', () => {
+    const mondayDate = '2026-01-05' // a Monday
+
+    function dailyFeeRecord(overrides: Record<string, unknown> = {}) {
+      return {
+        id: 'f-daily',
+        sessionId: 's-1',
+        termId: 't-1',
+        name: 'Daily Fee',
+        feeType: 'DAILY',
+        amount: new Prisma.Decimal('5.00'),
+        description: null,
+        status: 'ACTIVE',
+        createdAt: now,
+        updatedAt: now,
+        ...overrides,
+      }
+    }
+
+    function paFeeRecord(overrides: Record<string, unknown> = {}) {
+      return {
+        id: 'f-pa',
+        sessionId: 's-1',
+        termId: 't-1',
+        name: 'PA Fee',
+        feeType: 'PA',
+        amount: new Prisma.Decimal('2.00'),
+        description: null,
+        status: 'ACTIVE',
+        createdAt: now,
+        updatedAt: now,
+        ...overrides,
+      }
+    }
+
+    function classRecord(id: string, name: string, overrides: Record<string, unknown> = {}) {
+      return { id, name, key: name.toLowerCase().replace(/\s/g, '-'), description: null, sortOrder: 0, status: 'ACTIVE', createdAt: now, updatedAt: now, ...overrides }
+    }
+
+    function pupilRecord(id: string, pupilId: string, firstName: string, lastName: string, classId: string) {
+      return { id, pupilId, firstName, lastName, classId }
+    }
+
+    beforeEach(() => {
+      prismaMock.academicSession.findFirst.mockResolvedValue(sessionRecord())
+      prismaMock.academicTerm.findFirst.mockResolvedValue(termRecord())
+    })
+
+    it('returns correct reconciliation for DAILY fee with mixed statuses', async () => {
+      prismaMock.schoolClass.findMany.mockResolvedValue([classRecord('c-1', 'Primary 1')])
+
+      prismaMock.financeFee.findFirst.mockResolvedValue(dailyFeeRecord())
+
+      prismaMock.pupil.findMany.mockResolvedValue([
+        pupilRecord('p-1', 'PRPS-P-001', 'Ama', 'Owusu', 'c-1'),
+        pupilRecord('p-2', 'PRPS-P-002', 'Kofi', 'Mensah', 'c-1'),
+        pupilRecord('p-3', 'PRPS-P-003', 'Aba', ' Boateng', 'c-1'),
+      ])
+
+      // p-1 is PRESENT, p-2 is ABSENT (no record), p-3 is PRESENT
+      prismaMock.attendance.findMany.mockResolvedValue([
+        { pupilId: 'p-1', status: 'PRESENT' },
+        { pupilId: 'p-3', status: 'PRESENT' },
+      ])
+
+      // p-1 ACTIVE, p-3 EXEMPT
+      prismaMock.feeAssignment.findMany.mockResolvedValue([
+        { pupilId: 'p-1', status: 'ACTIVE' },
+        { pupilId: 'p-3', status: 'EXEMPT' },
+      ])
+
+      // p-1 has payment
+      prismaMock.paymentAllocation.findMany.mockResolvedValue([
+        { amount: new Prisma.Decimal('5.00'), charge: { assignment: { pupilId: 'p-1' } } },
+      ])
+
+      const result = await getReconciliation({ date: mondayDate, feeType: 'DAILY' })
+
+      expect(result.feeType).toBe('DAILY')
+      expect(result.feeAmount).toBe('5.00')
+      expect(result.classes).toHaveLength(1)
+      expect(result.classes[0].className).toBe('Primary 1')
+      expect(result.classes[0].totalPupils).toBe(3)
+
+      const pupils = result.classes[0].pupils
+      expect(pupils.find((p) => p.pupilId === 'p-1')?.status).toBe('PAID')
+      expect(pupils.find((p) => p.pupilId === 'p-2')?.status).toBe('NOT_PAID')
+      expect(pupils.find((p) => p.pupilId === 'p-3')?.status).toBe('EXEMPT')
+
+      expect(result.totals.paidCount).toBe(1)
+      expect(result.totals.absentCount).toBe(1)
+      expect(result.totals.exemptCount).toBe(1)
+      expect(result.totals.notPaidCount).toBe(1)
+    })
+
+    it('marks present but unpaid pupils as NOT_PAID', async () => {
+      prismaMock.schoolClass.findMany.mockResolvedValue([classRecord('c-1', 'Primary 1')])
+      prismaMock.financeFee.findFirst.mockResolvedValue(dailyFeeRecord())
+      prismaMock.pupil.findMany.mockResolvedValue([
+        pupilRecord('p-1', 'PRPS-P-001', 'Ama', 'Owusu', 'c-1'),
+      ])
+      prismaMock.attendance.findMany.mockResolvedValue([
+        { pupilId: 'p-1', status: 'PRESENT' },
+      ])
+      prismaMock.feeAssignment.findMany.mockResolvedValue([
+        { pupilId: 'p-1', status: 'ACTIVE' },
+      ])
+      prismaMock.paymentAllocation.findMany.mockResolvedValue([])
+
+      const result = await getReconciliation({ date: mondayDate, feeType: 'DAILY' })
+
+      expect(result.classes[0].pupils[0].status).toBe('NOT_PAID')
+      expect(result.totals.notPaidCount).toBe(1)
+      expect(result.totals.paidCount).toBe(0)
+    })
+
+    it('rejects weekend dates', async () => {
+      await expect(getReconciliation({ date: '2026-01-03', feeType: 'DAILY' }))
+        .rejects.toThrow('Cannot reconcile for a weekend date')
+    })
+
+    it('rejects when no active session exists', async () => {
+      prismaMock.academicSession.findFirst.mockResolvedValue(null)
+      await expect(getReconciliation({ date: mondayDate, feeType: 'DAILY' }))
+        .rejects.toThrow('No active academic session found')
+    })
+
+    it('rejects when no active term exists', async () => {
+      prismaMock.academicTerm.findFirst.mockResolvedValue(null)
+      await expect(getReconciliation({ date: mondayDate, feeType: 'DAILY' }))
+        .rejects.toThrow('No active academic term found')
+    })
+
+    it('rejects when no active fee structure exists for the fee type', async () => {
+      prismaMock.schoolClass.findMany.mockResolvedValue([classRecord('c-1', 'Primary 1')])
+      prismaMock.financeFee.findFirst.mockResolvedValue(null)
+
+      await expect(getReconciliation({ date: mondayDate, feeType: 'PA' }))
+        .rejects.toThrow('No active PA Fee structure found')
+    })
+
+    it('works for PA fee type', async () => {
+      prismaMock.schoolClass.findMany.mockResolvedValue([classRecord('c-1', 'Primary 1')])
+      prismaMock.financeFee.findFirst.mockResolvedValue(paFeeRecord())
+      prismaMock.pupil.findMany.mockResolvedValue([
+        pupilRecord('p-1', 'PRPS-P-001', 'Ama', 'Owusu', 'c-1'),
+      ])
+      prismaMock.attendance.findMany.mockResolvedValue([
+        { pupilId: 'p-1', status: 'PRESENT' },
+      ])
+      prismaMock.feeAssignment.findMany.mockResolvedValue([
+        { pupilId: 'p-1', status: 'ACTIVE' },
+      ])
+      prismaMock.paymentAllocation.findMany.mockResolvedValue([])
+
+      const result = await getReconciliation({ date: mondayDate, feeType: 'PA' })
+
+      expect(result.feeType).toBe('PA')
+      expect(result.feeAmount).toBe('2.00')
+      expect(result.classes[0].pupils[0].status).toBe('NOT_PAID')
+    })
+
+    it('returns empty classes when no active pupils exist', async () => {
+      prismaMock.schoolClass.findMany.mockResolvedValue([classRecord('c-1', 'Primary 1')])
+      prismaMock.financeFee.findFirst.mockResolvedValue(dailyFeeRecord())
+      prismaMock.pupil.findMany.mockResolvedValue([])
+      prismaMock.attendance.findMany.mockResolvedValue([])
+      prismaMock.feeAssignment.findMany.mockResolvedValue([])
+      prismaMock.paymentAllocation.findMany.mockResolvedValue([])
+
+      const result = await getReconciliation({ date: mondayDate, feeType: 'DAILY' })
+
+      expect(result.classes[0].totalPupils).toBe(0)
+      expect(result.classes[0].pupils).toHaveLength(0)
+      expect(result.totals.totalPupils).toBe(0)
+    })
+
+    it('collects revenue correctly for paid pupils', async () => {
+      prismaMock.schoolClass.findMany.mockResolvedValue([classRecord('c-1', 'Primary 1')])
+      prismaMock.financeFee.findFirst.mockResolvedValue(dailyFeeRecord())
+      prismaMock.pupil.findMany.mockResolvedValue([
+        pupilRecord('p-1', 'PRPS-P-001', 'Ama', 'Owusu', 'c-1'),
+        pupilRecord('p-2', 'PRPS-P-002', 'Kofi', 'Mensah', 'c-1'),
+      ])
+      prismaMock.attendance.findMany.mockResolvedValue([
+        { pupilId: 'p-1', status: 'PRESENT' },
+        { pupilId: 'p-2', status: 'PRESENT' },
+      ])
+      prismaMock.feeAssignment.findMany.mockResolvedValue([
+        { pupilId: 'p-1', status: 'ACTIVE' },
+        { pupilId: 'p-2', status: 'ACTIVE' },
+      ])
+      prismaMock.paymentAllocation.findMany.mockResolvedValue([
+        { amount: new Prisma.Decimal('5.00'), charge: { assignment: { pupilId: 'p-1' } } },
+        { amount: new Prisma.Decimal('5.00'), charge: { assignment: { pupilId: 'p-2' } } },
+      ])
+
+      const result = await getReconciliation({ date: mondayDate, feeType: 'DAILY' })
+
+      expect(result.totals.paidCount).toBe(2)
+      expect(result.totals.collectedRevenue).toBe('10.00')
+      expect(result.totals.expectedRevenue).toBe('0.00')
+    })
+  })
+
+  describe('getDailyPupilFinance', () => {
+    const mondayDate = '2026-01-05'
+
+    function dailyFeeRecord(overrides: Record<string, unknown> = {}) {
+      return {
+        id: 'f-daily',
+        sessionId: 's-1',
+        termId: 't-1',
+        name: 'Daily Fee',
+        feeType: 'DAILY',
+        amount: new Prisma.Decimal('10.00'),
+        description: null,
+        status: 'ACTIVE',
+        createdAt: now,
+        updatedAt: now,
+        ...overrides,
+      }
+    }
+
+    function paFeeRecord(overrides: Record<string, unknown> = {}) {
+      return {
+        id: 'f-pa',
+        sessionId: 's-1',
+        termId: 't-1',
+        name: 'PA Fee',
+        feeType: 'PA',
+        amount: new Prisma.Decimal('5.00'),
+        description: null,
+        status: 'ACTIVE',
+        createdAt: now,
+        updatedAt: now,
+        ...overrides,
+      }
+    }
+
+    function classRecord(id: string, name: string, overrides: Record<string, unknown> = {}) {
+      return { id, name, key: name.toLowerCase().replace(/\s/g, '-'), description: null, sortOrder: 0, status: 'ACTIVE', createdAt: now, updatedAt: now, ...overrides }
+    }
+
+    function pupilRecord(id: string, pupilId: string, firstName: string, lastName: string, classId: string) {
+      return { id, pupilId, firstName, lastName, classId, class: { id: classId, name: 'Primary 1' } }
+    }
+
+    beforeEach(() => {
+      prismaMock.academicSession.findFirst.mockResolvedValue(sessionRecord())
+      prismaMock.academicTerm.findFirst.mockResolvedValue(termRecord())
+    })
+
+    it('returns correct daily finance for both fees paid', async () => {
+      prismaMock.schoolClass.findMany.mockResolvedValue([classRecord('c-1', 'Primary 1')])
+      prismaMock.financeFee.findFirst.mockImplementation(({ where }) => {
+        if (where.feeType === 'DAILY') return dailyFeeRecord()
+        if (where.feeType === 'PA') return paFeeRecord()
+        return null
+      })
+      prismaMock.pupil.findMany.mockResolvedValue([pupilRecord('p-1', 'PRPS-P-001', 'Ama', 'Owusu', 'c-1')])
+      prismaMock.attendance.findMany.mockResolvedValue([{ pupilId: 'p-1', status: 'PRESENT' }])
+      prismaMock.feeAssignment.findMany.mockImplementation(({ where }) => {
+        if (where.feeId === 'f-daily') return [{ pupilId: 'p-1', status: 'ACTIVE' }]
+        if (where.feeId === 'f-pa') return [{ pupilId: 'p-1', status: 'ACTIVE' }]
+        return []
+      })
+      prismaMock.paymentAllocation.findMany.mockImplementation(({ where }) => {
+        if (where.charge.assignment.feeId === 'f-daily') return [{ amount: new Prisma.Decimal('10.00'), charge: { assignment: { pupilId: 'p-1' } } }]
+        if (where.charge.assignment.feeId === 'f-pa') return [{ amount: new Prisma.Decimal('5.00'), charge: { assignment: { pupilId: 'p-1' } } }]
+        return []
+      })
+
+      const result = await getDailyPupilFinance({ date: mondayDate })
+
+      expect(result.items).toHaveLength(1)
+      expect(result.items[0].fullName).toBe('Ama Owusu')
+      expect(result.items[0].dailyPaid).toBe('10.00')
+      expect(result.items[0].paPaid).toBe('5.00')
+      expect(result.items[0].outstanding).toBe('0.00')
+      expect(result.items[0].financeStatus).toBe('PAID')
+      expect(result.items[0].attendanceStatus).toBe('PRESENT')
+      expect(result.dailyFeeAmount).toBe('10.00')
+      expect(result.paFeeAmount).toBe('5.00')
+    })
+
+    it('returns PARTIALLY_PAID when only daily fee paid', async () => {
+      prismaMock.schoolClass.findMany.mockResolvedValue([classRecord('c-1', 'Primary 1')])
+      prismaMock.financeFee.findFirst.mockImplementation(({ where }) => {
+        if (where.feeType === 'DAILY') return dailyFeeRecord()
+        if (where.feeType === 'PA') return paFeeRecord()
+        return null
+      })
+      prismaMock.pupil.findMany.mockResolvedValue([pupilRecord('p-1', 'PRPS-P-001', 'Ama', 'Owusu', 'c-1')])
+      prismaMock.attendance.findMany.mockResolvedValue([{ pupilId: 'p-1', status: 'PRESENT' }])
+      prismaMock.feeAssignment.findMany.mockImplementation(({ where }) => {
+        if (where.feeId === 'f-daily') return [{ pupilId: 'p-1', status: 'ACTIVE' }]
+        if (where.feeId === 'f-pa') return [{ pupilId: 'p-1', status: 'ACTIVE' }]
+        return []
+      })
+      prismaMock.paymentAllocation.findMany.mockImplementation(({ where }) => {
+        if (where.charge.assignment.feeId === 'f-daily') return [{ amount: new Prisma.Decimal('10.00'), charge: { assignment: { pupilId: 'p-1' } } }]
+        if (where.charge.assignment.feeId === 'f-pa') return []
+        return []
+      })
+
+      const result = await getDailyPupilFinance({ date: mondayDate })
+
+      expect(result.items[0].dailyPaid).toBe('10.00')
+      expect(result.items[0].paPaid).toBe('0.00')
+      expect(result.items[0].outstanding).toBe('5.00')
+      expect(result.items[0].financeStatus).toBe('PARTIALLY_PAID')
+    })
+
+    it('returns PARTIALLY_PAID when only PA fee paid', async () => {
+      prismaMock.schoolClass.findMany.mockResolvedValue([classRecord('c-1', 'Primary 1')])
+      prismaMock.financeFee.findFirst.mockImplementation(({ where }) => {
+        if (where.feeType === 'DAILY') return dailyFeeRecord()
+        if (where.feeType === 'PA') return paFeeRecord()
+        return null
+      })
+      prismaMock.pupil.findMany.mockResolvedValue([pupilRecord('p-1', 'PRPS-P-001', 'Ama', 'Owusu', 'c-1')])
+      prismaMock.attendance.findMany.mockResolvedValue([{ pupilId: 'p-1', status: 'PRESENT' }])
+      prismaMock.feeAssignment.findMany.mockImplementation(({ where }) => {
+        if (where.feeId === 'f-daily') return [{ pupilId: 'p-1', status: 'ACTIVE' }]
+        if (where.feeId === 'f-pa') return [{ pupilId: 'p-1', status: 'ACTIVE' }]
+        return []
+      })
+      prismaMock.paymentAllocation.findMany.mockImplementation(({ where }) => {
+        if (where.charge.assignment.feeId === 'f-daily') return []
+        if (where.charge.assignment.feeId === 'f-pa') return [{ amount: new Prisma.Decimal('5.00'), charge: { assignment: { pupilId: 'p-1' } } }]
+        return []
+      })
+
+      const result = await getDailyPupilFinance({ date: mondayDate })
+
+      expect(result.items[0].dailyPaid).toBe('0.00')
+      expect(result.items[0].paPaid).toBe('5.00')
+      expect(result.items[0].outstanding).toBe('10.00')
+      expect(result.items[0].financeStatus).toBe('PARTIALLY_PAID')
+    })
+
+    it('returns NOT_PAID when neither fee paid', async () => {
+      prismaMock.schoolClass.findMany.mockResolvedValue([classRecord('c-1', 'Primary 1')])
+      prismaMock.financeFee.findFirst.mockImplementation(({ where }) => {
+        if (where.feeType === 'DAILY') return dailyFeeRecord()
+        if (where.feeType === 'PA') return paFeeRecord()
+        return null
+      })
+      prismaMock.pupil.findMany.mockResolvedValue([pupilRecord('p-1', 'PRPS-P-001', 'Ama', 'Owusu', 'c-1')])
+      prismaMock.attendance.findMany.mockResolvedValue([{ pupilId: 'p-1', status: 'PRESENT' }])
+      prismaMock.feeAssignment.findMany.mockImplementation(({ where }) => {
+        if (where.feeId === 'f-daily') return [{ pupilId: 'p-1', status: 'ACTIVE' }]
+        if (where.feeId === 'f-pa') return [{ pupilId: 'p-1', status: 'ACTIVE' }]
+        return []
+      })
+      prismaMock.paymentAllocation.findMany.mockResolvedValue([])
+
+      const result = await getDailyPupilFinance({ date: mondayDate })
+
+      expect(result.items[0].dailyPaid).toBe('0.00')
+      expect(result.items[0].paPaid).toBe('0.00')
+      expect(result.items[0].outstanding).toBe('15.00')
+      expect(result.items[0].financeStatus).toBe('NOT_PAID')
+    })
+
+    it('returns ABSENT for absent pupil', async () => {
+      prismaMock.schoolClass.findMany.mockResolvedValue([classRecord('c-1', 'Primary 1')])
+      prismaMock.financeFee.findFirst.mockImplementation(({ where }) => {
+        if (where.feeType === 'DAILY') return dailyFeeRecord()
+        if (where.feeType === 'PA') return paFeeRecord()
+        return null
+      })
+      prismaMock.pupil.findMany.mockResolvedValue([pupilRecord('p-1', 'PRPS-P-001', 'Ama', 'Owusu', 'c-1')])
+      prismaMock.attendance.findMany.mockResolvedValue([{ pupilId: 'p-1', status: 'ABSENT' }])
+      prismaMock.feeAssignment.findMany.mockImplementation(({ where }) => {
+        if (where.feeId === 'f-daily') return [{ pupilId: 'p-1', status: 'ACTIVE' }]
+        if (where.feeId === 'f-pa') return [{ pupilId: 'p-1', status: 'ACTIVE' }]
+        return []
+      })
+      prismaMock.paymentAllocation.findMany.mockResolvedValue([])
+
+      const result = await getDailyPupilFinance({ date: mondayDate })
+
+      expect(result.items[0].dailyPaid).toBe('0.00')
+      expect(result.items[0].paPaid).toBe('0.00')
+      expect(result.items[0].outstanding).toBe('0.00')
+      expect(result.items[0].financeStatus).toBe('ABSENT')
+      expect(result.items[0].attendanceStatus).toBe('ABSENT')
+    })
+
+    it('returns EXEMPT for pupil exempt from both fees', async () => {
+      prismaMock.schoolClass.findMany.mockResolvedValue([classRecord('c-1', 'Primary 1')])
+      prismaMock.financeFee.findFirst.mockImplementation(({ where }) => {
+        if (where.feeType === 'DAILY') return dailyFeeRecord()
+        if (where.feeType === 'PA') return paFeeRecord()
+        return null
+      })
+      prismaMock.pupil.findMany.mockResolvedValue([pupilRecord('p-1', 'PRPS-P-001', 'Ama', 'Owusu', 'c-1')])
+      prismaMock.attendance.findMany.mockResolvedValue([{ pupilId: 'p-1', status: 'PRESENT' }])
+      prismaMock.feeAssignment.findMany.mockImplementation(({ where }) => {
+        if (where.feeId === 'f-daily') return [{ pupilId: 'p-1', status: 'EXEMPT' }]
+        if (where.feeId === 'f-pa') return [{ pupilId: 'p-1', status: 'EXEMPT' }]
+        return []
+      })
+      prismaMock.paymentAllocation.findMany.mockResolvedValue([])
+
+      const result = await getDailyPupilFinance({ date: mondayDate })
+
+      expect(result.items[0].dailyPaid).toBe('0.00')
+      expect(result.items[0].paPaid).toBe('0.00')
+      expect(result.items[0].outstanding).toBe('0.00')
+      expect(result.items[0].financeStatus).toBe('EXEMPT')
+      expect(result.items[0].dailyAssignmentStatus).toBe('EXEMPT')
+      expect(result.items[0].paAssignmentStatus).toBe('EXEMPT')
+    })
+
+    it('returns EXEMPT for pupil exempt from daily only, PA paid', async () => {
+      prismaMock.schoolClass.findMany.mockResolvedValue([classRecord('c-1', 'Primary 1')])
+      prismaMock.financeFee.findFirst.mockImplementation(({ where }) => {
+        if (where.feeType === 'DAILY') return dailyFeeRecord()
+        if (where.feeType === 'PA') return paFeeRecord()
+        return null
+      })
+      prismaMock.pupil.findMany.mockResolvedValue([pupilRecord('p-1', 'PRPS-P-001', 'Ama', 'Owusu', 'c-1')])
+      prismaMock.attendance.findMany.mockResolvedValue([{ pupilId: 'p-1', status: 'PRESENT' }])
+      prismaMock.feeAssignment.findMany.mockImplementation(({ where }) => {
+        if (where.feeId === 'f-daily') return [{ pupilId: 'p-1', status: 'EXEMPT' }]
+        if (where.feeId === 'f-pa') return [{ pupilId: 'p-1', status: 'ACTIVE' }]
+        return []
+      })
+      prismaMock.paymentAllocation.findMany.mockImplementation(({ where }) => {
+        if (where.charge.assignment.feeId === 'f-daily') return []
+        if (where.charge.assignment.feeId === 'f-pa') return [{ amount: new Prisma.Decimal('5.00'), charge: { assignment: { pupilId: 'p-1' } } }]
+        return []
+      })
+
+      const result = await getDailyPupilFinance({ date: mondayDate })
+
+      expect(result.items[0].dailyPaid).toBe('0.00')
+      expect(result.items[0].paPaid).toBe('5.00')
+      expect(result.items[0].outstanding).toBe('0.00')
+      expect(result.items[0].financeStatus).toBe('EXEMPT')
+    })
+
+    it('filters by classId', async () => {
+      prismaMock.schoolClass.findMany.mockResolvedValue([classRecord('c-1', 'Primary 1'), classRecord('c-2', 'Primary 2')])
+      prismaMock.financeFee.findFirst.mockImplementation(({ where }) => {
+        if (where.feeType === 'DAILY') return dailyFeeRecord()
+        if (where.feeType === 'PA') return paFeeRecord()
+        return null
+      })
+      prismaMock.pupil.findMany.mockResolvedValue([pupilRecord('p-1', 'PRPS-P-001', 'Ama', 'Owusu', 'c-1')])
+      prismaMock.attendance.findMany.mockResolvedValue([{ pupilId: 'p-1', status: 'PRESENT' }])
+      prismaMock.feeAssignment.findMany.mockImplementation(({ where }) => {
+        if (where.feeId === 'f-daily') return [{ pupilId: 'p-1', status: 'ACTIVE' }]
+        if (where.feeId === 'f-pa') return [{ pupilId: 'p-1', status: 'ACTIVE' }]
+        return []
+      })
+      prismaMock.paymentAllocation.findMany.mockResolvedValue([])
+
+      const result = await getDailyPupilFinance({ date: mondayDate, classId: 'c-1' })
+
+      expect(prismaMock.pupil.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ classId: 'c-1' }) })
+      )
+      expect(result.items[0].classId).toBe('c-1')
+    })
+
+    it('filters by search query', async () => {
+      prismaMock.schoolClass.findMany.mockResolvedValue([classRecord('c-1', 'Primary 1')])
+      prismaMock.financeFee.findFirst.mockImplementation(({ where }) => {
+        if (where.feeType === 'DAILY') return dailyFeeRecord()
+        if (where.feeType === 'PA') return paFeeRecord()
+        return null
+      })
+      prismaMock.pupil.findMany.mockResolvedValue([pupilRecord('p-1', 'PRPS-P-001', 'Ama', 'Owusu', 'c-1')])
+      prismaMock.attendance.findMany.mockResolvedValue([{ pupilId: 'p-1', status: 'PRESENT' }])
+      prismaMock.feeAssignment.findMany.mockImplementation(({ where }) => {
+        if (where.feeId === 'f-daily') return [{ pupilId: 'p-1', status: 'ACTIVE' }]
+        if (where.feeId === 'f-pa') return [{ pupilId: 'p-1', status: 'ACTIVE' }]
+        return []
+      })
+      prismaMock.paymentAllocation.findMany.mockResolvedValue([])
+
+      await getDailyPupilFinance({ date: mondayDate, q: 'Ama' })
+
+      expect(prismaMock.pupil.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            OR: expect.arrayContaining([
+              expect.objectContaining({ pupilId: expect.any(Object) }),
+              expect.objectContaining({ firstName: expect.any(Object) }),
+              expect.objectContaining({ lastName: expect.any(Object) }),
+            ]),
+          }),
+        })
+      )
+    })
+
+    it('rejects weekend dates', async () => {
+      await expect(getDailyPupilFinance({ date: '2026-01-03' })).rejects.toThrow('Cannot view daily finance for a weekend date')
+    })
+
+    it('rejects when no active session', async () => {
+      prismaMock.academicSession.findFirst.mockResolvedValue(null)
+      await expect(getDailyPupilFinance({ date: mondayDate })).rejects.toThrow('No active academic session found')
+    })
+
+    it('rejects when no active term', async () => {
+      prismaMock.academicTerm.findFirst.mockResolvedValue(null)
+      await expect(getDailyPupilFinance({ date: mondayDate })).rejects.toThrow('No active academic term found')
+    })
+
+    it('rejects when no active Daily Fee structure', async () => {
+      prismaMock.schoolClass.findMany.mockResolvedValue([classRecord('c-1', 'Primary 1')])
+      prismaMock.financeFee.findFirst.mockResolvedValue(null)
+      await expect(getDailyPupilFinance({ date: mondayDate })).rejects.toThrow('No active Daily Fee structure found')
     })
   })
 })

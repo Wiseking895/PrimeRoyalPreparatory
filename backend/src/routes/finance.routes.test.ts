@@ -25,6 +25,7 @@ const prismaMock = vi.hoisted(() => ({
   financeFee: {
     findMany: vi.fn(),
     findUnique: vi.fn(),
+    findFirst: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
   },
@@ -55,6 +56,9 @@ const prismaMock = vi.hoisted(() => ({
     findMany: vi.fn(),
     findUnique: vi.fn(),
     count: vi.fn(),
+  },
+  schoolClass: {
+    findMany: vi.fn(),
   },
   auditLog: { create: vi.fn() },
   $transaction: vi.fn(),
@@ -404,5 +408,165 @@ describe('finance routes (auth + RBAC enforcement)', () => {
       .set('Authorization', 'Bearer token')
       .send({ pupilIds: ['p-1'] })
     expect(res.status).toBe(403)
+  })
+
+  it('rejects unauthenticated access to reconciliation with 401', async () => {
+    const res = await request(app).get('/api/finance/reconciliation?date=2026-01-05&feeType=DAILY')
+    expect(res.status).toBe(401)
+  })
+
+  it('rejects a user without finance.view from reading reconciliation with 403', async () => {
+    prismaMock.user.findUnique.mockResolvedValue(
+      baseUser({ roles: [roleEntry('SUPPORT_STAFF', [])] }),
+    )
+
+    const res = await request(app)
+      .get('/api/finance/reconciliation?date=2026-01-05&feeType=DAILY')
+      .set('Authorization', 'Bearer token')
+    expect(res.status).toBe(403)
+  })
+
+  it('returns 400 when date parameter is missing', async () => {
+    prismaMock.user.findUnique.mockResolvedValue(
+      baseUser({ roles: [roleEntry('ACCOUNTANT', FINANCE_ROLES.accountant)] }),
+    )
+
+    const res = await request(app)
+      .get('/api/finance/reconciliation?feeType=DAILY')
+      .set('Authorization', 'Bearer token')
+    expect(res.status).toBe(400)
+    expect(res.body.success).toBe(false)
+  })
+
+  it('returns 400 when feeType parameter is missing', async () => {
+    prismaMock.user.findUnique.mockResolvedValue(
+      baseUser({ roles: [roleEntry('ACCOUNTANT', FINANCE_ROLES.accountant)] }),
+    )
+
+    const res = await request(app)
+      .get('/api/finance/reconciliation?date=2026-01-05')
+      .set('Authorization', 'Bearer token')
+    expect(res.status).toBe(400)
+    expect(res.body.success).toBe(false)
+  })
+
+  it('returns 400 when feeType is invalid', async () => {
+    prismaMock.user.findUnique.mockResolvedValue(
+      baseUser({ roles: [roleEntry('ACCOUNTANT', FINANCE_ROLES.accountant)] }),
+    )
+
+    const res = await request(app)
+      .get('/api/finance/reconciliation?date=2026-01-05&feeType=WEEKLY')
+      .set('Authorization', 'Bearer token')
+    expect(res.status).toBe(400)
+    expect(res.body.success).toBe(false)
+  })
+
+  it('allows an ACCOUNTANT with finance.view to read reconciliation', async () => {
+    prismaMock.user.findUnique.mockResolvedValue(
+      baseUser({ roles: [roleEntry('ACCOUNTANT', FINANCE_ROLES.accountant)] }),
+    )
+    prismaMock.academicSession.findFirst.mockResolvedValue(financeSession())
+    prismaMock.academicTerm.findFirst.mockResolvedValue(financeTerm())
+    prismaMock.schoolClass.findMany.mockResolvedValue([])
+    prismaMock.financeFee.findFirst.mockResolvedValue(null)
+
+    const res = await request(app)
+      .get('/api/finance/reconciliation?date=2026-01-05&feeType=DAILY')
+      .set('Authorization', 'Bearer token')
+    expect(res.status).toBe(400)
+    expect(res.body.success).toBe(false)
+    expect(res.body.message).toContain('Daily Fee')
+  })
+
+  it('allows a HEADTEACHER with finance.view to read reconciliation', async () => {
+    prismaMock.user.findUnique.mockResolvedValue(
+      baseUser({ roles: [roleEntry('HEADTEACHER', FINANCE_ROLES.headteacher)] }),
+    )
+    prismaMock.academicSession.findFirst.mockResolvedValue(financeSession())
+    prismaMock.academicTerm.findFirst.mockResolvedValue(financeTerm())
+    prismaMock.schoolClass.findMany.mockResolvedValue([])
+    prismaMock.financeFee.findFirst.mockResolvedValue(null)
+
+    const res = await request(app)
+      .get('/api/finance/reconciliation?date=2026-01-05&feeType=PA')
+      .set('Authorization', 'Bearer token')
+    expect(res.status).toBe(400)
+    expect(res.body.message).toContain('PA Fee')
+  })
+
+  describe('GET /finance/pupils/daily', () => {
+    it('rejects unauthenticated access with 401', async () => {
+      const res = await request(app).get('/api/finance/pupils/daily?date=2026-01-05')
+      expect(res.status).toBe(401)
+    })
+
+    it('rejects a user without finance.view with 403', async () => {
+      prismaMock.user.findUnique.mockResolvedValue(
+        baseUser({ roles: [roleEntry('SUPPORT_STAFF', [])] }),
+      )
+
+      const res = await request(app)
+        .get('/api/finance/pupils/daily?date=2026-01-05')
+        .set('Authorization', 'Bearer token')
+      expect(res.status).toBe(403)
+    })
+
+    it('returns 400 when date parameter is missing', async () => {
+      prismaMock.user.findUnique.mockResolvedValue(
+        baseUser({ roles: [roleEntry('ACCOUNTANT', FINANCE_ROLES.accountant)] }),
+      )
+
+      const res = await request(app)
+        .get('/api/finance/pupils/daily')
+        .set('Authorization', 'Bearer token')
+      expect(res.status).toBe(400)
+      expect(res.body.success).toBe(false)
+    })
+
+    it('returns 400 when date is a weekend', async () => {
+      prismaMock.user.findUnique.mockResolvedValue(
+        baseUser({ roles: [roleEntry('ACCOUNTANT', FINANCE_ROLES.accountant)] }),
+      )
+
+      const res = await request(app)
+        .get('/api/finance/pupils/daily?date=2026-01-03')
+        .set('Authorization', 'Bearer token')
+      expect(res.status).toBe(400)
+      expect(res.body.success).toBe(false)
+    })
+
+    it('allows an ACCOUNTANT with finance.view to read daily pupil finance', async () => {
+      prismaMock.user.findUnique.mockResolvedValue(
+        baseUser({ roles: [roleEntry('ACCOUNTANT', FINANCE_ROLES.accountant)] }),
+      )
+      prismaMock.academicSession.findFirst.mockResolvedValue(financeSession())
+      prismaMock.academicTerm.findFirst.mockResolvedValue(financeTerm())
+      prismaMock.schoolClass.findMany.mockResolvedValue([])
+      prismaMock.financeFee.findFirst.mockResolvedValue(null)
+
+      const res = await request(app)
+        .get('/api/finance/pupils/daily?date=2026-01-05')
+        .set('Authorization', 'Bearer token')
+      expect(res.status).toBe(400)
+      expect(res.body.success).toBe(false)
+      expect(res.body.message).toContain('Daily Fee')
+    })
+
+    it('allows a HEADTEACHER with finance.view to read daily pupil finance', async () => {
+      prismaMock.user.findUnique.mockResolvedValue(
+        baseUser({ roles: [roleEntry('HEADTEACHER', FINANCE_ROLES.headteacher)] }),
+      )
+      prismaMock.academicSession.findFirst.mockResolvedValue(financeSession())
+      prismaMock.academicTerm.findFirst.mockResolvedValue(financeTerm())
+      prismaMock.schoolClass.findMany.mockResolvedValue([])
+      prismaMock.financeFee.findFirst.mockResolvedValue(null)
+
+      const res = await request(app)
+        .get('/api/finance/pupils/daily?date=2026-01-05')
+        .set('Authorization', 'Bearer token')
+      expect(res.status).toBe(400)
+      expect(res.body.message).toContain('Daily Fee')
+    })
   })
 })

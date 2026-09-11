@@ -267,7 +267,7 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
     name: 'ACCOUNTANT',
     label: 'Accountant / Finance',
     description: 'School finance role. Manages fee structures, assignments, billing and payments.',
-    permissions: ['finance.view', 'finance.manage', 'fees.manage', 'payments.record', 'academic.view', 'notifications.view', 'announcements.view'],
+    permissions: ['finance.view', 'finance.manage', 'fees.manage', 'payments.record', 'academic.view', 'classes.view', 'attendance.view', 'notifications.view', 'announcements.view'],
   },
   {
     name: 'NON_TEACHING_STAFF',

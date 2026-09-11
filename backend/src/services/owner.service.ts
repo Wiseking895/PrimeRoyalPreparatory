@@ -240,7 +240,7 @@ export interface OwnerFinanceOverviewView {
   paFees: ClassFinanceRow[]
 }
 
-export async function getOwnerFinanceOverview(): Promise<OwnerFinanceOverviewView> {
+export async function getOwnerFinanceOverview(targetDate?: string): Promise<OwnerFinanceOverviewView> {
   const session = await prisma.academicSession.findFirst({
     where: { status: 'ACTIVE' },
     select: { id: true, name: true },
@@ -249,7 +249,7 @@ export async function getOwnerFinanceOverview(): Promise<OwnerFinanceOverviewVie
   const term = session
     ? await prisma.academicTerm.findFirst({
         where: { sessionId: session.id, status: 'ACTIVE' },
-        select: { id: true, name: true },
+        select: { id: true, name: true, startDate: true, endDate: true },
         orderBy: { termNumber: 'desc' },
       })
     : null
@@ -264,7 +264,7 @@ export async function getOwnerFinanceOverview(): Promise<OwnerFinanceOverviewVie
   if (classes.length === 0 || !session || !term) {
     return {
       session,
-      term,
+      term: term ? { id: term.id, name: term.name } : null,
       totals: {
         totalExpected: money(0),
         totalCollected: money(0),
@@ -282,10 +282,116 @@ export async function getOwnerFinanceOverview(): Promise<OwnerFinanceOverviewVie
 
   const classIds = classes.map((c) => c.id)
 
-  // Get active charges for the current session+term, scoped to active classes.
-  // Charges are scoped through: feeCharge → feeAssignment → financeFee (has sessionId, termId)
-  // The charge's own termId tells us which term it belongs to.
-  const charges = await prisma.feeCharge.findMany({
+  // Determine the target date for daily calculation
+  // Use provided date or today's date
+  const dateStr = targetDate || new Date().toISOString().slice(0, 10)
+  const targetDateObj = new Date(dateStr + 'T00:00:00.000Z')
+
+  // Check if target date is a weekday (Mon-Fri)
+  const dayOfWeek = targetDateObj.getUTCDay()
+  const isWeekday = dayOfWeek >= 1 && dayOfWeek <= 5
+
+  // Get all active fee structures for this session+term
+  const fees = await prisma.financeFee.findMany({
+    where: { sessionId: session.id, termId: term.id, status: 'ACTIVE' },
+    select: { id: true, feeType: true, amount: true },
+  })
+
+  const dailyFee = fees.find((f) => f.feeType === 'DAILY')
+  const paFee = fees.find((f) => f.feeType === 'PA')
+
+  // Get attendance for the target date (pupils present today)
+  const attendanceRecords = await prisma.attendance.findMany({
+    where: {
+      date: targetDateObj,
+      pupilId: { not: null },
+      sessionId: session.id,
+      classId: { in: classIds },
+      status: 'PRESENT',
+    },
+    select: { pupilId: true, classId: true },
+  })
+
+  // Build set of present pupils by class
+  const presentByClass = new Map<string, Set<string>>()
+  for (const cls of classes) {
+    presentByClass.set(cls.id, new Set())
+  }
+  for (const record of attendanceRecords) {
+    if (record.pupilId && record.classId) {
+      const set = presentByClass.get(record.classId)
+      if (set) set.add(record.pupilId)
+    }
+  }
+
+  // Get all active pupils by class (for termly/other fees)
+  const pupilsByClass = await prisma.pupil.groupBy({
+    by: ['classId'],
+    where: { classId: { in: classIds }, status: 'ACTIVE' },
+    _count: { _all: true },
+  })
+  const pupilCountByClass = new Map<string, number>()
+  for (const row of pupilsByClass) {
+    pupilCountByClass.set(row.classId, row._count._all)
+  }
+
+  // Get fee assignments for exemptions
+  const dailyAssignments = dailyFee
+    ? await prisma.feeAssignment.findMany({
+        where: { feeId: dailyFee.id, status: { in: ['ACTIVE', 'EXEMPT'] } },
+        select: { pupilId: true, status: true },
+      })
+    : []
+  const paAssignments = paFee
+    ? await prisma.feeAssignment.findMany({
+        where: { feeId: paFee.id, status: { in: ['ACTIVE', 'EXEMPT'] } },
+        select: { pupilId: true, status: true },
+      })
+    : []
+
+  const dailyExemptPupils = new Set(dailyAssignments.filter((a) => a.status === 'EXEMPT').map((a) => a.pupilId))
+  const paExemptPupils = new Set(paAssignments.filter((a) => a.status === 'EXEMPT').map((a) => a.pupilId))
+
+  // Get payments for the target date
+  const dayPayments = await prisma.payment.findMany({
+    where: {
+      status: 'ACTIVE',
+      paymentDate: targetDateObj,
+      allocations: {
+        some: {
+          charge: {
+            assignment: {
+              fee: { sessionId: session.id, termId: term.id },
+              pupil: { classId: { in: classIds }, status: 'ACTIVE' },
+            },
+          },
+        },
+      },
+    },
+    select: {
+      pupilId: true,
+      amountPaid: true,
+      allocations: {
+        select: {
+          amount: true,
+          charge: {
+            select: {
+              assignment: {
+                select: {
+                  pupilId: true,
+                  pupil: { select: { classId: true } },
+                  fee: { select: { feeType: true } },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  })
+
+  // Get termly charges for TERMLY and OTHER fees
+  const termCharges = await prisma.feeCharge.findMany({
     where: {
       status: 'ACTIVE',
       termId: term.id,
@@ -308,22 +414,22 @@ export async function getOwnerFinanceOverview(): Promise<OwnerFinanceOverviewVie
       allocations: {
         select: {
           amount: true,
-          payment: { select: { status: true } },
+          payment: { select: { status: true, paymentDate: true } },
         },
       },
     },
   })
 
-  // Aggregate charges by class and fee type
+  // Aggregate by class and fee type
   type FeeTypeKey = 'DAILY' | 'TERMLY' | 'OTHER' | 'PA'
-  const byClassAndType = new Map<string, Map<FeeTypeKey, { expected: Prisma.Decimal; collected: Prisma.Decimal; pupilCount: Set<string> }>>()
+  const byClassAndType = new Map<string, Map<FeeTypeKey, { expected: Prisma.Decimal; collected: Prisma.Decimal; pupilCount: Set<string>; exemptCount: Set<string> }>>()
 
   for (const cls of classes) {
     byClassAndType.set(cls.id, new Map([
-      ['DAILY', { expected: new Prisma.Decimal(0), collected: new Prisma.Decimal(0), pupilCount: new Set() }],
-      ['TERMLY', { expected: new Prisma.Decimal(0), collected: new Prisma.Decimal(0), pupilCount: new Set() }],
-      ['OTHER', { expected: new Prisma.Decimal(0), collected: new Prisma.Decimal(0), pupilCount: new Set() }],
-      ['PA', { expected: new Prisma.Decimal(0), collected: new Prisma.Decimal(0), pupilCount: new Set() }],
+      ['DAILY', { expected: new Prisma.Decimal(0), collected: new Prisma.Decimal(0), pupilCount: new Set(), exemptCount: new Set() }],
+      ['TERMLY', { expected: new Prisma.Decimal(0), collected: new Prisma.Decimal(0), pupilCount: new Set(), exemptCount: new Set() }],
+      ['OTHER', { expected: new Prisma.Decimal(0), collected: new Prisma.Decimal(0), pupilCount: new Set(), exemptCount: new Set() }],
+      ['PA', { expected: new Prisma.Decimal(0), collected: new Prisma.Decimal(0), pupilCount: new Set(), exemptCount: new Set() }],
     ]))
   }
 
@@ -332,9 +438,60 @@ export async function getOwnerFinanceOverview(): Promise<OwnerFinanceOverviewVie
   let totalExpected = new Prisma.Decimal(0)
   let totalCollected = new Prisma.Decimal(0)
 
-  for (const charge of charges) {
-    const classId = charge.assignment.pupil.classId
+  // Calculate DAILY fees: rate × pupils present today (excluding exempt)
+  if (dailyFee && isWeekday) {
+    for (const cls of classes) {
+      const presentPupils = presentByClass.get(cls.id) ?? new Set()
+      const bucket = byClassAndType.get(cls.id)?.get('DAILY')
+      if (!bucket) continue
+
+      let eligibleCount = 0
+      for (const pupilId of presentPupils) {
+        if (!dailyExemptPupils.has(pupilId)) {
+          eligibleCount++
+          bucket.pupilCount.add(pupilId)
+          allPupilsWithCharges.add(pupilId)
+        } else {
+          bucket.exemptCount.add(pupilId)
+        }
+      }
+
+      const expected = dailyFee.amount.mul(eligibleCount)
+      bucket.expected = expected
+      totalExpected = totalExpected.plus(expected)
+    }
+  }
+
+  // Calculate PA fees: rate × pupils present today (excluding exempt)
+  if (paFee && isWeekday) {
+    for (const cls of classes) {
+      const presentPupils = presentByClass.get(cls.id) ?? new Set()
+      const bucket = byClassAndType.get(cls.id)?.get('PA')
+      if (!bucket) continue
+
+      let eligibleCount = 0
+      for (const pupilId of presentPupils) {
+        if (!paExemptPupils.has(pupilId)) {
+          eligibleCount++
+          bucket.pupilCount.add(pupilId)
+          allPupilsWithCharges.add(pupilId)
+        } else {
+          bucket.exemptCount.add(pupilId)
+        }
+      }
+
+      const expected = paFee.amount.mul(eligibleCount)
+      bucket.expected = expected
+      totalExpected = totalExpected.plus(expected)
+    }
+  }
+
+  // Calculate TERMLY fees (keep as term-based)
+  for (const charge of termCharges) {
     const feeType = charge.assignment.fee.feeType as FeeTypeKey
+    if (feeType !== 'TERMLY') continue
+
+    const classId = charge.assignment.pupil.classId
     const bucket = byClassAndType.get(classId)?.get(feeType)
     if (!bucket) continue
 
@@ -343,12 +500,52 @@ export async function getOwnerFinanceOverview(): Promise<OwnerFinanceOverviewVie
     allPupilsWithCharges.add(charge.assignment.pupilId)
     totalExpected = totalExpected.plus(charge.amount)
 
-    // Only count allocations from active (non-voided) payments
     for (const alloc of charge.allocations) {
       if (alloc.payment.status === 'ACTIVE') {
         bucket.collected = bucket.collected.plus(alloc.amount)
         totalCollected = totalCollected.plus(alloc.amount)
         allPupilsWithPayments.add(charge.assignment.pupilId)
+      }
+    }
+  }
+
+  // Calculate OTHER (maintenance) fees (keep as term-based)
+  for (const charge of termCharges) {
+    const feeType = charge.assignment.fee.feeType as FeeTypeKey
+    if (feeType !== 'OTHER') continue
+
+    const classId = charge.assignment.pupil.classId
+    const bucket = byClassAndType.get(classId)?.get(feeType)
+    if (!bucket) continue
+
+    bucket.expected = bucket.expected.plus(charge.amount)
+    bucket.pupilCount.add(charge.assignment.pupilId)
+    allPupilsWithCharges.add(charge.assignment.pupilId)
+    totalExpected = totalExpected.plus(charge.amount)
+
+    for (const alloc of charge.allocations) {
+      if (alloc.payment.status === 'ACTIVE') {
+        bucket.collected = bucket.collected.plus(alloc.amount)
+        totalCollected = totalCollected.plus(alloc.amount)
+        allPupilsWithPayments.add(charge.assignment.pupilId)
+      }
+    }
+  }
+
+  // Calculate DAILY collected from today's payments
+  for (const payment of dayPayments) {
+    for (const alloc of payment.allocations) {
+      const feeType = alloc.charge?.assignment?.fee?.feeType
+      if (feeType === 'DAILY' || feeType === 'PA') {
+        const classId = alloc.charge?.assignment?.pupil?.classId
+        if (classId) {
+          const bucket = byClassAndType.get(classId)?.get(feeType as FeeTypeKey)
+          if (bucket) {
+            bucket.collected = bucket.collected.plus(alloc.amount)
+            totalCollected = totalCollected.plus(alloc.amount)
+            allPupilsWithPayments.add(alloc.charge?.assignment?.pupilId ?? payment.pupilId)
+          }
+        }
       }
     }
   }
@@ -386,7 +583,7 @@ export async function getOwnerFinanceOverview(): Promise<OwnerFinanceOverviewVie
 
   return {
     session,
-    term,
+    term: { id: term.id, name: term.name },
     totals: {
       totalExpected: money(totalExpected),
       totalCollected: money(totalCollected),

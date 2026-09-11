@@ -2,20 +2,25 @@ import { Router } from 'express'
 import {
   activateSessionHandler,
   activateTermHandler,
+  closeDailyReconciliationHandler,
+  combinedReconciliationHandler,
   createSessionHandler,
   createTermHandler,
+  dailyPupilFinanceHandler,
   deactivateSessionHandler,
   deactivateTermHandler,
   ensureChargesHandler,
   financeOverviewHandler,
   financeSummaryHandler,
   generateChargesHandler,
+  getDailyReconciliationCloseStatusHandler,
   getPupilFinanceHandler,
   getSessionHandler,
   getTermHandler,
   listFinancePupilsHandler,
   listSessionsHandler,
   listTermsHandler,
+  reconciliationHandler,
   updateSessionHandler,
   updateTermHandler,
 } from '../controllers/finance.controller'
@@ -36,6 +41,11 @@ router.use(requireAuth)
 
 router.get('/summary', requirePermission('finance.view'), financeSummaryHandler)
 router.get('/overview', requirePermission('finance.view'), financeOverviewHandler)
+router.get('/reconciliation', requirePermission('finance.view'), reconciliationHandler)
+router.get('/reconciliation/combined', requirePermission('finance.view'), combinedReconciliationHandler)
+router.get('/reconciliation/close-status', requirePermission('finance.view'), getDailyReconciliationCloseStatusHandler)
+router.post('/reconciliation/close', requirePermission('payments.record'), closeDailyReconciliationHandler)
+router.get('/pupils/daily', requirePermission('finance.view'), dailyPupilFinanceHandler)
 router.get('/pupils', requirePermission('finance.view'), listFinancePupilsHandler)
 router.get('/pupils/:id', requirePermission('finance.view'), getPupilFinanceHandler)
 router.post('/generate-charges', requirePermission('fees.manage'), validate(chargeGenerateSchema), generateChargesHandler)

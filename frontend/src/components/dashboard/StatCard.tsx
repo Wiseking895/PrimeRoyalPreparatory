@@ -6,7 +6,7 @@ interface StatCardProps {
   value: string | number
   hint?: string
   icon: ReactNode
-  tone?: 'royal' | 'magenta' | 'green' | 'gold'
+  tone?: 'royal' | 'magenta' | 'green' | 'gold' | 'blue' | 'neutral'
   action?: ReactNode
 }
 
@@ -15,6 +15,8 @@ const tones = {
   magenta: 'bg-magenta-500 text-white',
   green: 'bg-emerald-500 text-white',
   gold: 'bg-gold-400 text-royal-800',
+  blue: 'bg-blue-600 text-white',
+  neutral: 'bg-ink-500 text-white',
 }
 
 export function StatCard({ label, value, hint, icon, tone = 'royal', action }: StatCardProps) {

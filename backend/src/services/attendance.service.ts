@@ -1,4 +1,5 @@
 import { prisma } from '../lib/prisma'
+import { AppError } from '../utils/app-error'
 
 export interface AttendanceListOptions {
   pupilId?: string
@@ -38,6 +39,23 @@ export interface AttendanceUpdateInput {
   status?: string
   date?: string
   notes?: string
+}
+
+/**
+ * Check if a given date's financial reconciliation is locked.
+ * If locked, throws 409 Conflict.
+ */
+async function assertReconciliationNotLocked(date: Date): Promise<void> {
+  const dateOnly = new Date(date.toISOString().slice(0, 10) + 'T00:00:00.000Z')
+  const close = await prisma.dailyReconciliationClose.findUnique({
+    where: { date: dateOnly },
+  })
+  if (close) {
+    throw new AppError(
+      'This day\'s financial reconciliation has already been closed and signed and cannot be changed.',
+      409,
+    )
+  }
 }
 
 export async function listAttendance(options: AttendanceListOptions = {}): Promise<AttendanceView[]> {
@@ -138,6 +156,9 @@ export async function createAttendance(input: AttendanceCreateInput): Promise<At
     }
   }
 
+  // Check if this day's reconciliation is locked
+  await assertReconciliationNotLocked(new Date(date))
+
   const record = await prisma.attendance.create({
     data: {
       pupilId: pupilId ?? null,
@@ -179,6 +200,10 @@ export async function updateAttendance(
   if (!existing) {
     throw new Error('Attendance record not found.')
   }
+
+  // Check if this day's reconciliation is locked
+  const effectiveDate = date ? new Date(date) : existing.date
+  await assertReconciliationNotLocked(effectiveDate)
 
   const record = await prisma.attendance.update({
     where: { id },

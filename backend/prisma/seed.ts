@@ -69,26 +69,17 @@ async function main(): Promise<void> {
   console.log(`[seed] Roles ready: ${ROLE_DEFINITIONS.length}`)
 
   // Default role → permission assignments. Add-only sync so Owner-adjusted
-  // Headteacher permissions on pre-existing modules survive re-seeding:
+  // permissions on pre-existing modules survive re-seeding:
   //   - roles with no permissions yet receive their full catalog defaults,
-  //   - roles that already hold permissions only receive defaults from modules
-  //     that are brand-new to the database (e.g. `finance` in phase 5).
-  const assignedPermissions = await prisma.rolePermission.findMany({
-    select: { permissionId: true },
-  })
-  const assignedPermissionIds = new Set(assignedPermissions.map((row) => row.permissionId))
-  const modulesInUse = new Set<string>()
-  for (const permission of PERMISSIONS) {
-    const permissionId = permissionIds.get(permission.key)
-    if (permissionId && assignedPermissionIds.has(permissionId)) modulesInUse.add(permission.module)
-  }
+  //   - roles that already hold permissions receive defaults for modules
+  //     where the role currently has zero permissions assigned.
 
   for (const role of ROLE_DEFINITIONS) {
     const roleId = roleIds.get(role.name)
     if (!roleId) continue
     const existingRows = await prisma.rolePermission.findMany({
       where: { roleId },
-      include: { permission: { select: { key: true } } },
+      include: { permission: { select: { key: true, module: true } } },
     })
     const existingKeys = new Set(existingRows.map((row) => row.permission.key))
     const defaults = role.name === OWNER_ROLE ? PERMISSIONS.map((p) => p.key) : role.permissions
@@ -98,7 +89,8 @@ async function main(): Promise<void> {
       if (!definition) return false
       if (existingKeys.size === 0) return true
       if (role.name === OWNER_ROLE) return true
-      return !modulesInUse.has(definition.module)
+      const roleHasModule = existingRows.some((row) => row.permission.module === definition.module)
+      return !roleHasModule
     })
     if (missing.length === 0) continue
     await prisma.rolePermission.createMany({

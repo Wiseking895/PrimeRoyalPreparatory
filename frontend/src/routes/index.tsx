@@ -32,6 +32,7 @@ import { PaymentDetailPage } from '@/pages/portal/finance/PaymentDetailPage'
 import { PaymentsPage } from '@/pages/portal/finance/PaymentsPage'
 import { PupilFinancePage } from '@/pages/portal/finance/PupilFinancePage'
 import { PupilFinanceProfilePage } from '@/pages/portal/finance/PupilFinanceProfilePage'
+import { ReconciliationPage } from '@/pages/portal/finance/ReconciliationPage'
 import { SessionsPage } from '@/pages/portal/finance/SessionsPage'
 import { HeadteacherDashboardPage } from '@/pages/portal/headteacher/HeadteacherDashboardPage'
 import { OwnerDashboardPage } from '@/pages/portal/owner/OwnerDashboardPage'
@@ -103,6 +104,7 @@ export const router = createBrowserRouter([
       { path: 'settings', element: <SettingsPage /> },
       { path: 'finance', element: <Navigate to="/owner/finance/overview" replace /> },
       { path: 'finance/overview', element: <OwnerFinanceOverviewPage /> },
+      { path: 'finance/reconciliation', element: <ReconciliationPage /> },
       { path: 'work-output', element: <OwnerWorkOutputPage /> },
       { path: 'notifications', element: <NotificationsPage /> },
       { path: 'announcements', element: <AnnouncementsPage /> },
@@ -139,6 +141,7 @@ export const router = createBrowserRouter([
       { path: 'finance/charges', element: <ChargeGenerationPage /> },
       { path: 'finance/payments', element: <PaymentsPage /> },
       { path: 'finance/payments/:id', element: <PaymentDetailPage /> },
+      { path: 'finance/reconciliation', element: <ReconciliationPage /> },
       { path: 'finance/pupils', element: <PupilFinancePage /> },
       { path: 'finance/pupils/:id', element: <PupilFinanceProfilePage /> },
       { path: 'finance/summary', element: <FinanceSummaryPage /> },
@@ -163,6 +166,7 @@ export const router = createBrowserRouter([
       { path: 'charges', element: <ChargeGenerationPage /> },
       { path: 'payments', element: <PaymentsPage /> },
       { path: 'payments/:id', element: <PaymentDetailPage /> },
+      { path: 'reconciliation', element: <ReconciliationPage /> },
       { path: 'pupils', element: <PupilFinancePage /> },
       { path: 'pupils/:id', element: <PupilFinanceProfilePage /> },
       { path: 'summary', element: <FinanceSummaryPage /> },

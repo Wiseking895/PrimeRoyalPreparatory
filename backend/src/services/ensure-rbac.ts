@@ -45,24 +45,13 @@ export async function ensureInitialRbac(): Promise<void> {
     roleIds.set(role.name, record.id)
   }
 
-  // Modules that already have at least one permission assigned to any role.
-  const assignedPermissions = await prisma.rolePermission.findMany({
-    select: { permissionId: true },
-  })
-  const assignedPermissionIds = new Set(assignedPermissions.map((row) => row.permissionId))
-  const modulesInUse = new Set<string>()
-  for (const permission of PERMISSIONS) {
-    const id = permissionIds.get(permission.key)
-    if (id && assignedPermissionIds.has(id)) modulesInUse.add(permission.module)
-  }
-
   for (const role of ROLE_DEFINITIONS) {
     const roleId = roleIds.get(role.name)
     if (!roleId) continue
 
     const existingRows = await prisma.rolePermission.findMany({
       where: { roleId },
-      include: { permission: { select: { key: true } } },
+      include: { permission: { select: { key: true, module: true } } },
     })
     const existingKeys = new Set(existingRows.map((row) => row.permission.key))
     const defaults = role.name === OWNER_ROLE ? PERMISSIONS.map((p) => p.key) : role.permissions
@@ -73,7 +62,8 @@ export async function ensureInitialRbac(): Promise<void> {
       if (!definition) return false
       if (existingKeys.size === 0) return true
       if (role.name === OWNER_ROLE) return true
-      return !modulesInUse.has(definition.module)
+      const roleHasModule = existingRows.some((row) => row.permission.module === definition.module)
+      return !roleHasModule
     })
     if (missing.length === 0) continue
 
