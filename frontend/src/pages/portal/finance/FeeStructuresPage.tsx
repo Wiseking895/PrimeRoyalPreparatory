@@ -157,7 +157,7 @@ export function FeeStructuresPage() {
     event.preventDefault()
     const errors: Record<string, string> = {}
 
-    if (!createSessionId) errors.sessionId = 'Select a session.'
+    if (!createSessionId) errors.sessionId = 'Select an academic year.'
     if (!createTermId) errors.termId = 'Select a term.'
 
     for (const row of feeRows) {
@@ -264,7 +264,7 @@ export function FeeStructuresPage() {
       <PageHeader
         eyebrow="Fees & Finance"
         title="Fee Structures"
-        description="Configure fees for an academic session and term. Activate a fee, assign pupils, then generate charges."
+        description="Configure fees for an academic year and term. Activate a fee, assign pupils, then generate charges."
         actions={
           canManage ? (
             <Button onClick={openCreate}>
@@ -321,12 +321,12 @@ export function FeeStructuresPage() {
 
       <div className="flex flex-wrap items-center gap-3">
         <SelectField
-          label="Session"
+          label="Academic Year"
           name="sessionFilter"
           value={sessionFilter}
           onChange={(event) => setSessionFilter(event.target.value)}
           options={sessionOptions}
-          placeholder="All sessions"
+          placeholder="All academic years"
           className="sm:w-64"
         />
         <SelectField
@@ -372,7 +372,7 @@ export function FeeStructuresPage() {
               <thead className="border-b border-cream-200 bg-cream-50 text-xs font-bold uppercase tracking-wider text-ink-500">
                 <tr>
                   <th scope="col" className="px-5 py-3.5">Fee</th>
-                  <th scope="col" className="px-5 py-3.5">Session</th>
+                  <th scope="col" className="px-5 py-3.5">Academic Year</th>
                   <th scope="col" className="px-5 py-3.5">Type</th>
                   <th scope="col" className="px-5 py-3.5">Amount</th>
                   <th scope="col" className="px-5 py-3.5">Assignments</th>
@@ -487,19 +487,19 @@ export function FeeStructuresPage() {
         open={createModalOpen}
         onClose={() => setCreateModalOpen(false)}
         title="Add fee structures"
-        description="Create one or more fee structures for an academic session and term."
+        description="Create one or more fee structures for an academic year and term."
         size="lg"
       >
         <form onSubmit={handleCreateSubmit} noValidate className="grid gap-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <SelectField
-                label="Session"
+                label="Academic Year"
                 name="createSessionId"
                 value={createSessionId}
                 onChange={(event) => { setCreateSessionId(event.target.value); setCreateTermId('') }}
                 options={createSessionOptions}
-                placeholder={createSessionOptions.length > 0 ? 'Select a session' : 'No sessions available yet'}
+                placeholder={createSessionOptions.length > 0 ? 'Select an academic year' : 'No academic years available yet'}
                 error={createErrors.sessionId}
                 required
               />
@@ -511,7 +511,7 @@ export function FeeStructuresPage() {
                 value={createTermId}
                 onChange={(event) => setCreateTermId(event.target.value)}
                 options={createTermOptions}
-                placeholder={!createSessionId ? 'Select a session first' : createTermOptions.length > 0 ? 'Select a term' : 'No terms for this session'}
+                placeholder={!createSessionId ? 'Select an academic year first' : createTermOptions.length > 0 ? 'Select a term' : 'No terms for this academic year'}
                 error={createErrors.termId}
                 required
               />
@@ -609,12 +609,12 @@ export function FeeStructuresPage() {
         <form onSubmit={handleEditSubmit} noValidate className="grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
             <SelectField
-              label="Session"
+              label="Academic Year"
               name="editSessionId"
               value={editForm.sessionId}
               onChange={(event) => { setEditForm((c) => ({ ...c, sessionId: event.target.value, termId: '' })) }}
               options={sessionOptions}
-              placeholder="Select a session"
+              placeholder="Select an academic year"
               error={editFieldErrors.sessionId}
               required
             />
@@ -626,7 +626,7 @@ export function FeeStructuresPage() {
               value={editForm.termId}
               onChange={(event) => setEditForm((c) => ({ ...c, termId: event.target.value }))}
               options={termOptions}
-              placeholder={!editForm.sessionId ? 'Select a session first' : 'Select a term'}
+              placeholder={!editForm.sessionId ? 'Select an academic year first' : 'Select a term'}
               error={editFieldErrors.termId}
               required
             />

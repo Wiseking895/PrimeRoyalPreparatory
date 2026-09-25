@@ -256,7 +256,7 @@ describe('PaymentsPage', () => {
     renderPage()
 
     await screen.findAllByText('PAY-2026-0001')
-    fireEvent.change(screen.getByLabelText('Session'), { target: { value: 'session-2' } })
+    fireEvent.change(screen.getByLabelText('Academic Year'), { target: { value: 'session-2' } })
 
     await waitFor(() => {
       expect(apiMock.listTerms).toHaveBeenCalledWith('session-2')

@@ -59,12 +59,20 @@ function financeGroupLabels(): string[] {
   return Array.from(group.querySelectorAll('a')).map((a) => a.textContent?.trim() ?? '')
 }
 
+function academicGroupLabels(): string[] {
+  const nav = screen.getAllByRole('navigation', { name: 'Dashboard navigation' })[0]
+  const label = Array.from(nav.querySelectorAll('p')).find((p) => p.textContent === 'Academic')
+  const group = label?.parentElement
+  if (!group) return []
+  return Array.from(group.querySelectorAll('a')).map((a) => a.textContent?.trim() ?? '')
+}
+
 describe('DashboardLayout Finance nav', () => {
   beforeEach(() => {
     ROLES = []
   })
 
-  it('orders accountant Finance nav as Dashboard, Fee Structures, Reconciliation, Payment History', () => {
+  it('keeps the Session/Term navigation item hidden on the Finance Account', () => {
     ROLES = ['ACCOUNTANT']
     renderLayout()
 
@@ -73,8 +81,20 @@ describe('DashboardLayout Finance nav', () => {
       'Reconciliation',
       'Payment History',
     ])
+    expect(screen.queryByRole('link', { name: 'Academic Years & Terms' })).not.toBeInTheDocument()
     const dashboardLink = screen.getAllByRole('link', { name: /Dashboard/i })[0]
     expect(dashboardLink).toHaveAttribute('href', '/accountant/dashboard')
+  })
+
+  it('exposes Academic Years & Terms to the headteacher', () => {
+    ROLES = ['HEADTEACHER']
+    renderLayout()
+
+    expect(academicGroupLabels()).toContain('Academic Years & Terms')
+    expect(screen.getAllByRole('link', { name: 'Academic Years & Terms' })[0]).toHaveAttribute(
+      'href',
+      '/headteacher/finance/sessions',
+    )
   })
 
   it('orders headteacher Finance nav with Fee Structures before Reconciliation and Payment History', () => {

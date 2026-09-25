@@ -117,7 +117,7 @@ describe('FeeStructuresPage', () => {
     renderPage()
 
     expect(
-      await screen.findByText(/Configure fees for an academic session and term/),
+      await screen.findByText(/Configure fees for an academic year and term/),
     ).toBeInTheDocument()
   })
 

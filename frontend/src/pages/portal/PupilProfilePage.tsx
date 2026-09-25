@@ -6,11 +6,13 @@ import {
   Calendar,
   Camera,
   ChevronRight,
+  FileDown,
   IdCard,
   Mail,
   MapPin,
   Pencil,
   Phone,
+  Printer,
   ShieldCheck,
   Shirt,
   Trash2,
@@ -417,6 +419,53 @@ export function PupilProfilePage() {
     }
   }
 
+  const admissionFormFilename = () => {
+    const raw = ((pupil?.admissionNumber ?? '').trim() || pupil?.pupilId) ?? 'Pupil'
+    const safe = raw.replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '')
+    return `PRPS-Admission-Form-${safe || 'Pupil'}.pdf`
+  }
+
+  const handleDownloadForm = async () => {
+    if (!pupil) return
+    setBusyAction('form-pdf')
+    try {
+      const blob = await api.fetchAdmissionFormPdf(pupil.id)
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = admissionFormFilename()
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+      push('success', 'Admission form downloaded.')
+    } catch (err) {
+      push('error', err instanceof Error ? err.message : 'Could not download the admission form.')
+    } finally {
+      setBusyAction(null)
+    }
+  }
+
+  const handlePrintForm = async () => {
+    if (!pupil) return
+    setBusyAction('form-pdf')
+    try {
+      const blob = await api.fetchAdmissionFormPdf(pupil.id)
+      const url = URL.createObjectURL(blob)
+      const printWindow = window.open(url, '_blank')
+      if (!printWindow) {
+        URL.revokeObjectURL(url)
+        push('error', 'Allow pop-ups to print the admission form.')
+        return
+      }
+      window.setTimeout(() => URL.revokeObjectURL(url), 30_000)
+    } catch (err) {
+      push('error', err instanceof Error ? err.message : 'Could not prepare the admission form for printing.')
+    } finally {
+      setBusyAction(null)
+    }
+  }
+
   if (error) {
     return (
       <div className="space-y-6 rounded-3xl bg-royal-900 p-5 sm:p-7 lg:p-8">
@@ -461,10 +510,28 @@ export function PupilProfilePage() {
             Enrolment details, guardians and management for this pupil.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 print:hidden">
           <Button variant="outline" size="sm" to={`${basePath}/pupils`}>
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             Back to pupils
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void handleDownloadForm()}
+            disabled={busyAction === 'form-pdf'}
+          >
+            <FileDown className="h-4 w-4" aria-hidden="true" />
+            Download Admission Form (PDF)
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void handlePrintForm()}
+            disabled={busyAction === 'form-pdf'}
+          >
+            <Printer className="h-4 w-4" aria-hidden="true" />
+            Print Admission Form
           </Button>
           {can.update ? (
             <Button variant="cream" size="sm" onClick={() => (editing ? setEditing(false) : startEditing())}>

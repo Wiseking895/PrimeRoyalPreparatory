@@ -214,14 +214,14 @@ export function PaymentsPage() {
       <div className="flex flex-wrap items-end justify-between gap-3 rounded-xl border border-cream-200 bg-cream-50 p-4">
         <div className="flex flex-wrap items-end gap-3">
           <SelectField
-            label="Session"
+            label="Academic Year"
             name="sessionFilter"
             value={selectedSessionId}
             onChange={(event) => {
               void handleSessionChange(event.target.value)
             }}
             options={sessions.map((session) => ({ value: session.id, label: session.name }))}
-            placeholder="Select session"
+            placeholder="Select academic year"
             className="sm:w-44"
           />
           <SelectField

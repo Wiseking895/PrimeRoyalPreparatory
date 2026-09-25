@@ -331,6 +331,91 @@ describe('pupil routes (auth + RBAC enforcement)', () => {
     expect(res.status).toBe(403)
   })
 
+  it('rejects unauthenticated access to the admission form with 401', async () => {
+    const res = await request(app).get('/api/pupils/p-1/admission-form')
+    expect(res.status).toBe(401)
+    expect(prismaMock.pupil.findUnique).not.toHaveBeenCalled()
+  })
+
+  it('rejects a user without pupils.view from downloading the admission form with 403', async () => {
+    prismaMock.user.findUnique.mockResolvedValue(
+      baseUser({ roles: [roleEntry('ACCOUNTANT', ['finance.view'])] }),
+    )
+
+    const res = await request(app)
+      .get('/api/pupils/p-1/admission-form')
+      .set('Authorization', 'Bearer token')
+    expect(res.status).toBe(403)
+    expect(prismaMock.pupil.findUnique).not.toHaveBeenCalled()
+  })
+
+  it('serves the admission form PDF to a user with pupils.view', async () => {
+    prismaMock.user.findUnique.mockResolvedValue(
+      baseUser({ roles: [roleEntry('HEADTEACHER', ['pupils.view'])] }),
+    )
+    prismaMock.pupil.findUnique.mockResolvedValue({
+      ...pupilRecord(),
+      admissionNumber: 'ADM-2026-001',
+      sheetNumber: '28',
+      admissionFee: '700.00',
+      previousSchool: 'Sunrise International School',
+      stayWithChild: 'Father',
+      guardians: [
+        {
+          relationship: 'Father',
+          isPrimary: true,
+          isEmergency: false,
+          guardian: {
+            id: 'g-1',
+            fullName: 'Kwabena Mensah',
+            phone: '0244111222',
+            email: null,
+            address: 'Atimatim',
+            occupation: 'Engineer',
+          },
+        },
+        {
+          relationship: 'Mother',
+          isPrimary: false,
+          isEmergency: false,
+          guardian: {
+            id: 'g-2',
+            fullName: 'Ama Mensah',
+            phone: null,
+            email: null,
+            address: 'Atimatim',
+            occupation: 'Trader',
+          },
+        },
+      ],
+      uniforms: [
+        { slot: 1, label: 'Main Uniform', status: 'COLLECTED' },
+        { slot: 2, label: 'Outing', status: 'NOT_COLLECTED' },
+        { slot: 3, label: 'Friday Wear', status: 'NOT_COLLECTED' },
+        { slot: 4, label: 'Thursday Wear', status: 'NOT_COLLECTED' },
+        { slot: 5, label: 'Cream Uniform', status: 'NOT_COLLECTED' },
+      ],
+    })
+    prismaMock.academicSession.findFirst.mockResolvedValue({ name: '2026/2027' })
+
+    const res = await request(app)
+      .get('/api/pupils/p-1/admission-form')
+      .set('Authorization', 'Bearer token')
+      .buffer(true)
+      .parse((response, callback) => {
+        const chunks: Buffer[] = []
+        response.on('data', (chunk: Buffer) => chunks.push(chunk))
+        response.on('end', () => callback(null, Buffer.concat(chunks)))
+      })
+    expect(res.status).toBe(200)
+    expect(res.headers['content-type']).toContain('application/pdf')
+    expect(res.headers['content-disposition']).toContain(
+      'attachment; filename="PRPS-Admission-Form-ADM-2026-001.pdf"',
+    )
+    expect(Buffer.isBuffer(res.body)).toBe(true)
+    expect(res.body.subarray(0, 5).toString('latin1')).toBe('%PDF-')
+  })
+
   it('rejects a user without classes.manage from creating a class with 403', async () => {
     prismaMock.user.findUnique.mockResolvedValue(
       baseUser({ roles: [roleEntry('HEADTEACHER', ['classes.view'])] }),

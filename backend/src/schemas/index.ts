@@ -313,7 +313,7 @@ const paymentMethodEnum = z.enum(['CASH', 'BANK_TRANSFER', 'MOBILE_MONEY', 'CHEQ
 })
 
 export const sessionCreateSchema = z.object({
-  name: z.string().trim().min(2, 'Session name must be at least 2 characters.').max(120),
+  name: z.string().trim().min(2, 'Academic year name must be at least 2 characters.').max(120),
   startDate: dateField,
   endDate: dateField,
   status: accountStatusEnum.default('ACTIVE'),
@@ -327,7 +327,7 @@ export const sessionUpdateSchema = z.object({
 })
 
 export const termCreateSchema = z.object({
-  sessionId: z.string().trim().min(1, 'Select a session.').max(100),
+  sessionId: z.string().trim().min(1, 'Select an academic year.').max(100),
   name: z.string().trim().min(1, 'Term name is required.').max(80),
   termNumber: z.number().int().min(1, 'Term number must be at least 1.').max(12, 'Term number is too large.'),
   startDate: dateField,
@@ -346,7 +346,7 @@ export const termUpdateSchema = z.object({
 })
 
 export const feeCreateSchema = z.object({
-  sessionId: z.string().trim().min(1, 'Select a session.').max(100),
+  sessionId: z.string().trim().min(1, 'Select an academic year.').max(100),
   termId: z.string().trim().min(1, 'Select a term.').max(100),
   name: z.string().trim().min(2, 'Fee name must be at least 2 characters.').max(120),
   feeType: feeTypeEnum,
@@ -372,7 +372,7 @@ export const feeAssignSchema = z.object({
 })
 
 export const feeBatchCreateSchema = z.object({
-  sessionId: z.string().trim().min(1, 'Select a session.').max(100),
+  sessionId: z.string().trim().min(1, 'Select an academic year.').max(100),
   termId: z.string().trim().min(1, 'Select a term.').max(100),
   fees: z
     .array(
@@ -425,7 +425,7 @@ export const markUnpaidSchema = z.object({
 })
 
 export const chargeGenerateSchema = z.object({
-  sessionId: z.string().trim().min(1, 'Select a session.').max(100),
+  sessionId: z.string().trim().min(1, 'Select an academic year.').max(100),
 })
 
 // Finance Reconciliation attendance toggle — narrowly scoped upsert for the
@@ -574,7 +574,7 @@ export const attendanceCreateSchema = z.object({
   pupilId: z.string().trim().min(1, 'Select a pupil.').max(100),
   status: attendanceStatusEnum,
   date: attendanceDateField,
-  sessionId: z.string().trim().min(1, 'Select a session.').max(100).optional(),
+  sessionId: z.string().trim().min(1, 'Select an academic year.').max(100).optional(),
   classId: z.string().trim().min(1, 'Select a class.').max(100).optional(),
   notes: z.string().trim().max(500).optional(),
 })

@@ -66,22 +66,22 @@ export const getSessionHandler = asyncHandler(async (req, res) => {
 
 export const createSessionHandler = asyncHandler(async (req: AuthRequest, res) => {
   const session = await createSession(req.user!, req.body, req.ip)
-  res.status(HttpStatus.Created).json(ok(session, 'Academic session created successfully.'))
+  res.status(HttpStatus.Created).json(ok(session, 'Academic year created successfully.'))
 })
 
 export const updateSessionHandler = asyncHandler(async (req: AuthRequest, res) => {
   const session = await updateSession(req.user!, req.params.id, req.body, req.ip)
-  res.json(ok(session, 'Academic session updated successfully.'))
+  res.json(ok(session, 'Academic year updated successfully.'))
 })
 
 export const activateSessionHandler = asyncHandler(async (req: AuthRequest, res) => {
   const session = await setSessionStatus(req.user!, req.params.id, 'ACTIVE', req.ip)
-  res.json(ok(session, 'Academic session activated successfully.'))
+  res.json(ok(session, 'Academic year activated successfully.'))
 })
 
 export const deactivateSessionHandler = asyncHandler(async (req: AuthRequest, res) => {
   const session = await setSessionStatus(req.user!, req.params.id, 'INACTIVE', req.ip)
-  res.json(ok(session, 'Academic session deactivated successfully.'))
+  res.json(ok(session, 'Academic year deactivated successfully.'))
 })
 
 export const listTermsHandler = asyncHandler(async (req, res) => {

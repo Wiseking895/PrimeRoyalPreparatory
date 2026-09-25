@@ -9,6 +9,7 @@ const apiMock = vi.hoisted(() => ({
   listClasses: vi.fn(),
   updatePupil: vi.fn(),
   setPupilStatus: vi.fn(),
+  fetchAdmissionFormPdf: vi.fn(),
 }))
 
 vi.mock('@/lib/api', () => ({ api: apiMock }))
@@ -253,5 +254,82 @@ describe('PupilProfilePage', () => {
     fireEvent.change(firstName, { target: { value: 'Amma' } })
 
     expect(firstName).toBe(document.activeElement)
+  })
+
+  it('offers admission form download and print actions', async () => {
+    renderPage()
+    await screen.findByText('Ama Boateng')
+
+    expect(screen.getByRole('button', { name: 'Download Admission Form (PDF)' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Print Admission Form' })).toBeInTheDocument()
+  })
+
+  it('downloads the admission form with the public filename', async () => {
+    const blob = new Blob(['%PDF-1.7'], { type: 'application/pdf' })
+    apiMock.fetchAdmissionFormPdf.mockResolvedValue(blob)
+    const createObjectURL = vi.fn(() => 'blob:admission-form')
+    const revokeObjectURL = vi.fn()
+    URL.createObjectURL = createObjectURL
+    URL.revokeObjectURL = revokeObjectURL
+    let downloadedName = ''
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+      downloadedName = this.download
+    })
+    const openSpy = vi.spyOn(window, 'open')
+
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Download Admission Form (PDF)' }))
+
+    await waitFor(() => expect(apiMock.fetchAdmissionFormPdf).toHaveBeenCalledWith('pupil-1'))
+    expect(createObjectURL).toHaveBeenCalledWith(blob)
+    expect(downloadedName).toBe('PRPS-Admission-Form-ADM-2026-001.pdf')
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:admission-form')
+    expect(openSpy).not.toHaveBeenCalled()
+    expect(pushMock).toHaveBeenCalledWith('success', 'Admission form downloaded.')
+  })
+
+  it('falls back to the pupil id for the download filename', async () => {
+    apiMock.getPupil.mockResolvedValue(pupilFixture({ admissionNumber: null }))
+    apiMock.fetchAdmissionFormPdf.mockResolvedValue(new Blob(['%PDF-1.7'], { type: 'application/pdf' }))
+    URL.createObjectURL = vi.fn(() => 'blob:admission-form')
+    URL.revokeObjectURL = vi.fn()
+    let downloadedName = ''
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+      downloadedName = this.download
+    })
+
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Download Admission Form (PDF)' }))
+
+    await waitFor(() => expect(apiMock.fetchAdmissionFormPdf).toHaveBeenCalledWith('pupil-1'))
+    expect(downloadedName).toBe('PRPS-Admission-Form-PRPS-PUP-0001.pdf')
+  })
+
+  it('opens only the admission form PDF in a print window', async () => {
+    apiMock.fetchAdmissionFormPdf.mockResolvedValue(
+      new Blob(['%PDF-1.7'], { type: 'application/pdf' }),
+    )
+    URL.createObjectURL = vi.fn(() => 'blob:admission-form')
+    URL.revokeObjectURL = vi.fn()
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue({} as Window)
+    const printSpy = vi.spyOn(window, 'print').mockImplementation(() => {})
+
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Print Admission Form' }))
+
+    await waitFor(() => expect(openSpy).toHaveBeenCalledWith('blob:admission-form', '_blank'))
+    expect(apiMock.fetchAdmissionFormPdf).toHaveBeenCalledWith('pupil-1')
+    expect(printSpy).not.toHaveBeenCalled()
+  })
+
+  it('surfaces an error when the admission form cannot be fetched', async () => {
+    apiMock.fetchAdmissionFormPdf.mockRejectedValue(new Error('Could not download the admission form.'))
+
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Download Admission Form (PDF)' }))
+
+    await waitFor(() =>
+      expect(pushMock).toHaveBeenCalledWith('error', 'Could not download the admission form.'),
+    )
   })
 })

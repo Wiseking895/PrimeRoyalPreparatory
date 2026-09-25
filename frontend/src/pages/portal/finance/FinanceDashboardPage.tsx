@@ -481,7 +481,7 @@ export function FinanceDashboardPage() {
                 <h3 className="text-[12px] font-bold text-cream-100">All Classes — Finance Summary</h3>
               </div>
               <span className="text-[11px] font-semibold text-cream-200/65">
-                {finance.session?.name ?? 'No active session'} &middot; {finance.term?.name ?? 'No active term'}
+                        {finance.session?.name ?? 'No active academic year'} &middot; {finance.term?.name ?? 'No active term'}
               </span>
             </div>
             <div className="overflow-x-auto">
@@ -558,7 +558,7 @@ export function FinanceDashboardPage() {
                 { label: 'Fee Structures', to: `${base}/fees`, icon: Receipt },
                 { label: 'Reconciliation', to: `${base}/reconciliation`, icon: ClipboardCheck },
                 { label: 'Payment History', to: `${base}/payments`, icon: Wallet },
-                { label: 'Sessions & Terms', to: `${base}/sessions`, icon: CalendarDays },
+                { label: 'Academic Years & Terms', to: `${base}/sessions`, icon: CalendarDays },
               ].map(({ label, to, icon: Icon }) => (
                 <li key={label}>
                   <Link
@@ -577,6 +577,50 @@ export function FinanceDashboardPage() {
                 </li>
               ))}
             </ul>
+          </GlassCard>
+
+          {/* Academic period */}
+          <GlassCard>
+            <SectionHeader title="Academic Period" icon={CalendarDays} />
+            {!summary.session && !summary.term ? (
+              <EmptyState
+                title="No academic period configured."
+                description="Create an academic year and term to start billing fees."
+              />
+            ) : (
+              <div className="space-y-3">
+                <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-3.5">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-cream-200/60">Academic Year</p>
+                  <p className="mt-1 text-sm font-extrabold text-cream-100">
+                    {summary.session?.name ?? 'No active academic year'}
+                  </p>
+                  {summary.session && (
+                    <p className="mt-1 text-[12px] text-cream-200/60">
+                      {formatDate(summary.session.startDate)} — {formatDate(summary.session.endDate)} ·{' '}
+                      {summary.session.termCount} term{summary.session.termCount === 1 ? '' : 's'}
+                    </p>
+                  )}
+                </div>
+                <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-3.5">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-cream-200/60">Term</p>
+                  <p className="mt-1 text-sm font-extrabold text-cream-100">
+                    {summary.term?.name ?? 'No active term'}
+                  </p>
+                  {summary.term && (
+                    <p className="mt-1 text-[12px] text-cream-200/60">
+                      {formatDate(summary.term.startDate)} — {formatDate(summary.term.endDate)} ·{' '}
+                      {summary.term.schoolDays} school days
+                    </p>
+                  )}
+                </div>
+                <Link
+                  to={`${base}/sessions`}
+                  className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-magenta-400 hover:text-magenta-300"
+                >
+                  Manage academic years &rarr;
+                </Link>
+              </div>
+            )}
           </GlassCard>
 
           {/* Recent payments */}

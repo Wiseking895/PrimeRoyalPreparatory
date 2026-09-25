@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   BookOpenCheck,
+  CalendarDays,
   CircleUserRound,
   ClipboardCheck,
   ClipboardList,
@@ -92,6 +93,7 @@ const headteacherNavGroups: NavGroup[] = [
   {
     label: 'Academic',
     items: [
+      { label: 'Academic Years & Terms', to: '/headteacher/finance/sessions', icon: CalendarDays, permission: 'academic.view' },
       { label: 'Pupils', to: '/headteacher/pupils', icon: Users, permission: 'pupils.view' },
       { label: 'Classes', to: '/headteacher/classes', icon: BookOpenCheck, permission: 'classes.view' },
       { label: 'Teachers', to: '/headteacher/academic/teachers', icon: Users, permission: 'teachers.view' },

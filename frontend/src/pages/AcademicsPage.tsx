@@ -91,7 +91,7 @@ export default function AcademicsPage() {
               align="left"
               eyebrow="Core Subjects"
               title="A balanced subject offering"
-              description="The full subject list is configured by the school each session. This is a representative overview."
+              description="The full subject list is configured by the school each academic year. This is a representative overview."
             />
             <div className="flex flex-wrap gap-3">
               {coreSubjects.map((subject) => (

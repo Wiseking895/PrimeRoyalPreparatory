@@ -3,6 +3,7 @@ import multer from 'multer'
 import {
   activatePupilHandler,
   admissionFeeHandler,
+  admissionFormPdfHandler,
   createPupilHandler,
   deactivatePupilHandler,
   getPupilHandler,
@@ -51,6 +52,7 @@ router.post(
   confirmPupilImportHandler,
 )
 
+router.get('/:id/admission-form', requirePermission('pupils.view'), admissionFormPdfHandler)
 router.get('/:id', requirePermission('pupils.view'), getPupilHandler)
 router.patch('/:id', requirePermission('pupils.update'), validate(pupilUpdateSchema), updatePupilHandler)
 router.post('/:id/activate', requirePermission('pupils.update'), activatePupilHandler)

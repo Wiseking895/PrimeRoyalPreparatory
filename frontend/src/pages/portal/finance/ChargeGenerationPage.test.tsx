@@ -153,6 +153,6 @@ describe('ChargeGenerationPage', () => {
     apiMock.listSessions.mockResolvedValue([])
     renderPage()
 
-    expect(await screen.findByText('No academic sessions available.')).toBeInTheDocument()
+    expect(await screen.findByText('No academic years available.')).toBeInTheDocument()
   })
 })

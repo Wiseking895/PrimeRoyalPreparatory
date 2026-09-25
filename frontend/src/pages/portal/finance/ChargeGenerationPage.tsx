@@ -37,7 +37,7 @@ export function ChargeGenerationPage() {
       const active = sessionData.find((session) => session.status === 'ACTIVE')?.id ?? sessionData[0]?.id ?? ''
       setSelectedSession((current) => current || active)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not load sessions.')
+      setError(err instanceof Error ? err.message : 'Could not load academic years.')
     }
   }, [])
 
@@ -107,12 +107,12 @@ export function ChargeGenerationPage() {
 
       <div className="flex flex-wrap items-end gap-3">
         <SelectField
-          label="Academic session"
+          label="Academic Year"
           name="session"
           value={selectedSession}
           onChange={(event) => setSelectedSession(event.target.value)}
           options={sessionOptions}
-          placeholder={sessionOptions.length > 0 ? 'Select a session' : 'No sessions available yet'}
+          placeholder={sessionOptions.length > 0 ? 'Select an academic year' : 'No academic years available yet'}
           className="sm:w-80"
         />
         {canManage && selectedSession ? (
@@ -130,14 +130,14 @@ export function ChargeGenerationPage() {
       ) : sessions.length === 0 ? (
         <EmptyState
           icon={<Receipt className="h-7 w-7" aria-hidden="true" />}
-          title="No academic sessions available."
-          description="Sessions and terms are created by academic administration."
+          title="No academic years available."
+          description="Academic years and terms are created by academic administration."
         />
       ) : (
         <>
           <div className="grid gap-4 sm:grid-cols-3">
             <Card className="p-5">
-              <p className="text-xs font-semibold uppercase tracking-wider text-ink-500">Fees in session</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-ink-500">Fees in academic year</p>
               <p className="mt-1 text-2xl font-extrabold text-ink-900">{fees.length}</p>
             </Card>
             <Card className="p-5">
@@ -155,8 +155,8 @@ export function ChargeGenerationPage() {
           {fees.length === 0 ? (
             <EmptyState
               icon={<Receipt className="h-7 w-7" aria-hidden="true" />}
-              title="No fee structures in this session."
-              description="Create fee structures for the session before generating charges."
+          title="No fee structures in this academic year."
+          description="Create fee structures for the academic year before generating charges."
             />
           ) : (
             <Card className="hidden overflow-hidden md:block">

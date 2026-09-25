@@ -85,9 +85,9 @@ export function SbaRecordsPage() {
       <Card className="p-4">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <SelectField
-            label="Session"
+            label="Academic Year"
             name="session"
-            placeholder="All sessions"
+            placeholder="All academic years"
             value={sessionId}
             onChange={(event) => {
               setSessionId(event.target.value)

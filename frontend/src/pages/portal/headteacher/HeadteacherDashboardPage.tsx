@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   BookOpenCheck,
+  CalendarDays,
   CheckCircle2,
   Clock,
   ClipboardList,
@@ -14,9 +15,12 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '@/auth/AuthContext'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/cn'
+import { formatDate } from '@/lib/date'
 import { formatMoney } from '@/lib/money'
 import type {
+  AcademicSessionView,
   AcademicStatsView,
+  AcademicTermView,
   AttendanceView,
   OwnerFinanceOverviewView,
   PupilStats,
@@ -129,6 +133,8 @@ export function HeadteacherDashboardPage() {
   const [staff, setStaff] = useState<StaffView[] | null>(null)
   const [finance, setFinance] = useState<OwnerFinanceOverviewView | null>(null)
   const [academic, setAcademic] = useState<AcademicStatsView | null>(null)
+  const [sessions, setSessions] = useState<AcademicSessionView[] | null>(null)
+  const [terms, setTerms] = useState<AcademicTermView[] | null>(null)
   const [teachers, setTeachers] = useState<TeacherListRow[] | null>(null)
   const [attendance, setAttendance] = useState<AttendanceView[] | null>(null)
   const [pupilStats, setPupilStats] = useState<PupilStats | null>(null)
@@ -156,6 +162,8 @@ export function HeadteacherDashboardPage() {
         canViewTeachers ? api.listTeachers() : Promise.resolve(null),
         canViewAttendance ? api.listAttendance({ dateFrom: today, dateTo: today }) : Promise.resolve(null),
         canViewPupils ? api.pupilStats() : Promise.resolve(null),
+        canViewAcademic ? api.listSessions() : Promise.resolve(null),
+        canViewAcademic ? api.listTerms() : Promise.resolve(null),
       ])
 
       const settled = <T,>(index: number): { ok: true; value: T | null } | { ok: false; message: string } => {
@@ -197,6 +205,14 @@ export function HeadteacherDashboardPage() {
       } else if (canViewPupils) {
         setError(pupilStatsResult.message)
       }
+
+      const sessionsResult = settled<AcademicSessionView[]>(6)
+      if (sessionsResult.ok) setSessions(sessionsResult.value)
+      else recordSectionError('academicPeriod', sessionsResult.message)
+
+      const termsResult = settled<AcademicTermView[]>(7)
+      if (termsResult.ok) setTerms(termsResult.value)
+      else recordSectionError('academicPeriod', termsResult.message)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load the dashboard.')
     } finally {
@@ -242,6 +258,17 @@ export function HeadteacherDashboardPage() {
     }
     return ids.size
   }, [finance])
+
+  const activeSession = useMemo(() => {
+    if (!sessions) return null
+    return sessions.find((entry) => entry.status === 'ACTIVE') ?? sessions[0] ?? null
+  }, [sessions])
+
+  const activeTerm = useMemo(() => {
+    if (!terms) return null
+    const inSession = activeSession ? terms.filter((entry) => entry.sessionId === activeSession.id) : terms
+    return inSession.find((entry) => entry.status === 'ACTIVE') ?? inSession[0] ?? null
+  }, [terms, activeSession])
 
   const collectionPct = useMemo(() => {
     if (!finance) return 0
@@ -337,6 +364,64 @@ export function HeadteacherDashboardPage() {
           supporting={canViewTeachers ? 'Teacher submissions pending review' : 'Loading...'}
         />
       </div>
+
+      {/* ── Academic Period ── */}
+      {canViewAcademic && (
+        <GlassCard>
+          <SectionHeader
+            title="Academic Period"
+            icon={CalendarDays}
+            action={
+              <Link
+                to="/headteacher/finance/sessions"
+                className="text-[12px] font-semibold text-magenta-400 hover:text-magenta-300"
+              >
+                Manage academic years &rarr;
+              </Link>
+            }
+          />
+          {sectionErrors.academicPeriod ? (
+            <EmptyStateCard
+              title="Could not load the academic period."
+              description={sectionErrors.academicPeriod}
+            />
+          ) : sessions === null || terms === null ? (
+            <div className="space-y-2">{Array.from({ length: 2 }).map((_, i) => <SkeletonRow key={i} />)}</div>
+          ) : !activeSession && !activeTerm ? (
+            <EmptyStateCard
+              title="No academic year configured."
+              description="Create an academic year and term to start billing fees."
+            />
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <GlassInnerCard>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-cream-200/60">Academic Year</p>
+                <p className="mt-1 text-base font-extrabold text-cream-100">
+                  {activeSession?.name ?? 'No active academic year'}
+                </p>
+                {activeSession && (
+                  <p className="mt-1 text-[12px] text-cream-200/60">
+                    {formatDate(activeSession.startDate)} — {formatDate(activeSession.endDate)} ·{' '}
+                    {activeSession.termCount} term{activeSession.termCount === 1 ? '' : 's'}
+                  </p>
+                )}
+              </GlassInnerCard>
+              <GlassInnerCard>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-cream-200/60">Term</p>
+                <p className="mt-1 text-base font-extrabold text-cream-100">
+                  {activeTerm?.name ?? 'No active term'}
+                </p>
+                {activeTerm && (
+                  <p className="mt-1 text-[12px] text-cream-200/60">
+                    {formatDate(activeTerm.startDate)} — {formatDate(activeTerm.endDate)} ·{' '}
+                    {activeTerm.schoolDays} school days
+                  </p>
+                )}
+              </GlassInnerCard>
+            </div>
+          )}
+        </GlassCard>
+      )}
 
       {/* ── Attendance by Class ── */}
       <GlassCard>
@@ -647,7 +732,7 @@ export function HeadteacherDashboardPage() {
                         <h3 className="text-[12px] font-bold text-cream-100">All Classes — Finance Summary</h3>
                       </div>
                       <span className="text-[11px] font-semibold text-cream-200/65">
-                        {finance.session?.name ?? 'No active session'} &middot; {finance.term?.name ?? 'No active term'}
+                        {finance.session?.name ?? 'No active academic year'} &middot; {finance.term?.name ?? 'No active term'}
                       </span>
                     </div>
                     <div className="overflow-x-auto">

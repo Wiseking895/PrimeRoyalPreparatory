@@ -11,6 +11,11 @@ import {
   updatePupil,
 } from '../services/pupil.service'
 import { getAdmissionFee } from '../services/finance.service'
+import {
+  admissionFormFilename,
+  renderAdmissionFormPdf,
+  resolveAcademicYear,
+} from '../services/admission-form-pdf.service'
 
 export const listPupilsHandler = asyncHandler(async (req, res) => {
   const page = Number.parseInt(String(req.query.page ?? '1'), 10)
@@ -40,6 +45,17 @@ export const listPupilsHandler = asyncHandler(async (req, res) => {
 export const getPupilHandler = asyncHandler(async (req, res) => {
   const pupil = await getPupil(req.params.id)
   res.json(ok(pupil))
+})
+
+export const admissionFormPdfHandler = asyncHandler(async (req, res) => {
+  const pupil = await getPupil(req.params.id)
+  const academicYear = await resolveAcademicYear()
+  const pdf = await renderAdmissionFormPdf(pupil, academicYear)
+  res.setHeader('Content-Type', 'application/pdf')
+  res.setHeader('Content-Disposition', `attachment; filename="${admissionFormFilename(pupil)}"`)
+  res.setHeader('Cache-Control', 'private, no-store')
+  res.setHeader('Content-Length', String(pdf.byteLength))
+  res.end(pdf)
 })
 
 export const createPupilHandler = asyncHandler(async (req: AuthRequest, res) => {

@@ -549,7 +549,7 @@ export function OwnerFinanceOverviewPage() {
           <GlassCard>
             <SectionHeader title="All Classes — Finance Summary" icon={Receipt}>
               <span className="text-[11px] font-semibold text-cream-200/65">
-                {summary.session?.name ?? 'No active session'} &middot; {summary.term?.name ?? 'No active term'}
+                        {summary.session?.name ?? 'No active academic year'} &middot; {summary.term?.name ?? 'No active term'}
               </span>
             </SectionHeader>
             <div className="overflow-x-auto">

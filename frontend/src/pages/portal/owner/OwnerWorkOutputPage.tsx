@@ -539,7 +539,7 @@ export function OwnerWorkOutputPage() {
             value={selectedSession}
             onChange={(v) => { setSelectedSession(v); setSelectedTerm('') }}
             options={sessionOptions}
-            placeholder="All sessions"
+            placeholder="All academic years"
           />
           <FilterSelect
             label="Term"

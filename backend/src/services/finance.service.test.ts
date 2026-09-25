@@ -251,6 +251,7 @@ describe('finance.service', () => {
     prismaMock.user.findMany.mockResolvedValue([])
     prismaMock.academicSession.findUnique.mockResolvedValue(null)
     prismaMock.academicTerm.findUnique.mockResolvedValue(null)
+    prismaMock.academicTerm.findMany.mockResolvedValue([])
     prismaMock.financeFee.findUnique.mockResolvedValue(null)
     prismaMock.feeAssignment.findUnique.mockResolvedValue(null)
     prismaMock.payment.findUnique.mockResolvedValue(null)
@@ -308,6 +309,22 @@ describe('finance.service', () => {
           endDate: '2025-08-01',
         }),
       ).rejects.toMatchObject({ statusCode: HttpStatus.BadRequest })
+    })
+
+    it('rejects activating a session whose dates are invalid', async () => {
+      prismaMock.academicSession.findUnique.mockResolvedValue(
+        sessionRecord('s-9', {
+          status: 'INACTIVE',
+          startDate: new Date('2026-07-31T00:00:00.000Z'),
+          endDate: new Date('2025-09-01T00:00:00.000Z'),
+        }),
+      )
+
+      await expect(setSessionStatus(accountant, 's-9', 'ACTIVE')).rejects.toMatchObject({
+        statusCode: HttpStatus.BadRequest,
+      })
+      expect(prismaMock.academicSession.update).not.toHaveBeenCalled()
+      expect(prismaMock.academicSession.updateMany).not.toHaveBeenCalled()
     })
 
     it('activates a session and demotes the current ACTIVE session', async () => {
@@ -415,6 +432,77 @@ describe('finance.service', () => {
           endDate: '2025-12-19',
         }),
       ).rejects.toMatchObject({ statusCode: HttpStatus.Conflict })
+    })
+
+    it('rejects a term that overlaps an existing term in the same academic year', async () => {
+      prismaMock.academicSession.findUnique.mockResolvedValue(sessionRecord())
+      prismaMock.academicTerm.findMany.mockResolvedValue([termRecord()])
+
+      await expect(
+        createTerm(accountant, {
+          sessionId: 's-1',
+          name: 'Second Term',
+          termNumber: 2,
+          startDate: '2025-11-01',
+          endDate: '2025-12-31',
+        }),
+      ).rejects.toMatchObject({ statusCode: HttpStatus.BadRequest })
+      expect(prismaMock.academicTerm.create).not.toHaveBeenCalled()
+    })
+
+    it('creates a term that starts after an existing term ends', async () => {
+      prismaMock.academicSession.findUnique.mockResolvedValue(sessionRecord())
+      prismaMock.academicTerm.findMany.mockResolvedValue([termRecord()])
+      prismaMock.academicTerm.create.mockResolvedValue(
+        termRecord('t-2', { name: 'Second Term', termNumber: 2, status: 'INACTIVE' }),
+      )
+      prismaMock.academicTerm.findUnique.mockImplementation(async ({ where }: { where: { id: string } }) =>
+        where.id === 't-2' ? termRecord('t-2', { name: 'Second Term', termNumber: 2, status: 'INACTIVE' }) : null,
+      )
+
+      const result = await createTerm(accountant, {
+        sessionId: 's-1',
+        name: 'Second Term',
+        termNumber: 2,
+        startDate: '2026-01-05',
+        endDate: '2026-04-10',
+        schoolDays: 60,
+      })
+
+      expect(result.name).toBe('Second Term')
+      expect(prismaMock.academicTerm.create).toHaveBeenCalled()
+    })
+
+    it('rejects a term date change that would overlap another term', async () => {
+      prismaMock.academicTerm.findUnique.mockResolvedValue(termRecord())
+      prismaMock.academicTerm.findMany.mockResolvedValue([
+        termRecord('t-2', {
+          name: 'Second Term',
+          termNumber: 2,
+          startDate: new Date('2026-01-05T00:00:00.000Z'),
+          endDate: new Date('2026-04-10T00:00:00.000Z'),
+        }),
+      ])
+
+      await expect(
+        updateTerm(accountant, 't-1', { startDate: '2026-01-01', endDate: '2026-02-01' }),
+      ).rejects.toMatchObject({ statusCode: HttpStatus.BadRequest })
+      expect(prismaMock.academicTerm.update).not.toHaveBeenCalled()
+    })
+
+    it('rejects activating a term whose dates are invalid', async () => {
+      prismaMock.academicTerm.findUnique.mockResolvedValue(
+        termRecord('t-9', {
+          status: 'INACTIVE',
+          startDate: new Date('2025-12-19T00:00:00.000Z'),
+          endDate: new Date('2025-09-01T00:00:00.000Z'),
+        }),
+      )
+
+      await expect(setTermStatus(accountant, 't-9', 'ACTIVE')).rejects.toMatchObject({
+        statusCode: HttpStatus.BadRequest,
+      })
+      expect(prismaMock.academicTerm.update).not.toHaveBeenCalled()
     })
 
     it('deactivates a term and keeps one ACTIVE term per session', async () => {
@@ -1207,7 +1295,7 @@ describe('finance.service', () => {
     it('rejects when no active session exists', async () => {
       prismaMock.academicSession.findFirst.mockResolvedValue(null)
       await expect(getReconciliation({ date: mondayDate, feeType: 'DAILY' }))
-        .rejects.toThrow('No active academic session found')
+        .rejects.toThrow('No active academic year found')
     })
 
     it('rejects when no active term exists', async () => {
@@ -1589,7 +1677,7 @@ describe('finance.service', () => {
 
     it('rejects when no active session', async () => {
       prismaMock.academicSession.findFirst.mockResolvedValue(null)
-      await expect(getDailyPupilFinance({ date: mondayDate })).rejects.toThrow('No active academic session found')
+      await expect(getDailyPupilFinance({ date: mondayDate })).rejects.toThrow('No active academic year found')
     })
 
     it('rejects when no active term', async () => {
@@ -1728,7 +1816,7 @@ describe('finance.service', () => {
     it('rejects when no active session exists', async () => {
       prismaMock.academicSession.findFirst.mockResolvedValue(null)
       await expect(getCombinedReconciliation({ date: mondayDate }))
-        .rejects.toThrow('No active academic session found')
+        .rejects.toThrow('No active academic year found')
     })
   })
 })

@@ -182,6 +182,27 @@ function assertEndAfterStart(start: Date, end: Date): void {
   }
 }
 
+async function assertNoTermOverlap(
+  sessionId: string,
+  startDate: Date,
+  endDate: Date,
+  excludeTermId?: string,
+): Promise<void> {
+  const existing = await prisma.academicTerm.findMany({ where: { sessionId } })
+  const clash = existing.find(
+    (term) =>
+      term.id !== excludeTermId &&
+      startDate.getTime() <= term.endDate.getTime() &&
+      endDate.getTime() >= term.startDate.getTime(),
+  )
+  if (clash) {
+    throw new AppError(
+      `This term overlaps "${clash.name}" in the same academic year.`,
+      HttpStatus.BadRequest,
+    )
+  }
+}
+
 function countWeekdays(start: Date, end: Date): number {
   const s = new Date(start.getFullYear(), start.getMonth(), start.getDate())
   const e = new Date(end.getFullYear(), end.getMonth(), end.getDate())
@@ -245,7 +266,7 @@ export async function getSession(id: string): Promise<AcademicSessionView> {
     include: sessionCountsInclude,
   })
   if (!session) {
-    throw new AppError('Academic session not found.', HttpStatus.NotFound)
+    throw new AppError('Academic year not found.', HttpStatus.NotFound)
   }
   return toSessionView(session)
 }
@@ -262,7 +283,7 @@ export async function createSession(
 
   const duplicate = await prisma.academicSession.findUnique({ where: { name } })
   if (duplicate) {
-    throw new AppError('A session with this name already exists.', HttpStatus.Conflict)
+    throw new AppError('An academic year with this name already exists.', HttpStatus.Conflict)
   }
 
   const status = input.status ?? 'ACTIVE'
@@ -293,7 +314,7 @@ export async function updateSession(
 ): Promise<AcademicSessionView> {
   const existing = await prisma.academicSession.findUnique({ where: { id } })
   if (!existing) {
-    throw new AppError('Academic session not found.', HttpStatus.NotFound)
+    throw new AppError('Academic year not found.', HttpStatus.NotFound)
   }
 
   const data: Prisma.AcademicSessionUpdateInput = {}
@@ -303,7 +324,7 @@ export async function updateSession(
     const name = input.name.trim()
     const duplicate = await prisma.academicSession.findUnique({ where: { name } })
     if (duplicate && duplicate.id !== id) {
-      throw new AppError('A session with this name already exists.', HttpStatus.Conflict)
+      throw new AppError('An academic year with this name already exists.', HttpStatus.Conflict)
     }
     data.name = name
     changed.push('name')
@@ -361,7 +382,11 @@ export async function setSessionStatus(
 ): Promise<AcademicSessionView> {
   const existing = await prisma.academicSession.findUnique({ where: { id } })
   if (!existing) {
-    throw new AppError('Academic session not found.', HttpStatus.NotFound)
+    throw new AppError('Academic year not found.', HttpStatus.NotFound)
+  }
+
+  if (status === 'ACTIVE') {
+    assertEndAfterStart(existing.startDate, existing.endDate)
   }
 
   if (existing.status !== status) {
@@ -416,13 +441,14 @@ export async function createTerm(
 ): Promise<AcademicTermView> {
   const session = await prisma.academicSession.findUnique({ where: { id: input.sessionId } })
   if (!session) {
-    throw new AppError('Academic session not found.', HttpStatus.NotFound)
+    throw new AppError('Academic year not found.', HttpStatus.NotFound)
   }
 
   const name = input.name.trim()
   const startDate = new Date(input.startDate)
   const endDate = new Date(input.endDate)
   assertEndAfterStart(startDate, endDate)
+  await assertNoTermOverlap(input.sessionId, startDate, endDate)
 
   const schoolDays = input.schoolDays ?? countWeekdays(startDate, endDate)
 
@@ -451,7 +477,7 @@ export async function createTerm(
   } catch (error) {
     if (isUniqueViolation(error)) {
       throw new AppError(
-        'A term with this name or term number already exists in the session.',
+        'A term with this name or term number already exists in the academic year.',
         HttpStatus.Conflict,
       )
     }
@@ -500,6 +526,7 @@ export async function updateTerm(
     const startDate = input.startDate ? new Date(input.startDate) : existing.startDate
     const endDate = input.endDate ? new Date(input.endDate) : existing.endDate
     assertEndAfterStart(startDate, endDate)
+    await assertNoTermOverlap(existing.sessionId, startDate, endDate, id)
     if (input.startDate !== undefined) {
       data.startDate = startDate
       changed.push('startDate')
@@ -529,7 +556,7 @@ export async function updateTerm(
   } catch (error) {
     if (isUniqueViolation(error)) {
       throw new AppError(
-        'A term with this name or term number already exists in the session.',
+        'A term with this name or term number already exists in the academic year.',
         HttpStatus.Conflict,
       )
     }
@@ -560,6 +587,10 @@ export async function setTermStatus(
   const existing = await prisma.academicTerm.findUnique({ where: { id } })
   if (!existing) {
     throw new AppError('Academic term not found.', HttpStatus.NotFound)
+  }
+
+  if (status === 'ACTIVE') {
+    assertEndAfterStart(existing.startDate, existing.endDate)
   }
 
   if (existing.status !== status) {
@@ -659,7 +690,7 @@ export async function createFee(
 ): Promise<FeeView> {
   const session = await prisma.academicSession.findUnique({ where: { id: input.sessionId } })
   if (!session) {
-    throw new AppError('Academic session not found.', HttpStatus.NotFound)
+    throw new AppError('Academic year not found.', HttpStatus.NotFound)
   }
 
   const term = await prisma.academicTerm.findUnique({ where: { id: input.termId } })
@@ -667,7 +698,7 @@ export async function createFee(
     throw new AppError('Academic term not found.', HttpStatus.NotFound)
   }
   if (term.sessionId !== input.sessionId) {
-    throw new AppError('The selected term does not belong to the selected session.', HttpStatus.BadRequest)
+    throw new AppError('The selected term does not belong to the selected academic year.', HttpStatus.BadRequest)
   }
 
   const fee = await prisma.financeFee.create({
@@ -682,7 +713,7 @@ export async function createFee(
     },
   }).catch((error: unknown) => {
     if (isUniqueViolation(error)) {
-      throw new AppError('A fee with this name already exists in the session and term.', HttpStatus.Conflict)
+      throw new AppError('A fee with this name already exists in the academic year and term.', HttpStatus.Conflict)
     }
     throw error
   })
@@ -720,7 +751,7 @@ export async function createFeesBatch(
 ): Promise<FeeView[]> {
   const session = await prisma.academicSession.findUnique({ where: { id: input.sessionId } })
   if (!session) {
-    throw new AppError('Academic session not found.', HttpStatus.NotFound)
+    throw new AppError('Academic year not found.', HttpStatus.NotFound)
   }
 
   const term = await prisma.academicTerm.findUnique({ where: { id: input.termId } })
@@ -728,7 +759,7 @@ export async function createFeesBatch(
     throw new AppError('Academic term not found.', HttpStatus.NotFound)
   }
   if (term.sessionId !== input.sessionId) {
-    throw new AppError('The selected term does not belong to the selected session.', HttpStatus.BadRequest)
+    throw new AppError('The selected term does not belong to the selected academic year.', HttpStatus.BadRequest)
   }
 
   const createdIds: string[] = []
@@ -747,7 +778,7 @@ export async function createFeesBatch(
         },
       }).catch((error: unknown) => {
         if (isUniqueViolation(error)) {
-          throw new AppError(`A fee with the name "${item.name.trim()}" already exists in this session and term.`, HttpStatus.Conflict)
+          throw new AppError(`A fee with the name "${item.name.trim()}" already exists in this academic year and term.`, HttpStatus.Conflict)
         }
         throw error
       })
@@ -792,7 +823,7 @@ export async function updateFee(
       throw new AppError('Academic term not found.', HttpStatus.NotFound)
     }
     if (term.sessionId !== existing.sessionId) {
-      throw new AppError('The selected term does not belong to the fee\'s session.', HttpStatus.BadRequest)
+      throw new AppError('The selected term does not belong to the fee\'s academic year.', HttpStatus.BadRequest)
     }
     data.term = { connect: { id: input.termId } }
     changed.push('termId')
@@ -821,7 +852,7 @@ export async function updateFee(
   if (Object.keys(data).length > 0) {
     await prisma.financeFee.update({ where: { id }, data }).catch((error: unknown) => {
       if (isUniqueViolation(error)) {
-        throw new AppError('A fee with this name already exists in the session and term.', HttpStatus.Conflict)
+        throw new AppError('A fee with this name already exists in the academic year and term.', HttpStatus.Conflict)
       }
       throw error
     })
@@ -1191,7 +1222,7 @@ export async function generateChargesForSession(
 ): Promise<ChargeGenerateResult> {
   const session = await prisma.academicSession.findUnique({ where: { id: sessionId } })
   if (!session) {
-    throw new AppError('Academic session not found.', HttpStatus.NotFound)
+    throw new AppError('Academic year not found.', HttpStatus.NotFound)
   }
   const fees = await prisma.financeFee.findMany({
     where: { sessionId, status: 'ACTIVE' },
@@ -1384,7 +1415,7 @@ export async function markPaid(
 
   const activeSession = await prisma.academicSession.findFirst({ where: { status: 'ACTIVE' } })
   if (!activeSession) {
-    throw new AppError('No active academic session found.', HttpStatus.BadRequest)
+    throw new AppError('No active academic year found.', HttpStatus.BadRequest)
   }
 
   const activeTerm = await prisma.academicTerm.findFirst({
@@ -1562,7 +1593,7 @@ export async function markUnpaid(
 
   const activeSession = await prisma.academicSession.findFirst({ where: { status: 'ACTIVE' } })
   if (!activeSession) {
-    throw new AppError('No active academic session found.', HttpStatus.BadRequest)
+    throw new AppError('No active academic year found.', HttpStatus.BadRequest)
   }
 
   const activeTerm = await prisma.academicTerm.findFirst({
@@ -2075,7 +2106,7 @@ export async function getDailyPupilFinance(
     orderBy: { createdAt: 'desc' },
   })
   if (!session) {
-    throw new AppError('No active academic session found.', HttpStatus.BadRequest)
+    throw new AppError('No active academic year found.', HttpStatus.BadRequest)
   }
 
   const term = await prisma.academicTerm.findFirst({
@@ -2323,7 +2354,7 @@ export async function getReconciliation(options: ReconciliationOptions): Promise
     orderBy: { createdAt: 'desc' },
   })
   if (!session) {
-    throw new AppError('No active academic session found.', HttpStatus.BadRequest)
+    throw new AppError('No active academic year found.', HttpStatus.BadRequest)
   }
 
   const term = await prisma.academicTerm.findFirst({
@@ -2553,7 +2584,7 @@ export async function getCombinedReconciliation(options: CombinedReconciliationO
     orderBy: { createdAt: 'desc' },
   })
   if (!session) {
-    throw new AppError('No active academic session found.', HttpStatus.BadRequest)
+    throw new AppError('No active academic year found.', HttpStatus.BadRequest)
   }
 
   const term = await prisma.academicTerm.findFirst({
@@ -2941,7 +2972,7 @@ export async function setReconciliationAttendance(
     orderBy: { createdAt: 'desc' },
   })
   if (!session) {
-    throw new AppError('No active academic session found.', HttpStatus.BadRequest)
+    throw new AppError('No active academic year found.', HttpStatus.BadRequest)
   }
 
   const existing = await prisma.attendance.findFirst({
@@ -3009,7 +3040,7 @@ export async function closeDailyReconciliation(
     select: { id: true, name: true },
   })
   if (!session) {
-    throw new AppError('No active academic session found.', HttpStatus.BadRequest)
+    throw new AppError('No active academic year found.', HttpStatus.BadRequest)
   }
 
   const term = await prisma.academicTerm.findFirst({

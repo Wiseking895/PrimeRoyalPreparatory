@@ -3,7 +3,9 @@ import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { HeadteacherDashboardPage } from './HeadteacherDashboardPage'
 import type {
+  AcademicSessionView,
   AcademicStatsView,
+  AcademicTermView,
   AttendanceView,
   OwnerFinanceOverviewView,
   PupilStats,
@@ -20,6 +22,8 @@ const apiMock = vi.hoisted(() => ({
   pupilStats: vi.fn(),
   ownerSummary: vi.fn(),
   staffStats: vi.fn(),
+  listSessions: vi.fn(),
+  listTerms: vi.fn(),
 }))
 
 vi.mock('@/lib/api', () => ({ api: apiMock }))
@@ -165,6 +169,35 @@ function academicFixture(): AcademicStatsView {
   }
 }
 
+function sessionFixture(overrides: Partial<AcademicSessionView> = {}): AcademicSessionView {
+  return {
+    id: 'session-1',
+    name: '2026/2027 Academic Year',
+    startDate: '2026-07-09T00:00:00.000Z',
+    endDate: '2027-07-01T00:00:00.000Z',
+    status: 'ACTIVE',
+    termCount: 3,
+    feeCount: 2,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    ...overrides,
+  }
+}
+
+function termFixture(overrides: Partial<AcademicTermView> = {}): AcademicTermView {
+  return {
+    id: 'term-1',
+    sessionId: 'session-1',
+    name: 'First Term',
+    termNumber: 1,
+    startDate: '2026-09-08T00:00:00.000Z',
+    endDate: '2026-12-20T00:00:00.000Z',
+    schoolDays: 74,
+    status: 'ACTIVE',
+    ...overrides,
+  }
+}
+
 function staffFixture(): StaffView[] {
   return [
     {
@@ -226,6 +259,8 @@ describe('HeadteacherDashboardPage', () => {
     apiMock.listTeachers.mockResolvedValue(teachersFixture())
     apiMock.listAttendance.mockResolvedValue(attendanceFixture())
     apiMock.pupilStats.mockResolvedValue(pupilStatsFixture())
+    apiMock.listSessions.mockResolvedValue([sessionFixture()])
+    apiMock.listTerms.mockResolvedValue([termFixture()])
     apiMock.ownerSummary.mockRejectedValue(new Error('Forbidden'))
     apiMock.staffStats.mockRejectedValue(new Error('Forbidden'))
   })
@@ -321,5 +356,41 @@ describe('HeadteacherDashboardPage', () => {
     expect(screen.getByText('Academic Overview')).toBeInTheDocument()
     expect(screen.getByText('Staff Overview')).toBeInTheDocument()
     expect(screen.getByText('Work Output')).toBeInTheDocument()
+  })
+
+  it('shows the current academic year and term with their dates', async () => {
+    renderPage()
+
+    expect(await screen.findByText('Academic Period')).toBeInTheDocument()
+    expect(screen.getByText('Academic Year')).toBeInTheDocument()
+    expect(screen.getByText('2026/2027 Academic Year')).toBeInTheDocument()
+    expect(screen.getByText(/3 terms$/)).toBeInTheDocument()
+    expect(screen.getAllByText('First Term').length).toBeGreaterThan(0)
+    expect(screen.getByText(/74 school days/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Manage academic years/i })).toHaveAttribute(
+      'href',
+      '/headteacher/finance/sessions',
+    )
+    expect(apiMock.listSessions).toHaveBeenCalledTimes(1)
+    expect(apiMock.listTerms).toHaveBeenCalledTimes(1)
+  })
+
+  it('surfaces an error state when the academic period cannot be loaded', async () => {
+    apiMock.listSessions.mockRejectedValue(new Error('Periods unavailable'))
+    renderPage()
+
+    expect(await screen.findByText('Could not load the academic period.')).toBeInTheDocument()
+    expect(screen.getByText('Periods unavailable')).toBeInTheDocument()
+    expect(screen.getByText('Total Pupils')).toBeInTheDocument()
+  })
+
+  it('does not request academic periods without academic.view', async () => {
+    PERMISSIONS = HEADTEACHER_PERMISSIONS.filter((key) => key !== 'academic.view')
+    renderPage()
+
+    expect(await screen.findByText('Total Pupils')).toBeInTheDocument()
+    expect(apiMock.listSessions).not.toHaveBeenCalled()
+    expect(apiMock.listTerms).not.toHaveBeenCalled()
+    expect(screen.queryByText('Academic Period')).not.toBeInTheDocument()
   })
 })

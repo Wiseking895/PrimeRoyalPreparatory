@@ -39,6 +39,7 @@
     "multer": "^2.3.0",
     "node-html-parser": "^9.0.4",
     "nodemailer": "^9.0.5",
+    "pdf-lib": "^1.17.1",
     "pino": "^9.6.0",
     "pino-http": "^10.4.0",
     "zod": "^3.25.76"

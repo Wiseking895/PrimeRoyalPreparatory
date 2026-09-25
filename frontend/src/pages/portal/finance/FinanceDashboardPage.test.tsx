@@ -156,12 +156,22 @@ describe('FinanceDashboardPage', () => {
     expect(screen.getByText('Active Classes')).toBeInTheDocument()
   })
 
-  it('shows finance overview without academic period card', async () => {
+  it('shows the academic period card with the active academic year and term', async () => {
     renderPage()
 
     expect(await screen.findByText('Total Expected')).toBeInTheDocument()
     expect(screen.getByText('Total Collected')).toBeInTheDocument()
     expect(screen.getByText('Outstanding')).toBeInTheDocument()
+    expect(screen.getByText('Academic Period')).toBeInTheDocument()
+    expect(screen.getByText('Academic Year')).toBeInTheDocument()
+    expect(screen.getByText('2026/2027 Academic Session')).toBeInTheDocument()
+    expect(screen.getByText('First Term')).toBeInTheDocument()
+    expect(screen.getByText(/1 term$/)).toBeInTheDocument()
+    expect(screen.getByText(/80 school days/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Manage academic years/i })).toHaveAttribute(
+      'href',
+      '/accountant/sessions',
+    )
   })
 
   it('shows a recent payment', async () => {
@@ -178,6 +188,10 @@ describe('FinanceDashboardPage', () => {
     expect(screen.getByRole('link', { name: /Fee Structures/i })).toHaveAttribute('href', '/accountant/fees')
     expect(screen.getByRole('link', { name: /Reconciliation/i })).toHaveAttribute('href', '/accountant/reconciliation')
     expect(screen.getByRole('link', { name: /Payment History/i })).toHaveAttribute('href', '/accountant/payments')
+    expect(screen.getByRole('link', { name: /Academic Years & Terms/i })).toHaveAttribute(
+      'href',
+      '/accountant/sessions',
+    )
   })
 
   it('shows fee category toggle buttons', async () => {

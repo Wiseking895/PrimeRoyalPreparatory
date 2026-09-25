@@ -406,6 +406,17 @@ export const api = {
     link.remove()
     URL.revokeObjectURL(url)
   },
+  fetchAdmissionFormPdf: async (pupilId: string): Promise<Blob> => {
+    const token = getToken()
+    const response = await fetch(`${API_BASE_URL}/api/pupils/${pupilId}/admission-form`, {
+      method: 'GET',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+    if (!response.ok) {
+      throw new ApiError('Could not download the admission form.', response.status)
+    }
+    return response.blob()
+  },
 
   // Classes
   listClasses: () => request<SchoolClassView[]>('/api/classes'),
