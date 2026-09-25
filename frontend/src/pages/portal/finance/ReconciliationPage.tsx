@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ClipboardCheck, DollarSign, Lock, UserCheck, UserX, UserPlus } from 'lucide-react'
+import { AlertCircle, CheckCheck, CircleDollarSign, ClipboardCheck, DollarSign, Lock, UserCheck, UserX, UserPlus } from 'lucide-react'
 import { PageHeader } from '@/components/dashboard/PageHeader'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
@@ -35,13 +35,14 @@ function overallStatusBadge(status: DailyFinanceStatus) {
 
 interface StatusToggleProps {
   pupilId: string
+  pupilName: string
   currentStatus: ReconciliationStatus
   feeType: 'DAILY' | 'PA'
   disabled: boolean
   onChange: (pupilId: string, paid: boolean) => Promise<void>
 }
 
-function StatusToggle({ pupilId, currentStatus, feeType, disabled, onChange }: StatusToggleProps) {
+function StatusToggle({ pupilId, pupilName, currentStatus, feeType, disabled, onChange }: StatusToggleProps) {
   const isPaid = currentStatus === 'PAID'
   const isExempt = currentStatus === 'EXEMPT'
 
@@ -56,7 +57,7 @@ function StatusToggle({ pupilId, currentStatus, feeType, disabled, onChange }: S
       onClick={() => !disabled && onChange(pupilId, !isPaid)}
       disabled={disabled}
       className="w-full min-w-[100px]"
-      aria-label={`${feeType} fee: ${isPaid ? 'Paid' : 'Not Paid'}. Click to toggle.`}
+      ariaLabel={`Mark ${pupilName} ${feeType.toLowerCase()} fee ${isPaid ? 'not paid' : 'paid'}. Click to toggle.`}
     >
       {isPaid ? '✓ Paid' : '✕ Not Paid'}
     </Button>
@@ -65,22 +66,23 @@ function StatusToggle({ pupilId, currentStatus, feeType, disabled, onChange }: S
 
 interface AttendanceToggleProps {
   pupilId: string
+  pupilName: string
   attendanceStatus: string | null
   disabled: boolean
   onChange: (pupilId: string, present: boolean) => Promise<void>
 }
 
-function AttendanceToggle({ pupilId, attendanceStatus, disabled, onChange }: AttendanceToggleProps) {
+function AttendanceToggle({ pupilId, pupilName, attendanceStatus, disabled, onChange }: AttendanceToggleProps) {
   const isPresent = attendanceStatus === 'PRESENT'
 
   return (
     <Button
-      variant={isPresent ? 'success' : 'neutral'}
+      variant={isPresent ? 'success' : 'danger'}
       size="sm"
       onClick={() => !disabled && onChange(pupilId, !isPresent)}
       disabled={disabled}
       className="w-full min-w-[100px]"
-      aria-label={`Attendance: ${isPresent ? 'Present' : 'Absent'}. Click to toggle.`}
+      ariaLabel={`Mark ${pupilName} ${isPresent ? 'absent' : 'present'}. Click to toggle.`}
     >
       {isPresent ? '✓ Present' : '✕ Absent'}
     </Button>
@@ -130,40 +132,31 @@ function PupilTable({
                 <td className="px-4 py-3 text-center">
                   <AttendanceToggle
                     pupilId={pupil.pupilId}
+                    pupilName={pupil.fullName}
                     attendanceStatus={pupil.attendanceStatus}
                     disabled={!canEditAttendance || isClosed}
                     onChange={onToggleAttendance}
                   />
                 </td>
                 <td className="px-4 py-3 text-center">
-                  <div className="flex flex-col items-center gap-1">
-                    <StatusToggle
-                      pupilId={pupil.pupilId}
-                      currentStatus={pupil.dailyStatus}
-                      feeType="DAILY"
-                      disabled={!canEditPayments || isClosed}
-                      onChange={onToggleDaily}
-                    />
-                    <span className="text-xs text-ink-500">GHS {formatMoney(pupil.dailyFeeAmount)}</span>
-                    {pupil.dailyStatus === 'PAID' && pupil.dailyPaidAmount !== '0.00' && (
-                      <span className="text-xs text-emerald-600">Paid: GHS {formatMoney(pupil.dailyPaidAmount)}</span>
-                    )}
-                  </div>
+                  <StatusToggle
+                    pupilId={pupil.pupilId}
+                    pupilName={pupil.fullName}
+                    currentStatus={pupil.dailyStatus}
+                    feeType="DAILY"
+                    disabled={!canEditPayments || isClosed}
+                    onChange={onToggleDaily}
+                  />
                 </td>
                 <td className="px-4 py-3 text-center">
-                  <div className="flex flex-col items-center gap-1">
-                    <StatusToggle
-                      pupilId={pupil.pupilId}
-                      currentStatus={pupil.paStatus}
-                      feeType="PA"
-                      disabled={!canEditPayments || isClosed}
-                      onChange={onTogglePA}
-                    />
-                    <span className="text-xs text-ink-500">GHS {formatMoney(pupil.paFeeAmount)}</span>
-                    {pupil.paStatus === 'PAID' && pupil.paPaidAmount !== '0.00' && (
-                      <span className="text-xs text-emerald-600">Paid: GHS {formatMoney(pupil.paPaidAmount)}</span>
-                    )}
-                  </div>
+                  <StatusToggle
+                    pupilId={pupil.pupilId}
+                    pupilName={pupil.fullName}
+                    currentStatus={pupil.paStatus}
+                    feeType="PA"
+                    disabled={!canEditPayments || isClosed}
+                    onChange={onTogglePA}
+                  />
                 </td>
                 <td className="px-4 py-3 text-right font-bold">
                   <span className={Number(pupil.outstanding) > 0 ? 'text-red-700' : 'text-ink-900'}>
@@ -216,6 +209,7 @@ function PupilMobileList({
                 <p className="text-xs font-semibold text-ink-500">Attendance</p>
                 <AttendanceToggle
                   pupilId={pupil.pupilId}
+                  pupilName={pupil.fullName}
                   attendanceStatus={pupil.attendanceStatus}
                   disabled={!canEditAttendance || isClosed}
                   onChange={onToggleAttendance}
@@ -225,23 +219,23 @@ function PupilMobileList({
                 <p className="text-xs font-semibold text-ink-500">Daily Fee</p>
                 <StatusToggle
                   pupilId={pupil.pupilId}
+                  pupilName={pupil.fullName}
                   currentStatus={pupil.dailyStatus}
                   feeType="DAILY"
                   disabled={!canEditPayments || isClosed}
                   onChange={onToggleDaily}
                 />
-                <p className="text-xs text-ink-500">GHS {formatMoney(pupil.dailyFeeAmount)}</p>
               </div>
               <div className="p-2 bg-cream-50 rounded-xl">
                 <p className="text-xs font-semibold text-ink-500">PA Fee</p>
                 <StatusToggle
                   pupilId={pupil.pupilId}
+                  pupilName={pupil.fullName}
                   currentStatus={pupil.paStatus}
                   feeType="PA"
                   disabled={!canEditPayments || isClosed}
                   onChange={onTogglePA}
                 />
-                <p className="text-xs text-ink-500">GHS {formatMoney(pupil.paFeeAmount)}</p>
               </div>
             </div>
             <div className="mt-3 pt-3 border-t border-cream-200 flex items-center justify-between">
@@ -378,7 +372,7 @@ function CloseConfirmationDialog({
 }
 
 export function ReconciliationPage() {
-  const { user, hasPermission } = useAuth()
+  const { hasPermission } = useAuth()
   const canEditPayments = hasPermission(PAYMENTS_RECORD)
   const canEditAttendance = canEditPayments
 
@@ -424,45 +418,45 @@ export function ReconciliationPage() {
   }, [load])
 
   const handleToggleDaily = useCallback(async (pupilId: string, paid: boolean) => {
+    setError(null)
     try {
-      await api.markPaid({ pupilId, dailyPaid: paid, paPaid: false, paymentMethod: 'CASH' })
+      if (paid) {
+        await api.markPaid({ pupilId, dailyPaid: true, paPaid: false, paymentMethod: 'CASH', paymentDate: date })
+      } else {
+        await api.markUnpaid({ pupilId, dailyUnpaid: true, paUnpaid: false, paymentDate: date })
+      }
       void load()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update Daily Fee status.')
     }
-  }, [load])
+  }, [load, date])
 
   const handleTogglePA = useCallback(async (pupilId: string, paid: boolean) => {
+    setError(null)
     try {
-      await api.markPaid({ pupilId, dailyPaid: false, paPaid: paid, paymentMethod: 'CASH' })
+      if (paid) {
+        await api.markPaid({ pupilId, dailyPaid: false, paPaid: true, paymentMethod: 'CASH', paymentDate: date })
+      } else {
+        await api.markUnpaid({ pupilId, dailyUnpaid: false, paUnpaid: true, paymentDate: date })
+      }
       void load()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update PA Fee status.')
     }
-  }, [load])
+  }, [load, date])
 
   const handleToggleAttendance = useCallback(async (pupilId: string, present: boolean) => {
+    setError(null)
     try {
       const status = present ? 'PRESENT' : 'ABSENT'
-      const attendanceRecords = await api.listAttendance({ pupilId, dateFrom: date, dateTo: date })
-      const existingRecord = attendanceRecords.find(r => r.pupilId === pupilId && r.date.startsWith(date))
-      
-      if (existingRecord) {
-        await api.updateAttendance(existingRecord.id, { status })
-      } else {
-        await api.createAttendance({
-          pupilId,
-          staffId: user?.id ?? '',
-          status,
-          date,
-          sessionId: result?.sessionId ?? '',
-        })
-      }
+      await api.updateReconciliationAttendance({ pupilId, date, status })
       void load()
     } catch (err) {
+      // Keep the existing table/result on screen so the prior status stays
+      // visible — the failure surfaces as an inline alert, never a fake flip.
       setError(err instanceof Error ? err.message : 'Failed to update attendance.')
     }
-  }, [load, date, result, user])
+  }, [load, date])
 
   const handleCloseReconciliation = useCallback(async () => {
     setClosing(true)
@@ -484,7 +478,7 @@ export function ReconciliationPage() {
       <PageHeader
         eyebrow="Fees & Finance"
         title="Daily Reconciliation"
-        description="View and reconcile Daily Fee and PA Fee payment status for all pupils on a single school day."
+        description="Daily collection and attendance for one school day: Daily Fee and PA Fee paid/not paid status, outstanding balances, then close and sign the day."
       />
 
       {/* Filters */}
@@ -551,14 +545,45 @@ export function ReconciliationPage() {
         </Card>
       )}
 
-      {error ? (
+      {/* Load failure with no data → full error state; mutation failure with
+          data on screen → inline alert so the table and prior statuses remain. */}
+      {error && !result ? (
         <ErrorState message={error} onRetry={() => void load()} />
       ) : loading && !result ? (
         <TableSkeleton rows={6} />
       ) : result ? (
         <>
+          {error && (
+            <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700">
+              {error}
+            </div>
+          )}
+          {/* Per-class sections */}
+          {result.classes.length === 0 ? (
+            <EmptyState
+              icon={<ClipboardCheck className="h-7 w-7" aria-hidden="true" />}
+              title="No classes found."
+              description="No active classes are available for reconciliation."
+            />
+          ) : (
+            <div className="space-y-6" data-testid="reconciliation-classes">
+              {result.classes.map((cls) => (
+                <ClassSection
+                  key={cls.classId}
+                  cls={cls}
+                  canEditPayments={canEditPayments}
+                  canEditAttendance={canEditAttendance}
+                  isClosed={isLocked}
+                  onToggleDaily={handleToggleDaily}
+                  onTogglePA={handleTogglePA}
+                  onToggleAttendance={handleToggleAttendance}
+                />
+              ))}
+            </div>
+          )}
+
           {/* Summary stats */}
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+          <div data-testid="reconciliation-summary" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <StatCard
               label="Total Pupils"
               value={result.totals.totalPupils}
@@ -591,65 +616,40 @@ export function ReconciliationPage() {
               icon={<UserPlus className="h-5 w-5" aria-hidden="true" />}
               tone="magenta"
             />
-          </div>
-
-          {/* Revenue summary */}
-          <div className="grid gap-4 sm:grid-cols-3">
-            <Card className="p-5">
-              <p className="text-xs font-semibold uppercase tracking-wider text-ink-500">Total Outstanding</p>
-              <p className="mt-1 text-2xl font-extrabold text-red-700">GHS {formatMoney(result.totals.totalOutstanding)}</p>
-              <p className="text-xs text-ink-500">From {result.totals.notPaidCount} unpaid pupils</p>
-            </Card>
-            <Card className="p-5">
-              <p className="text-xs font-semibold uppercase tracking-wider text-ink-500">Fully Paid</p>
-              <p className="mt-1 text-2xl font-extrabold text-emerald-700">{result.totals.fullyPaidCount}</p>
-              <p className="text-xs text-ink-500">Both fees paid</p>
-            </Card>
-            <Card className="p-5">
-              <p className="text-xs font-semibold uppercase tracking-wider text-ink-500">Partially Paid</p>
-              <p className="mt-1 text-2xl font-extrabold text-amber-700">{result.totals.partiallyPaidCount}</p>
-              <p className="text-xs text-ink-500">One fee paid, one outstanding</p>
-            </Card>
+            <StatCard
+              label="Fully Paid"
+              value={result.totals.fullyPaidCount}
+              hint="Both fees paid"
+              icon={<CheckCheck className="h-5 w-5" aria-hidden="true" />}
+              tone="green"
+            />
+            <StatCard
+              label="Partially Paid"
+              value={result.totals.partiallyPaidCount}
+              hint="One fee paid, one outstanding"
+              icon={<CircleDollarSign className="h-5 w-5" aria-hidden="true" />}
+              tone="gold"
+            />
+            <StatCard
+              label="Total Outstanding"
+              value={`GHS ${formatMoney(result.totals.totalOutstanding)}`}
+              hint={`From ${result.totals.notPaidCount} unpaid pupils`}
+              icon={<AlertCircle className="h-5 w-5" aria-hidden="true" />}
+              tone="red"
+            />
           </div>
 
           {/* Close / Sign Button */}
           {canEditPayments && !isLocked && (
-            <Card className="p-4 border-l-4 border-amber-500 bg-amber-50">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-bold text-ink-900">Close & Sign Daily Fees</p>
-                  <p className="text-xs text-ink-500 mt-1">
-                    Review all records below, then close and sign this day's reconciliation. After closing, records cannot be edited.
-                  </p>
-                </div>
-                <Button variant="success" onClick={() => setShowCloseDialog(true)}>
-                  Close & Sign
+            <div className="flex flex-col gap-3 rounded-xl border border-cream-200 bg-cream-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs text-ink-500">
+                Review all records above, then close and sign this day's reconciliation. After closing, records cannot be edited.
+              </p>
+              <div className="flex justify-end">
+                <Button variant="success" size="lg" onClick={() => setShowCloseDialog(true)}>
+                  Close &amp; Sign
                 </Button>
               </div>
-            </Card>
-          )}
-
-          {/* Per-class sections */}
-          {result.classes.length === 0 ? (
-            <EmptyState
-              icon={<ClipboardCheck className="h-7 w-7" aria-hidden="true" />}
-              title="No classes found."
-              description="No active classes are available for reconciliation."
-            />
-          ) : (
-            <div className="space-y-6">
-              {result.classes.map((cls) => (
-                <ClassSection
-                  key={cls.classId}
-                  cls={cls}
-                  canEditPayments={canEditPayments}
-                  canEditAttendance={canEditAttendance}
-                  isClosed={isLocked}
-                  onToggleDaily={handleToggleDaily}
-                  onTogglePA={handleTogglePA}
-                  onToggleAttendance={handleToggleAttendance}
-                />
-              ))}
             </div>
           )}
         </>

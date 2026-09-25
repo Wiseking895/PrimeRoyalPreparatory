@@ -1,15 +1,14 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PaymentsPage } from './PaymentsPage'
-import type { FeeView, PaymentListResult, PaymentView } from '@/types/portal'
+import type { AcademicSessionView, AcademicTermView, FinanceSummaryView, PaymentListResult, PaymentView } from '@/types/portal'
 
 const apiMock = vi.hoisted(() => ({
   listPayments: vi.fn(),
-  listFinancePupils: vi.fn(),
-  createPayment: vi.fn(),
-  markPaid: vi.fn(),
-  listFees: vi.fn(),
+  financeSummary: vi.fn(),
+  listSessions: vi.fn(),
+  listTerms: vi.fn(),
 }))
 
 vi.mock('@/lib/api', () => ({ api: apiMock }))
@@ -36,12 +35,6 @@ vi.mock('@/auth/AuthContext', () => ({
     },
     hasPermission: (key: string) => PERMISSIONS.includes(key),
   }),
-}))
-
-const pushMock = vi.hoisted(() => vi.fn())
-
-vi.mock('@/components/dashboard/Toast', () => ({
-  useToast: () => ({ push: pushMock }),
 }))
 
 function paymentFixture(overrides: Partial<PaymentView> = {}): PaymentView {
@@ -80,25 +73,61 @@ function resultFixture(overrides: Partial<PaymentListResult> = {}): PaymentListR
   }
 }
 
-function feeFixture(overrides: Partial<FeeView> = {}): FeeView {
-  return {
-    id: 'fee-1',
-    sessionId: 'session-1',
-    sessionName: '2026/2027',
-    termId: 'term-1',
-    termName: 'First Term',
-    name: 'Daily Fee',
-    feeType: 'DAILY',
-    amount: '10.00',
-    description: 'Daily school fee',
-    status: 'ACTIVE',
-    assignmentCount: 50,
-    activeAssignmentCount: 48,
-    chargeCount: 50,
-    createdAt: '2026-08-01T00:00:00.000Z',
-    updatedAt: '2026-08-01T00:00:00.000Z',
-    ...overrides,
-  }
+const sessionFixture: AcademicSessionView = {
+  id: 'session-1',
+  name: '2026/2027',
+  startDate: '2026-09-01',
+  endDate: '2027-07-31',
+  status: 'ACTIVE',
+  termCount: 3,
+  feeCount: 4,
+  createdAt: '2026-01-01T00:00:00.000Z',
+  updatedAt: '2026-01-01T00:00:00.000Z',
+}
+
+const session2Fixture: AcademicSessionView = {
+  id: 'session-2',
+  name: '2027/2028',
+  startDate: '2027-09-01',
+  endDate: '2028-07-31',
+  status: 'ACTIVE',
+  termCount: 3,
+  feeCount: 0,
+  createdAt: '2026-01-01T00:00:00.000Z',
+  updatedAt: '2026-01-01T00:00:00.000Z',
+}
+
+const term1Fixture: AcademicTermView = {
+  id: 'term-1',
+  sessionId: 'session-1',
+  name: 'First Term',
+  termNumber: 1,
+  startDate: '2026-09-01',
+  endDate: '2026-12-18',
+  schoolDays: 79,
+  status: 'ACTIVE',
+}
+
+const term2Fixture: AcademicTermView = {
+  id: 'term-2',
+  sessionId: 'session-1',
+  name: 'Second Term',
+  termNumber: 2,
+  startDate: '2027-01-06',
+  endDate: '2027-04-02',
+  schoolDays: 63,
+  status: 'INACTIVE',
+}
+
+const term3Fixture: AcademicTermView = {
+  id: 'term-3',
+  sessionId: 'session-2',
+  name: 'First Term',
+  termNumber: 1,
+  startDate: '2027-09-01',
+  endDate: '2027-12-17',
+  schoolDays: 80,
+  status: 'ACTIVE',
 }
 
 function renderPage() {
@@ -112,32 +141,15 @@ function renderPage() {
 describe('PaymentsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    pushMock.mockReset()
     apiMock.listPayments.mockResolvedValue(resultFixture())
-    apiMock.listFinancePupils.mockResolvedValue({
-      items: [
-        {
-          id: 'pupil-1',
-          pupilId: 'PRPS-P-0001',
-          fullName: 'Ama Mensah',
-          className: 'Primary 1',
-          status: 'ACTIVE',
-          totalDue: '150000.00',
-          totalPaid: '50000.00',
-          outstanding: '100000.00',
-          chargeCount: 1,
-        },
-      ],
-      total: 1,
-      page: 1,
-      pageSize: 20,
-      hasMore: false,
-    })
-    apiMock.markPaid.mockResolvedValue(paymentFixture({ paymentReference: 'PAY-2026-0002' }))
-    apiMock.listFees.mockResolvedValue([
-      feeFixture({ id: 'fee-daily', name: 'Daily Fee', feeType: 'DAILY', amount: '10.00' }),
-      feeFixture({ id: 'fee-pa', name: 'PA Fee', feeType: 'PA', amount: '1.00' }),
-    ])
+    apiMock.listSessions.mockResolvedValue([sessionFixture, session2Fixture])
+    apiMock.financeSummary.mockResolvedValue({
+      session: sessionFixture,
+      term: term1Fixture,
+    } as unknown as FinanceSummaryView)
+    apiMock.listTerms.mockImplementation(async (sessionId?: string) =>
+      sessionId === 'session-2' ? [term3Fixture] : [term1Fixture, term2Fixture],
+    )
   })
 
   it('renders the payments list', async () => {
@@ -149,104 +161,18 @@ describe('PaymentsPage', () => {
     expect(screen.getAllByText('50,000.00').length).toBeGreaterThan(0)
   })
 
-  it('hides the record button without payments.record (view-only roles)', async () => {
-    PERMISSIONS = ['finance.view']
+  it('is read-only: shows no payment-creation actions even with payments.record', async () => {
+    PERMISSIONS = ['finance.view', 'payments.record']
     renderPage()
 
     await screen.findAllByText('PAY-2026-0001')
     expect(screen.queryByRole('button', { name: /Record payment/i })).not.toBeInTheDocument()
-  })
-
-  it('records a payment with Paid/Not Paid toggles without payment method', async () => {
-    PERMISSIONS = ['finance.view', 'payments.record']
-    renderPage()
-
-    await screen.findAllByText('PAY-2026-0001')
-    fireEvent.click(screen.getByRole('button', { name: /Record payment/i }))
-
-    fireEvent.change(screen.getByLabelText(/^Search pupil/), { target: { value: 'Ama' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Search' }))
-
-    const pupilOption = await screen.findByRole('button', { name: /Ama Mensah/ })
-    fireEvent.click(pupilOption)
-
-    const dailyPaidBtns = screen.getAllByRole('button', { name: 'Paid' })
-    fireEvent.click(dailyPaidBtns[0])
-
-    const dialog = await screen.findByRole('dialog', { name: 'Record payment' })
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Record payment' }))
-
-    await waitFor(() => {
-      expect(apiMock.markPaid).toHaveBeenCalledWith(
-        expect.objectContaining({
-          pupilId: 'pupil-1',
-          dailyPaid: true,
-          paPaid: false,
-        }),
-      )
-    })
-    expect(apiMock.markPaid).toHaveBeenCalledWith(
-      expect.not.objectContaining({
-        paymentMethod: expect.anything(),
-      }),
-    )
-    expect(pushMock).toHaveBeenCalledWith('success', expect.stringContaining('PAY-2026-0002'))
-  })
-
-  it('requires a pupil to be selected before recording', async () => {
-    PERMISSIONS = ['finance.view', 'payments.record']
-    renderPage()
-
-    await screen.findAllByText('PAY-2026-0001')
-    fireEvent.click(screen.getByRole('button', { name: /Record payment/i }))
-
-    const dialog = await screen.findByRole('dialog', { name: 'Record payment' })
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Record payment' }))
-
-    expect(await screen.findByText('Select a pupil.')).toBeInTheDocument()
-    expect(apiMock.markPaid).not.toHaveBeenCalled()
-  })
-
-  it('shows configured fee amounts from fee structure', async () => {
-    PERMISSIONS = ['finance.view', 'payments.record']
-    renderPage()
-
-    await screen.findAllByText('PAY-2026-0001')
-    fireEvent.click(screen.getByRole('button', { name: /Record payment/i }))
-
-    fireEvent.change(screen.getByLabelText(/^Search pupil/), { target: { value: 'Ama' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Search' }))
-
-    const pupilOption = await screen.findByRole('button', { name: /Ama Mensah/ })
-    fireEvent.click(pupilOption)
-
-    expect(await screen.findAllByText('Configured amount:')).toHaveLength(2)
-    expect(screen.getByText('10.00')).toBeInTheDocument()
-    expect(screen.getByText('1.00')).toBeInTheDocument()
-  })
-
-  it('displays automatically determined payment date', async () => {
-    PERMISSIONS = ['finance.view', 'payments.record']
-    renderPage()
-
-    await screen.findAllByText('PAY-2026-0001')
-    fireEvent.click(screen.getByRole('button', { name: /Record payment/i }))
-
-    expect(screen.getByText('Payment Date')).toBeInTheDocument()
-    expect(screen.getByText('Automatically determined by the system.')).toBeInTheDocument()
-  })
-
-  it('does not show payment method, date, or note fields in the form', async () => {
-    PERMISSIONS = ['finance.view', 'payments.record']
-    renderPage()
-
-    await screen.findAllByText('PAY-2026-0001')
-    fireEvent.click(screen.getByRole('button', { name: /Record payment/i }))
-
-    const dialog = await screen.findByRole('dialog', { name: 'Record payment' })
-    expect(within(dialog).queryByLabelText(/Payment method/i)).not.toBeInTheDocument()
-    expect(within(dialog).queryByLabelText(/Payment date/i)).not.toBeInTheDocument()
-    expect(within(dialog).queryByLabelText(/Note/i)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Add Payment/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /New Payment/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Create Payment/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Make Payment/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.queryByText(/Record a payment/i)).not.toBeInTheDocument()
   })
 
   it('shows an empty state when there are no payments', async () => {
@@ -255,5 +181,92 @@ describe('PaymentsPage', () => {
     renderPage()
 
     expect(await screen.findByText('No payments found.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Record payment/i })).not.toBeInTheDocument()
+    expect(screen.getByText('No payment transactions were recorded in this period.')).toBeInTheDocument()
+  })
+
+  it('titles the page Payment History with session and term context', async () => {
+    PERMISSIONS = ['finance.view']
+    renderPage()
+
+    expect(await screen.findByRole('heading', { name: 'Payment History' })).toBeInTheDocument()
+    expect(
+      await screen.findByText(/Read-only historical payment transactions/),
+    ).toBeInTheDocument()
+    expect(await screen.findByText('2026/2027 — First Term')).toBeInTheDocument()
+  })
+
+  it('loads only the first 7 school days of the term initially', async () => {
+    PERMISSIONS = ['finance.view']
+    renderPage()
+
+    await screen.findAllByText('PAY-2026-0001')
+    expect(apiMock.listPayments).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        from: '2026-09-01T00:00:00.000Z',
+        to: '2026-09-09T23:59:59.999Z',
+        page: 1,
+        pageSize: 20,
+      }),
+    )
+    expect(screen.getByText(/School Days 1–7 of 79/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Previous 7 school days' })).toBeDisabled()
+  })
+
+  it('navigates to the next 7 school days window', async () => {
+    PERMISSIONS = ['finance.view']
+    renderPage()
+
+    await screen.findAllByText('PAY-2026-0001')
+    fireEvent.click(screen.getByRole('button', { name: 'Next 7 school days' }))
+
+    await waitFor(() => {
+      expect(apiMock.listPayments).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          from: '2026-09-10T00:00:00.000Z',
+          to: '2026-09-18T23:59:59.999Z',
+        }),
+      )
+    })
+    expect(screen.getByText(/School Days 8–14 of 79/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Previous 7 school days' })).toBeEnabled()
+  })
+
+  it('filters history to the selected term range', async () => {
+    PERMISSIONS = ['finance.view']
+    renderPage()
+
+    await screen.findAllByText('PAY-2026-0001')
+    fireEvent.change(screen.getByLabelText('Term'), { target: { value: 'term-2' } })
+
+    await waitFor(() => {
+      expect(apiMock.listPayments).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          from: '2027-01-06T00:00:00.000Z',
+          to: '2027-01-14T23:59:59.999Z',
+        }),
+      )
+    })
+    expect(await screen.findByText('2026/2027 — Second Term')).toBeInTheDocument()
+    expect(screen.getByText(/School Days 1–7 of 63/)).toBeInTheDocument()
+  })
+
+  it('switches history when the session changes', async () => {
+    PERMISSIONS = ['finance.view']
+    renderPage()
+
+    await screen.findAllByText('PAY-2026-0001')
+    fireEvent.change(screen.getByLabelText('Session'), { target: { value: 'session-2' } })
+
+    await waitFor(() => {
+      expect(apiMock.listTerms).toHaveBeenCalledWith('session-2')
+      expect(apiMock.listPayments).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          from: '2027-09-01T00:00:00.000Z',
+          to: '2027-09-09T23:59:59.999Z',
+        }),
+      )
+    })
+    expect(await screen.findByText('2027/2028 — First Term')).toBeInTheDocument()
   })
 })

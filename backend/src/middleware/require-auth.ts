@@ -1,6 +1,6 @@
 import { HttpStatus } from '../config/enums'
 import type { NextFunction, RequestHandler, Response } from 'express'
-import { verifyToken } from '../lib/jwt'
+import { verifyTokenPayload } from '../lib/jwt'
 import { prisma } from '../lib/prisma'
 import type { AuthRequest, AuthenticatedUser } from '../types/auth'
 import { AppError } from '../utils/app-error'
@@ -26,6 +26,10 @@ function requestPath(originalUrl: string): string {
  * Authenticates the bearer token and resolves the user's roles and
  * permissions from the database. Attaches `req.user` on success or rejects
  * with 401. This is the mandatory gate for every protected endpoint.
+ *
+ * Supports developer impersonation: when a token carries `imp: true` and `act`
+ * (the acting user id), permissions are resolved from the acting user while
+ * the real developer identity is preserved in `req.user.impersonator`.
  */
 export const requireAuth: RequestHandler = asyncHandler(
   async (req: AuthRequest, _res: Response, next: NextFunction) => {
@@ -35,13 +39,16 @@ export const requireAuth: RequestHandler = asyncHandler(
     }
 
     const token = header.slice('Bearer '.length).trim()
-    const userId = verifyToken(token)
-    if (!userId) {
+    const payload = verifyTokenPayload(token)
+    if (!payload) {
       throw new AppError('Invalid or expired session. Please sign in again.', HttpStatus.Unauthorized)
     }
 
+    // Determine which user identity to resolve: acting user (impersonation) or the token subject.
+    const resolveUserId = payload.imp && payload.act ? payload.act : payload.sub
+
     const user = await prisma.user.findUnique({
-      where: { id: userId },
+      where: { id: resolveUserId },
       include: {
         staffProfile: true,
         roles: { include: { role: { include: { rolePermissions: { include: { permission: true } } } } } },
@@ -75,6 +82,21 @@ export const requireAuth: RequestHandler = asyncHandler(
       staffId: user.staffProfile?.staffId ?? null,
       roleNames: user.roles.map(({ role }) => role.name),
       permissionKeys,
+    }
+
+    // When impersonating, attach the real developer identity for auditing.
+    if (payload.imp && payload.act) {
+      const developer = await prisma.user.findUnique({
+        where: { id: payload.sub },
+        select: { id: true, fullName: true, email: true },
+      })
+      if (developer) {
+        authenticatedUser.impersonator = {
+          id: developer.id,
+          fullName: developer.fullName,
+          email: developer.email,
+        }
+      }
     }
 
     req.user = authenticatedUser

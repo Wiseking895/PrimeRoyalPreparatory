@@ -146,7 +146,7 @@ export function Footer() {
                   onChange={(event) => setEmail(event.target.value)}
                   placeholder="Enter your email"
                   className={cn(
-                    'h-12 flex-1 rounded-full border bg-cream-50 px-5 text-sm text-ink-900 outline-none transition-colors placeholder:text-ink-500/60 focus:border-magenta-500',
+                    'h-12 flex-1 rounded-full border bg-cream-50 px-5 text-sm text-ink-900 outline-none transition-colors placeholder:text-ink-500 focus:border-magenta-500',
                     error ? 'border-magenta-600' : 'border-transparent',
                   )}
                   aria-invalid={Boolean(error)}

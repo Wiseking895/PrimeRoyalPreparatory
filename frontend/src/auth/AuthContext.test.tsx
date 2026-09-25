@@ -88,4 +88,35 @@ describe('AuthContext', () => {
     expect(localStorage.getItem('prps.portal.token')).toBeNull()
     expect(localStorage.getItem('prps.portal.user')).toBeNull()
   })
+
+  it('registers the global 401 handler even when mounting without a token', async () => {
+    const { result } = renderHook(() => useAuth(), { wrapper })
+
+    await waitFor(() => expect(result.current.status).toBe('unauthenticated'))
+    expect(setUnauthorizedHandlerMock).toHaveBeenCalledWith(expect.any(Function))
+  })
+
+  it('clears a fresh-login session when the global 401 handler fires', async () => {
+    const { result } = renderHook(() => useAuth(), { wrapper })
+
+    await act(async () => {
+      await result.current.login('owner@school.edu', 'OwnerPass123')
+    })
+    expect(result.current.status).toBe('authenticated')
+    expect(localStorage.getItem('prps.portal.token')).toBe('new-token')
+
+    const handler = setUnauthorizedHandlerMock.mock.calls.find(
+      (call) => typeof call[0] === 'function',
+    )?.[0]
+    expect(handler).toBeDefined()
+
+    act(() => {
+      handler()
+    })
+
+    expect(result.current.status).toBe('unauthenticated')
+    expect(result.current.user).toBeNull()
+    expect(localStorage.getItem('prps.portal.token')).toBeNull()
+    expect(localStorage.getItem('prps.portal.user')).toBeNull()
+  })
 })

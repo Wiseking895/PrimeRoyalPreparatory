@@ -5,6 +5,7 @@ import {
   Camera,
   ChevronLeft,
   ChevronRight,
+  FileUp,
   GraduationCap,
   ImagePlus,
   Plus,
@@ -29,7 +30,16 @@ import { StatCard } from '@/components/dashboard/StatCard'
 import { useToast } from '@/components/dashboard/Toast'
 import { api } from '@/lib/api'
 import { formatDate } from '@/lib/date'
-import type { PupilCreateInput, PupilGender, PupilStats, PupilView, SchoolClassView, AdmissionFeeView } from '@/types/portal'
+import type {
+  PupilCreateInput,
+  PupilGender,
+  PupilStats,
+  PupilView,
+  SchoolClassView,
+  AdmissionFeeView,
+  UniformCollectionStatus,
+} from '@/types/portal'
+import { PupilWordImportModal } from './PupilWordImportModal'
 
 interface GuardianRow {
   id: string
@@ -43,9 +53,21 @@ interface GuardianRow {
   isEmergency: boolean
 }
 
+/** One of the five "Uniforms to be Collected" admission items on the form. */
+interface UniformFormRow {
+  slot: number
+  label: string
+  status: UniformCollectionStatus
+}
+
+/** The five "UNIFORMS SUPPLIED" items of the physical admission form. */
+const UNIFORM_NAMES = ['Main Uniform', 'Outing', 'Friday Wear', 'Thursday Wear', 'Cream Uniform'] as const
+
 interface CreateForm {
   pupilId: string
   admissionNumber: string
+  sheetNumber: string
+  admissionFee: string
   firstName: string
   middleName: string
   lastName: string
@@ -58,17 +80,22 @@ interface CreateForm {
   religion: string
   admissionReason: string
   otherReason: string
+  /** "SCHOOL ATTENDED" on the physical admission form. */
+  schoolAttended: string
+  /** "STAY WITH THE CHILD" living arrangement on the physical admission form. */
+  stayWithChild: string
   declarationAcknowledged: boolean
   guardians: GuardianRow[]
+  uniforms: UniformFormRow[]
 }
 
 let guardianSeq = 0
-function newGuardian(): GuardianRow {
+function newGuardian(relationship = ''): GuardianRow {
   guardianSeq += 1
   return {
     id: `guardian-${guardianSeq}`,
     fullName: '',
-    relationship: '',
+    relationship,
     phone: '',
     email: '',
     address: '',
@@ -78,9 +105,31 @@ function newGuardian(): GuardianRow {
   }
 }
 
+/** A guardian row the Headteacher never touched - left out of the payload. */
+function isBlankGuardian(guardian: GuardianRow): boolean {
+  return (
+    guardian.fullName.trim() === '' &&
+    guardian.phone.trim() === '' &&
+    guardian.email.trim() === '' &&
+    guardian.address.trim() === '' &&
+    guardian.occupation.trim() === ''
+  )
+}
+
+/** The five admission uniform slots, all starting as "Not collected". */
+function newUniforms(): UniformFormRow[] {
+  return UNIFORM_NAMES.map((label, index) => ({
+    slot: index + 1,
+    label,
+    status: 'NOT_COLLECTED' as const,
+  }))
+}
+
 const emptyCreate: CreateForm = {
   pupilId: '',
   admissionNumber: '',
+  sheetNumber: '',
+  admissionFee: '',
   firstName: '',
   middleName: '',
   lastName: '',
@@ -93,8 +142,11 @@ const emptyCreate: CreateForm = {
   religion: '',
   admissionReason: '',
   otherReason: '',
+  schoolAttended: '',
+  stayWithChild: '',
   declarationAcknowledged: false,
-  guardians: [newGuardian()],
+  guardians: [newGuardian('Father'), newGuardian('Mother')],
+  uniforms: newUniforms(),
 }
 
 const PAGE_SIZE = 20
@@ -118,6 +170,7 @@ export function PupilManagementPage() {
   const [hasMore, setHasMore] = useState(false)
 
   const [createOpen, setCreateOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
   const [form, setForm] = useState<CreateForm>(emptyCreate)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [submitting, setSubmitting] = useState(false)
@@ -220,7 +273,7 @@ export function PupilManagementPage() {
     }
   }, [])
 
-  const set = (field: Exclude<keyof CreateForm, 'guardians'>, value: string) => {
+  const set = (field: Exclude<keyof CreateForm, 'guardians' | 'uniforms'>, value: string) => {
     setForm((current) => ({ ...current, [field]: value }))
     setFieldErrors((current) => {
       if (!current[field]) return current
@@ -228,6 +281,13 @@ export function PupilManagementPage() {
       delete next[field]
       return next
     })
+  }
+
+  const setUniform = (slot: number, status: UniformCollectionStatus) => {
+    setForm((current) => ({
+      ...current,
+      uniforms: current.uniforms.map((item) => (item.slot === slot ? { ...item, status } : item)),
+    }))
   }
 
   const setGuardian = (id: string, field: keyof GuardianRow, value: string | boolean) => {
@@ -245,7 +305,10 @@ export function PupilManagementPage() {
   }
 
   const addGuardian = () => {
-    setForm((current) => ({ ...current, guardians: [...current.guardians, newGuardian()] }))
+    setForm((current) => ({
+      ...current,
+      guardians: [...current.guardians, newGuardian(current.guardians.length === 1 ? 'Mother' : '')],
+    }))
   }
 
   const removeGuardian = (id: string) => {
@@ -256,7 +319,7 @@ export function PupilManagementPage() {
   }
 
   const openCreate = () => {
-    setForm({ ...emptyCreate, guardians: [newGuardian()] })
+    setForm({ ...emptyCreate, guardians: [newGuardian('Father'), newGuardian('Mother')], uniforms: newUniforms() })
     setFieldErrors({})
     setProfileFile(null)
     setProfilePreview(null)
@@ -340,16 +403,34 @@ export function PupilManagementPage() {
     if (!form.dateOfBirth) errors.dateOfBirth = 'Date of birth is required.'
     if (!form.gender) errors.gender = 'Select a gender.'
     if (!form.classId) errors.classId = 'Select a class.'
+    if (form.admissionNumber.trim().length > 40) errors.admissionNumber = 'Admission number is too long.'
+    if (form.sheetNumber.trim().length > 40) errors.sheetNumber = 'Sheet number is too long.'
+    const feeValue = form.admissionFee.trim()
+    if (feeValue && !/^\d+(\.\d{1,2})?$/.test(feeValue)) {
+      errors.admissionFee = 'Enter a valid admission fee with up to 2 decimal places.'
+    }
+    form.uniforms.forEach((item) => {
+      if (item.label.trim().length > 80) {
+        errors[`uniforms.${item.slot}.label`] = 'Uniform description must be 80 characters or fewer.'
+      }
+    })
+    if (form.schoolAttended.trim().length > 120) {
+      errors.schoolAttended = 'School attended must be 120 characters or fewer.'
+    }
+    if (form.stayWithChild.trim().length > 120) {
+      errors.stayWithChild = 'Stay with the child must be 120 characters or fewer.'
+    }
     if (form.admissionReason === 'Other' && !form.otherReason.trim()) {
       errors.otherReason = 'Please specify the reason.'
     }
     if (!form.declarationAcknowledged) {
       errors.declarationAcknowledged = 'You must agree to the Guardian\'s Declaration.'
     }
-    if (form.guardians.length === 0) {
+    const filledGuardians = form.guardians.filter((guardian) => !isBlankGuardian(guardian))
+    if (filledGuardians.length === 0) {
       errors.guardians = 'At least one guardian is required.'
     } else {
-      form.guardians.forEach((guardian) => {
+      filledGuardians.forEach((guardian) => {
         if (guardian.fullName.trim().length < 2)
           errors[`guardians.${guardian.id}.fullName`] = 'Guardian name must be at least 2 characters.'
         if (!guardian.relationship.trim())
@@ -364,6 +445,8 @@ export function PupilManagementPage() {
     const payload: PupilCreateInput = {
       pupilId: form.pupilId.trim() || undefined,
       admissionNumber: form.admissionNumber.trim() || undefined,
+      sheetNumber: form.sheetNumber.trim() || undefined,
+      admissionFee: form.admissionFee.trim() || undefined,
       firstName: form.firstName.trim(),
       middleName: form.middleName.trim() || undefined,
       lastName: form.lastName.trim(),
@@ -375,8 +458,15 @@ export function PupilManagementPage() {
       nationality: form.nationality.trim() || undefined,
       religion: form.religion.trim() || undefined,
       admissionReason: form.admissionReason === 'Other' ? form.otherReason.trim() : form.admissionReason || undefined,
+      previousSchool: form.schoolAttended.trim() || undefined,
+      stayWithChild: form.stayWithChild.trim() || undefined,
       declarationAcknowledged: form.declarationAcknowledged,
-      guardians: form.guardians.map((guardian) => ({
+      uniforms: form.uniforms.map((item) => ({
+        slot: item.slot,
+        label: item.label.trim() || null,
+        status: item.status,
+      })),
+      guardians: filledGuardians.map((guardian) => ({
         fullName: guardian.fullName.trim(),
         relationship: guardian.relationship.trim(),
         phone: guardian.phone.trim() || undefined,
@@ -424,6 +514,95 @@ export function PupilManagementPage() {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const showSearch = Boolean(query || classFilter || statusFilter)
 
+  const guardianCard = (guardian: GuardianRow, index: number) => (
+    <div key={guardian.id} className="sm:col-span-2 rounded-xl border border-cream-200 bg-cream-50 p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <p className="text-sm font-bold text-ink-900">
+          {guardian.relationship.trim() || `Guardian ${index + 1}`}
+        </p>
+        {form.guardians.length > 1 ? (
+          <button
+            type="button"
+            onClick={() => removeGuardian(guardian.id)}
+            className="text-xs font-semibold text-red-600 transition-colors hover:text-red-700"
+          >
+            Remove
+          </button>
+        ) : null}
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <TextField
+          label="Full name"
+          name={`guardian-${guardian.id}-fullName`}
+          value={guardian.fullName}
+          onChange={(event) => setGuardian(guardian.id, 'fullName', event.target.value)}
+          error={fieldErrors[`guardians.${guardian.id}.fullName`]}
+          required
+        />
+        <TextField
+          label="Relationship"
+          name={`guardian-${guardian.id}-relationship`}
+          value={guardian.relationship}
+          onChange={(event) => setGuardian(guardian.id, 'relationship', event.target.value)}
+          error={fieldErrors[`guardians.${guardian.id}.relationship`]}
+          placeholder="e.g. Parent, Guardian"
+          required
+        />
+        <TextField
+          label="Phone"
+          name={`guardian-${guardian.id}-phone`}
+          type="tel"
+          value={guardian.phone}
+          onChange={(event) => setGuardian(guardian.id, 'phone', event.target.value)}
+          error={fieldErrors[`guardians.${guardian.id}.phone`]}
+        />
+        <TextField
+          label="Email"
+          name={`guardian-${guardian.id}-email`}
+          type="email"
+          value={guardian.email}
+          onChange={(event) => setGuardian(guardian.id, 'email', event.target.value)}
+          error={fieldErrors[`guardians.${guardian.id}.email`]}
+        />
+        <div className="sm:col-span-2">
+          <TextField
+            label="Address"
+            name={`guardian-${guardian.id}-address`}
+            value={guardian.address}
+            onChange={(event) => setGuardian(guardian.id, 'address', event.target.value)}
+            error={fieldErrors[`guardians.${guardian.id}.address`]}
+          />
+        </div>
+        <TextField
+          label="Occupation"
+          name={`guardian-${guardian.id}-occupation`}
+          value={guardian.occupation}
+          onChange={(event) => setGuardian(guardian.id, 'occupation', event.target.value)}
+          error={fieldErrors[`guardians.${guardian.id}.occupation`]}
+          placeholder="e.g. Teacher, Trader"
+        />
+        <label className="flex items-center gap-2 text-sm font-semibold text-ink-900">
+          <input
+            type="checkbox"
+            checked={guardian.isPrimary}
+            onChange={(event) => setGuardian(guardian.id, 'isPrimary', event.target.checked)}
+            className="h-4 w-4 rounded border-cream-300 text-magenta-600 focus:ring-magenta-500"
+          />
+          Primary guardian
+        </label>
+        <label className="flex items-center gap-2 text-sm font-semibold text-ink-900">
+          <input
+            type="checkbox"
+            checked={guardian.isEmergency}
+            onChange={(event) => setGuardian(guardian.id, 'isEmergency', event.target.checked)}
+            className="h-4 w-4 rounded border-cream-300 text-magenta-600 focus:ring-magenta-500"
+          />
+          Emergency contact
+        </label>
+      </div>
+    </div>
+  )
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -432,10 +611,16 @@ export function PupilManagementPage() {
         description="Register and manage pupil records, class placements and parent or guardian contacts."
         actions={
           can.create ? (
-            <Button onClick={openCreate}>
-              <Plus className="h-4 w-4" aria-hidden="true" />
-              Register Pupil
-            </Button>
+            <>
+              <Button variant="soft" onClick={() => setImportOpen(true)}>
+                <FileUp className="h-4 w-4" aria-hidden="true" />
+                Import Pupils from Word
+              </Button>
+              <Button onClick={openCreate}>
+                <Plus className="h-4 w-4" aria-hidden="true" />
+                Register Pupil
+              </Button>
+            </>
           ) : undefined
         }
       />
@@ -521,7 +706,7 @@ export function PupilManagementPage() {
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Search name, ID or admission no…"
               aria-label="Search pupils"
-              className="h-11 w-full rounded-xl border border-cream-300 bg-white pl-11 pr-4 text-sm text-ink-900 outline-none transition-colors placeholder:text-ink-500/60 focus:border-magenta-500"
+              className="h-11 w-full rounded-xl border border-cream-300 bg-white pl-11 pr-4 text-sm text-ink-900 outline-none transition-colors placeholder:text-ink-500 focus:border-magenta-500"
             />
           </div>
         </div>
@@ -669,7 +854,7 @@ export function PupilManagementPage() {
       >
         <form onSubmit={handleCreate} noValidate className="grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
-            <p className="text-xs font-bold uppercase tracking-wider text-ink-500">Pupil details</p>
+            <p className="text-xs font-bold uppercase tracking-wider text-ink-500">Child Information</p>
           </div>
           <div className="sm:col-span-2">
             <p className="text-xs font-bold uppercase tracking-wider text-ink-500">Pupil Profile Picture</p>
@@ -836,23 +1021,6 @@ export function PupilManagementPage() {
             required
           />
           <TextField
-            label="Pupil ID"
-            name="pupilId"
-            value={form.pupilId}
-            onChange={(event) => set('pupilId', event.target.value)}
-            error={fieldErrors.pupilId}
-            hint="Leave blank to auto-generate (PRPS-PUP-XXXX)."
-            autoComplete="off"
-          />
-          <TextField
-            label="Admission number"
-            name="admissionNumber"
-            value={form.admissionNumber}
-            onChange={(event) => set('admissionNumber', event.target.value)}
-            error={fieldErrors.admissionNumber}
-            hint="School admission reference, if issued."
-          />
-          <TextField
             label="Date admitted"
             name="dateAdmitted"
             type="date"
@@ -860,13 +1028,22 @@ export function PupilManagementPage() {
             onChange={(event) => set('dateAdmitted', event.target.value)}
             error={fieldErrors.dateAdmitted}
           />
+          <TextField
+            label="School attended"
+            name="schoolAttended"
+            value={form.schoolAttended}
+            onChange={(event) => set('schoolAttended', event.target.value)}
+            error={fieldErrors.schoolAttended}
+            hint="Previous school on the admission form, if any."
+          />
           <div className="sm:col-span-2">
             <TextAreaField
-              label="Home address"
+              label="House number"
               name="address"
               value={form.address}
               onChange={(event) => set('address', event.target.value)}
               error={fieldErrors.address}
+              hint="House number or home address on the admission form."
             />
           </div>
           <TextField
@@ -885,120 +1062,8 @@ export function PupilManagementPage() {
             error={fieldErrors.religion}
             placeholder="e.g. Christianity, Islam"
           />
-
-          <div className="sm:col-span-2">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-bold uppercase tracking-wider text-ink-500">Guardians</p>
-              {form.guardians.length < 3 ? (
-                <button
-                  type="button"
-                  onClick={addGuardian}
-                  className="inline-flex items-center gap-1 text-sm font-semibold text-magenta-600 transition-colors hover:text-magenta-700"
-                >
-                  <Plus className="h-4 w-4" aria-hidden="true" />
-                  Add guardian
-                </button>
-              ) : null}
-            </div>
-            {fieldErrors.guardians ? (
-              <p role="alert" className="mt-1.5 text-xs font-medium text-red-600">
-                {fieldErrors.guardians}
-              </p>
-            ) : null}
-          </div>
-
-          {form.guardians.map((guardian, index) => (
-            <div key={guardian.id} className="sm:col-span-2 rounded-xl border border-cream-200 bg-cream-50 p-4">
-              <div className="mb-3 flex items-center justify-between">
-                <p className="text-sm font-bold text-ink-900">Guardian {index + 1}</p>
-                {form.guardians.length > 1 ? (
-                  <button
-                    type="button"
-                    onClick={() => removeGuardian(guardian.id)}
-                    className="text-xs font-semibold text-red-600 transition-colors hover:text-red-700"
-                  >
-                    Remove
-                  </button>
-                ) : null}
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <TextField
-                  label="Full name"
-                  name={`guardian-${guardian.id}-fullName`}
-                  value={guardian.fullName}
-                  onChange={(event) => setGuardian(guardian.id, 'fullName', event.target.value)}
-                  error={fieldErrors[`guardians.${guardian.id}.fullName`]}
-                  required
-                />
-                <TextField
-                  label="Relationship"
-                  name={`guardian-${guardian.id}-relationship`}
-                  value={guardian.relationship}
-                  onChange={(event) => setGuardian(guardian.id, 'relationship', event.target.value)}
-                  error={fieldErrors[`guardians.${guardian.id}.relationship`]}
-                  placeholder="e.g. Parent, Guardian"
-                  required
-                />
-                <TextField
-                  label="Phone"
-                  name={`guardian-${guardian.id}-phone`}
-                  type="tel"
-                  value={guardian.phone}
-                  onChange={(event) => setGuardian(guardian.id, 'phone', event.target.value)}
-                  error={fieldErrors[`guardians.${guardian.id}.phone`]}
-                />
-                <TextField
-                  label="Email"
-                  name={`guardian-${guardian.id}-email`}
-                  type="email"
-                  value={guardian.email}
-                  onChange={(event) => setGuardian(guardian.id, 'email', event.target.value)}
-                  error={fieldErrors[`guardians.${guardian.id}.email`]}
-                />
-                <div className="sm:col-span-2">
-                  <TextField
-                    label="Address"
-                    name={`guardian-${guardian.id}-address`}
-                    value={guardian.address}
-                    onChange={(event) => setGuardian(guardian.id, 'address', event.target.value)}
-                    error={fieldErrors[`guardians.${guardian.id}.address`]}
-                  />
-                </div>
-                <TextField
-                  label="Occupation"
-                  name={`guardian-${guardian.id}-occupation`}
-                  value={guardian.occupation}
-                  onChange={(event) => setGuardian(guardian.id, 'occupation', event.target.value)}
-                  error={fieldErrors[`guardians.${guardian.id}.occupation`]}
-                  placeholder="e.g. Teacher, Trader"
-                />
-                <label className="flex items-center gap-2 text-sm font-semibold text-ink-900">
-                  <input
-                    type="checkbox"
-                    checked={guardian.isPrimary}
-                    onChange={(event) => setGuardian(guardian.id, 'isPrimary', event.target.checked)}
-                    className="h-4 w-4 rounded border-cream-300 text-magenta-600 focus:ring-magenta-500"
-                  />
-                  Primary guardian
-                </label>
-                <label className="flex items-center gap-2 text-sm font-semibold text-ink-900">
-                  <input
-                    type="checkbox"
-                    checked={guardian.isEmergency}
-                    onChange={(event) => setGuardian(guardian.id, 'isEmergency', event.target.checked)}
-                    className="h-4 w-4 rounded border-cream-300 text-magenta-600 focus:ring-magenta-500"
-                  />
-                  Emergency contact
-                </label>
-              </div>
-            </div>
-          ))}
-
-          <div className="sm:col-span-2">
-            <p className="text-xs font-bold uppercase tracking-wider text-ink-500">Admission information</p>
-          </div>
           <SelectField
-            label="Reason for choosing Prime Royal Preparatory School"
+            label="Reason for joining school"
             name="admissionReason"
             value={form.admissionReason}
             onChange={(event) => set('admissionReason', event.target.value)}
@@ -1029,24 +1094,55 @@ export function PupilManagementPage() {
             />
           )}
 
-          {admissionFee && (
-            <div className="sm:col-span-2 rounded-xl border border-cream-200 bg-cream-50 p-4">
-              <p className="text-xs font-bold uppercase tracking-wider text-ink-500">Admission Fee</p>
-              <p className="mt-1 text-lg font-extrabold text-ink-900">GH₵ {admissionFee.amount}</p>
-              {admissionFee.description && (
-                <p className="mt-0.5 text-xs text-ink-500">{admissionFee.description}</p>
-              )}
+          <div className="sm:col-span-2">
+            <p className="text-xs font-bold uppercase tracking-wider text-ink-500">Father Information</p>
+            {fieldErrors.guardians ? (
+              <p role="alert" className="mt-1.5 text-xs font-medium text-red-600">
+                {fieldErrors.guardians}
+              </p>
+            ) : null}
+          </div>
+          {form.guardians[0] ? guardianCard(form.guardians[0], 0) : null}
+
+          <div className="sm:col-span-2">
+            <p className="text-xs font-bold uppercase tracking-wider text-ink-500">Living Arrangement</p>
+          </div>
+          <div className="sm:col-span-2">
+            <TextField
+              label="Stay with the child"
+              name="stayWithChild"
+              value={form.stayWithChild}
+              onChange={(event) => set('stayWithChild', event.target.value)}
+              error={fieldErrors.stayWithChild}
+              hint="Who the child lives with, as written on the admission form."
+            />
+          </div>
+
+          <div className="sm:col-span-2">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-bold uppercase tracking-wider text-ink-500">Mother Information</p>
+              {form.guardians.length < 3 ? (
+                <button
+                  type="button"
+                  onClick={addGuardian}
+                  className="inline-flex items-center gap-1 text-sm font-semibold text-magenta-600 transition-colors hover:text-magenta-700"
+                >
+                  <Plus className="h-4 w-4" aria-hidden="true" />
+                  Add guardian
+                </button>
+              ) : null}
             </div>
-          )}
+          </div>
+          {form.guardians.slice(1).map((guardian, offset) => guardianCard(guardian, offset + 1))}
 
           <div className="sm:col-span-2">
             <p className="text-xs font-bold uppercase tracking-wider text-ink-500">Guardian&apos;s Declaration</p>
           </div>
           <div className="sm:col-span-2 rounded-xl border border-cream-200 bg-cream-50 p-4">
             <p className="text-sm leading-relaxed text-ink-700">
-              &quot;I, {form.guardians[0]?.fullName || '[Guardian Name]'}, the undersigned, have read through the
-              school&apos;s information carefully. I hope my ward abides by all regulations of the school.
-              I also wish to pay my ward&apos;s fees as stated.&quot;
+              &quot;I, {form.guardians.find((guardian) => !isBlankGuardian(guardian))?.fullName || '[Guardian Name]'},
+              the undersigned, have read through the school&apos;s information carefully. I hope my ward abides by all
+              regulations of the school. I also wish to pay my ward&apos;s fees as stated.&quot;
             </p>
             <label className="mt-3 flex items-start gap-2 text-sm font-semibold text-ink-900">
               <input
@@ -1071,6 +1167,84 @@ export function PupilManagementPage() {
             )}
           </div>
 
+          <div className="sm:col-span-2">
+            <p className="text-xs font-bold uppercase tracking-wider text-ink-500">Office Use</p>
+          </div>
+          <TextField
+            label="Pupil ID"
+            name="pupilId"
+            value={form.pupilId}
+            onChange={(event) => set('pupilId', event.target.value)}
+            error={fieldErrors.pupilId}
+            hint="Leave blank to auto-generate (PRPS-PUP-XXXX)."
+            autoComplete="off"
+          />
+          <TextField
+            label="Admission number"
+            name="admissionNumber"
+            value={form.admissionNumber}
+            onChange={(event) => set('admissionNumber', event.target.value)}
+            error={fieldErrors.admissionNumber}
+            hint="School admission reference, if issued."
+          />
+          <TextField
+            label="Admission fee (GH₵)"
+            name="admissionFee"
+            value={form.admissionFee}
+            onChange={(event) => set('admissionFee', event.target.value)}
+            error={fieldErrors.admissionFee}
+            hint="One-time amount recorded with this admission record - not daily, PA or maintenance fees."
+          />
+          <TextField
+            label="Sheet number"
+            name="sheetNumber"
+            value={form.sheetNumber}
+            onChange={(event) => set('sheetNumber', event.target.value)}
+            error={fieldErrors.sheetNumber}
+            hint="Admission register sheet reference, if applicable."
+          />
+
+          {admissionFee && (
+            <div className="sm:col-span-2 rounded-xl border border-cream-200 bg-cream-50 p-4">
+              <p className="text-xs font-bold uppercase tracking-wider text-ink-500">School admission fee</p>
+              <p className="mt-1 text-lg font-extrabold text-ink-900">GH₵ {admissionFee.amount}</p>
+              {admissionFee.description && (
+                <p className="mt-0.5 text-xs text-ink-500">{admissionFee.description}</p>
+              )}
+            </div>
+          )}
+
+          <div className="sm:col-span-2">
+            <p className="text-xs font-bold uppercase tracking-wider text-ink-500">Uniforms Supplied</p>
+          </div>
+          <div className="sm:col-span-2 rounded-xl border border-cream-200 bg-cream-50 p-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              {form.uniforms.map((item) => (
+                <div key={item.slot} className="rounded-xl border border-cream-200 bg-white p-3">
+                  <p className="text-xs font-bold uppercase tracking-wider text-ink-500">{item.label}</p>
+                  <div className="mt-2">
+                    <SelectField
+                      label="Collection status"
+                      name={`uniform-${item.slot}-status`}
+                      value={item.status}
+                      onChange={(event) => setUniform(item.slot, event.target.value as UniformCollectionStatus)}
+                      options={[
+                        { value: 'NOT_COLLECTED', label: 'Not collected' },
+                        { value: 'COLLECTED', label: 'Collected' },
+                      ]}
+                      placeholder="Select a status"
+                      error={fieldErrors[`uniforms.${item.slot}.status`]}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="mt-3 text-xs text-ink-500">
+              Tick each admission uniform issued to the pupil. &quot;Collected&quot; means the item was physically
+              handed over to the pupil or guardian.
+            </p>
+          </div>
+
           <div className="flex flex-wrap items-center justify-end gap-2 sm:col-span-2">
             <Button variant="cream" type="button" onClick={() => setCreateOpen(false)}>
               Cancel
@@ -1082,6 +1256,15 @@ export function PupilManagementPage() {
           </div>
         </form>
       </Modal>
+
+      <PupilWordImportModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onImported={async () => {
+          await Promise.all([loadPupils(), loadStats()])
+        }}
+        classes={classes}
+      />
     </div>
   )
 }

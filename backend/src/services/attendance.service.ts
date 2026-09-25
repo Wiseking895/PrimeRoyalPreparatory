@@ -1,3 +1,4 @@
+import { type Prisma } from '@prisma/client'
 import { prisma } from '../lib/prisma'
 import { AppError } from '../utils/app-error'
 
@@ -69,7 +70,7 @@ export async function listAttendance(options: AttendanceListOptions = {}): Promi
     dateTo,
   } = options
 
-  const where: any = {}
+  const where: Prisma.AttendanceWhereInput = {}
 
   if (pupilId) {
     where.pupilId = pupilId
@@ -87,13 +88,14 @@ export async function listAttendance(options: AttendanceListOptions = {}): Promi
     where.classId = classId
   }
   if (dateFrom || dateTo) {
-    where.date = {}
+    const dateFilter: Prisma.DateTimeFilter<'Attendance'> = {}
     if (dateFrom) {
-      where.date.gte = new Date(dateFrom)
+      dateFilter.gte = new Date(dateFrom)
     }
     if (dateTo) {
-      where.date.lte = new Date(dateTo)
+      dateFilter.lte = new Date(dateTo)
     }
+    where.date = dateFilter
   }
 
   const records = await prisma.attendance.findMany({

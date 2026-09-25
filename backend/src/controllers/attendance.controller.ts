@@ -1,5 +1,6 @@
 import { HttpStatus } from '../config/enums'
 import { ok } from '../lib/api-response'
+import type { AuthRequest } from '../types/auth'
 import { asyncHandler } from '../utils/async-handler'
 import {
   listAttendance,
@@ -38,7 +39,7 @@ export const updateAttendanceHandler = asyncHandler(async (req, res) => {
   res.json(ok(result, 'Attendance updated successfully.'))
 })
 
-export const checkInStaffHandler = asyncHandler(async (req: any, res) => {
+export const checkInStaffHandler = asyncHandler(async (req: AuthRequest, res) => {
   const { latitude, longitude, accuracy, capturedAt } = req.body
   const staffUserId = req.user?.id
 
@@ -62,7 +63,7 @@ export const checkInStaffHandler = asyncHandler(async (req: any, res) => {
   res.status(HttpStatus.Created).json(ok(result))
 })
 
-export const getStaffTodayAttendanceHandler = asyncHandler(async (req: any, res) => {
+export const getStaffTodayAttendanceHandler = asyncHandler(async (req: AuthRequest, res) => {
   const staffUserId = req.user?.id
 
   if (!staffUserId) {
@@ -73,7 +74,7 @@ export const getStaffTodayAttendanceHandler = asyncHandler(async (req: any, res)
   res.json(ok(result))
 })
 
-export const listAttendanceRecordsAdminHandler = asyncHandler(async (req: any, res) => {
+export const listAttendanceRecordsAdminHandler = asyncHandler(async (req: AuthRequest, res) => {
   const { staffId, dateFrom, dateTo } = req.query
 
   const result = await listAttendanceRecordsAdmin({

@@ -1,4 +1,4 @@
-import { Prisma, WorkOutputType, WorkOutputReviewStatus } from '@prisma/client'
+import { type Prisma, type WorkOutputType, type WorkOutputReviewStatus } from '@prisma/client'
 import { prisma } from '../lib/prisma'
 
 /**

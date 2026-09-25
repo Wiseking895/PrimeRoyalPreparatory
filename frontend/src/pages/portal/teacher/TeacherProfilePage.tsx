@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowLeft, BookOpenCheck, Users } from 'lucide-react'
+import { ArrowLeft, BookOpenCheck, ChevronRight, Users } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
 import { useAuth } from '@/auth/AuthContext'
-import { PageHeader } from '@/components/dashboard/PageHeader'
 import { Card } from '@/components/ui/Card'
 import { StatusBadge } from '@/components/dashboard/Badge'
 import { Avatar } from '@/components/dashboard/Avatar'
@@ -54,21 +53,31 @@ export function TeacherProfilePage() {
   }
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        eyebrow="Teacher Profile"
-        title={teacher?.fullName ?? 'Teacher'}
-        description={teacher ? `${teacher.positionLabel} · Staff ID ${teacher.staffId}.` : 'Loading…'}
-        actions={
-          <Link
-            to="../"
-            className="inline-flex items-center gap-2 rounded-full border border-cream-300 bg-white px-4 py-2 text-sm font-semibold text-ink-700 transition-colors hover:bg-cream-100"
-          >
-            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            Back to teachers
-          </Link>
-        }
-      />
+    <div className="space-y-6 rounded-3xl bg-royal-900 p-5 sm:p-7 lg:p-8">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-xs font-semibold text-cream-200/70">
+            <Link to="../" className="transition-colors hover:text-white">
+              Teachers
+            </Link>
+            <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
+            <span className="text-gold-300">Profile</span>
+          </nav>
+          <h1 className="mt-1.5 text-2xl font-extrabold tracking-tight text-white sm:text-3xl">
+            {teacher?.fullName ?? 'Teacher'}
+          </h1>
+          <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-cream-200/75">
+            {teacher ? `${teacher.positionLabel} · Staff ID ${teacher.staffId}.` : 'Loading…'}
+          </p>
+        </div>
+        <Link
+          to="../"
+          className="inline-flex w-fit items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/20"
+        >
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+          Back to teachers
+        </Link>
+      </div>
 
       {error ? (
         <ErrorState message={error} onRetry={() => void load()} />
@@ -76,17 +85,27 @@ export function TeacherProfilePage() {
         <CardSkeleton />
       ) : (
         <>
-          <Card className="p-6">
+          <Card className="p-6 sm:p-7">
             <div className="flex flex-wrap items-center gap-4">
-              <Avatar name={teacher.fullName} size="lg" />
+              <Avatar name={teacher.fullName} size="xl" className="ring-4 ring-cream-200" />
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="text-lg font-extrabold text-ink-900">{teacher.fullName}</h2>
+                  <h2 className="text-lg font-extrabold tracking-tight text-royal-800">{teacher.fullName}</h2>
                   <StatusBadge status={teacher.status} />
                 </div>
                 <p className="mt-1 text-sm text-ink-500">
                   {teacher.email} · {teacher.positionLabel} · {teacher.roleNames.join(', ') || 'No roles'}
                 </p>
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {teacher.roleNames.map((role) => (
+                    <span
+                      key={role}
+                      className="rounded-full bg-gold-400/20 px-2.5 py-1 text-xs font-bold text-gold-700 ring-1 ring-inset ring-gold-500/30"
+                    >
+                      {role}
+                    </span>
+                  ))}
+                </div>
               </div>
               <div className="grid grid-cols-3 gap-3">
                 <MiniStat label="Assignments" value={teacher.assignmentCount} />
@@ -100,7 +119,7 @@ export function TeacherProfilePage() {
             <Card className="p-6">
               <div className="flex items-center gap-2">
                 <Users className="h-5 w-5 text-royal-500" aria-hidden="true" />
-                <h2 className="text-sm font-bold uppercase tracking-wider text-ink-500">Classes as Class Teacher</h2>
+                <h2 className="text-sm font-bold uppercase tracking-wider text-royal-800">Classes as Class Teacher</h2>
               </div>
               {teacher.classesAsClassTeacher.length === 0 ? (
                 <div className="mt-4">
@@ -121,7 +140,7 @@ export function TeacherProfilePage() {
             <Card className="p-6">
               <div className="flex items-center gap-2">
                 <BookOpenCheck className="h-5 w-5 text-magenta-500" aria-hidden="true" />
-                <h2 className="text-sm font-bold uppercase tracking-wider text-ink-500">Teaching Assignments</h2>
+                <h2 className="text-sm font-bold uppercase tracking-wider text-royal-800">Teaching Assignments</h2>
               </div>
               {teacher.teachingAssignments.length === 0 ? (
                 <div className="mt-4">

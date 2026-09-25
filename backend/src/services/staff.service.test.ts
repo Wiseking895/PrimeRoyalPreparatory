@@ -30,6 +30,8 @@ const prismaMock = vi.hoisted(() => ({
   role: { findUnique: vi.fn() },
   userRole: { create: vi.fn(), deleteMany: vi.fn() },
   auditLog: { create: vi.fn(), findMany: vi.fn() },
+  teachingAssignment: { create: vi.fn(), upsert: vi.fn() },
+  classTeacher: { create: vi.fn(), upsert: vi.fn() },
   $transaction: vi.fn(),
   permission: { upsert: vi.fn() },
   rolePermission: { count: vi.fn(), createMany: vi.fn() },
@@ -227,6 +229,34 @@ describe('staff.service', () => {
       expect(prismaMock.userRole.create).toHaveBeenCalledWith({
         data: { userId: 'st-1', roleId: 'role-ct' },
       })
+    })
+
+    it('creates NO teaching/class-teacher assignments when registering Teacher A (TEST 1)', async () => {
+      prismaMock.role.findUnique.mockResolvedValue({ id: 'role-ct', name: 'CLASS_TEACHER', rolePermissions: [] })
+
+      await createStaff(owner, { ...input, position: 'CLASS_TEACHER', email: 'teachera@school.edu' })
+
+      expect(prismaMock.user.create).toHaveBeenCalledTimes(1)
+      expect(prismaMock.userRole.create).toHaveBeenCalledTimes(1)
+      expect(prismaMock.staffProfile.create).toHaveBeenCalledTimes(1)
+      expect(prismaMock.teachingAssignment.create).not.toHaveBeenCalled()
+      expect(prismaMock.teachingAssignment.upsert).not.toHaveBeenCalled()
+      expect(prismaMock.classTeacher.create).not.toHaveBeenCalled()
+      expect(prismaMock.classTeacher.upsert).not.toHaveBeenCalled()
+    })
+
+    it('creates NO assignments when registering Teacher B either (TEST 2)', async () => {
+      prismaMock.role.findUnique.mockResolvedValue({ id: 'role-st', name: 'SUBJECT_TEACHER', rolePermissions: [] })
+
+      await createStaff(owner, { ...input, position: 'SUBJECT_TEACHER', email: 'teacherb@school.edu' })
+
+      expect(prismaMock.staffProfile.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ position: 'SUBJECT_TEACHER' }) }),
+      )
+      expect(prismaMock.teachingAssignment.create).not.toHaveBeenCalled()
+      expect(prismaMock.teachingAssignment.upsert).not.toHaveBeenCalled()
+      expect(prismaMock.classTeacher.create).not.toHaveBeenCalled()
+      expect(prismaMock.classTeacher.upsert).not.toHaveBeenCalled()
     })
 
     it('sends the invitation email with the temporary password and position', async () => {

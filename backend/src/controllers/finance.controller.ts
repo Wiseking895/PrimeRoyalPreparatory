@@ -20,6 +20,7 @@ import {
   listFinancePupils,
   listSessions,
   listTerms,
+  setReconciliationAttendance,
   setSessionStatus,
   setTermStatus,
   updateSession,
@@ -178,6 +179,11 @@ export const closeDailyReconciliationHandler = asyncHandler(async (req: AuthRequ
 
   const result = await closeDailyReconciliation(req.user!, date, req.ip)
   res.status(HttpStatus.Created).json(ok(result, 'Daily reconciliation closed and signed successfully.'))
+})
+
+export const updateReconciliationAttendanceHandler = asyncHandler(async (req: AuthRequest, res) => {
+  const result = await setReconciliationAttendance(req.user!, req.body, req.ip)
+  res.json(ok(result, 'Attendance updated successfully.'))
 })
 
 export const getDailyReconciliationCloseStatusHandler = asyncHandler(async (req, res) => {

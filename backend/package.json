@@ -21,7 +21,9 @@
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:seed": "prisma db seed",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "dev:bootstrap": "tsx scripts/developer-bootstrap.ts",
+    "dev:reset-password": "tsx scripts/developer-bootstrap.ts --reset"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
@@ -32,7 +34,10 @@
     "express-rate-limit": "^7.5.0",
     "helmet": "^8.0.0",
     "jsonwebtoken": "^9.0.3",
+    "jszip": "^3.10.2",
+    "mammoth": "^1.12.3",
     "multer": "^2.3.0",
+    "node-html-parser": "^9.0.4",
     "nodemailer": "^9.0.5",
     "pino": "^9.6.0",
     "pino-http": "^10.4.0",

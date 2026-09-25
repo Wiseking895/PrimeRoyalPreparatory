@@ -59,7 +59,7 @@ const prismaMock = vi.hoisted(() => ({
   $transaction: vi.fn(),
 }))
 
-vi.mock('../lib/jwt', () => ({ verifyToken: verifyTokenMock }))
+vi.mock('../lib/jwt', () => ({ verifyToken: verifyTokenMock, verifyTokenPayload: verifyTokenMock }))
 vi.mock('../lib/prisma', () => ({ prisma: prismaMock }))
 
 const app = createApp()
@@ -176,7 +176,7 @@ function sbaRecordRow() {
 describe('academic routes (Phase 6 — auth + RBAC enforcement)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    verifyTokenMock.mockReturnValue('user-1')
+    verifyTokenMock.mockReturnValue({ sub: 'user-1', kind: 'staff' })
     prismaMock.user.findUnique.mockResolvedValue(baseUser({ roles: [roleEntry('HEADTEACHER', HEADTEACHER_ROLES)] }))
     prismaMock.user.findMany.mockResolvedValue([])
     prismaMock.subject.findMany.mockResolvedValue([])

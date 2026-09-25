@@ -13,12 +13,17 @@
   --color-cream-300: #eaddc4;
 
   /* Vivid PRPS magenta — signature accent */
+  --color-magenta-50: #fdf0f5;
+  --color-magenta-300: #f47ab5;
   --color-magenta-400: #f04e95;
   --color-magenta-500: #e11d74;
   --color-magenta-600: #c81564;
   --color-magenta-700: #a30e50;
 
   /* Deep royal blue — structural color */
+  --color-royal-50: #eef2fb;
+  --color-royal-200: #c7d2f0;
+  --color-royal-300: #93a7e0;
   --color-royal-400: #3a5bc0;
   --color-royal-500: #1d3a8a;
   --color-royal-600: #162d6e;
@@ -27,15 +32,20 @@
   --color-royal-900: #0b1430;
 
   /* Restrained gold — accent color */
+  --color-gold-100: #fdf3d9;
   --color-gold-300: #f8dd9b;
   --color-gold-400: #eec166;
   --color-gold-500: #dfa63a;
   --color-gold-600: #c98f28;
+  --color-gold-700: #9a5c06;
 
   /* Ink — dark navy / near-black text */
   --color-ink-900: #0b1430;
   --color-ink-700: #2a3456;
+  --color-ink-600: #3d4768;
   --color-ink-500: #4a5578;
+  --color-ink-400: #646d90;
+  --color-ink-300: #8b92ab;
 
   /* Solid cream school uniform shirt (uniform rule) */
   --color-uniform-100: #f7f1e3;

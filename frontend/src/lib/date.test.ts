@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatDate, elapsedSchoolDays, schoolDayLabel } from './date'
+import { formatDate, elapsedSchoolDays, schoolDayLabel, schoolDaysBetween } from './date'
 
 describe('formatDate', () => {
   it('formats an ISO date as "14 Mar 2026"', () => {
@@ -84,5 +84,45 @@ describe('schoolDayLabel', () => {
 
   it('uses plural for 2+', () => {
     expect(schoolDayLabel(5)).toBe('5 school days')
+  })
+})
+
+describe('schoolDaysBetween', () => {
+  it('enumerates the first 7 school days when the term begins on a Tuesday', () => {
+    // 1 Sep 2026 = Tue … weekend skipped … 9 Sep = Wed
+    expect(schoolDaysBetween('2026-09-01', '2026-09-09')).toEqual([
+      '2026-09-01',
+      '2026-09-02',
+      '2026-09-03',
+      '2026-09-04',
+      '2026-09-07',
+      '2026-09-08',
+      '2026-09-09',
+    ])
+  })
+
+  it('does not count weekend days', () => {
+    const days = schoolDaysBetween('2026-09-01', '2026-09-30')
+    for (const day of days) {
+      const dow = new Date(Number(day.slice(0, 4)), Number(day.slice(5, 7)) - 1, Number(day.slice(8, 10))).getDay()
+      expect(dow).not.toBe(0)
+      expect(dow).not.toBe(6)
+    }
+  })
+
+  it('skips a weekend term start so Day 1 is the following Monday', () => {
+    // 5 Sep 2026 = Saturday, 7 Sep = Monday
+    expect(schoolDaysBetween('2026-09-05', '2026-09-11')).toEqual([
+      '2026-09-07',
+      '2026-09-08',
+      '2026-09-09',
+      '2026-09-10',
+      '2026-09-11',
+    ])
+  })
+
+  it('returns an empty array for invalid or reversed ranges', () => {
+    expect(schoolDaysBetween('not-a-date', '2026-09-09')).toEqual([])
+    expect(schoolDaysBetween('2026-09-10', '2026-09-01')).toEqual([])
   })
 })

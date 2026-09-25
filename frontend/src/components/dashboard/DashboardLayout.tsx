@@ -5,13 +5,13 @@ import {
   ClipboardCheck,
   ClipboardList,
   Eye,
+  History,
   LayoutDashboard,
   ListChecks,
   LogOut,
   Megaphone,
   Menu,
   Receipt,
-  ScrollText,
   Settings,
   ShieldCheck,
   Users,
@@ -25,6 +25,7 @@ import { Logo } from '@/components/common/Logo'
 import { Avatar } from '@/components/dashboard/Avatar'
 import { Badge } from '@/components/dashboard/Badge'
 import { NotificationBell } from '@/components/dashboard/NotificationBell'
+import { DeveloperModeBanner } from '@/components/dashboard/DeveloperModeBanner'
 import { cn } from '@/lib/cn'
 
 interface NavItem {
@@ -57,6 +58,7 @@ const ownerNavGroups: NavGroup[] = [
     items: [
       { label: 'Finance Overview', to: '/owner/finance/overview', icon: Wallet, permission: 'finance.view' },
       { label: 'Reconciliation', to: '/owner/finance/reconciliation', icon: ClipboardCheck, permission: 'finance.view' },
+      { label: 'Payment History', to: '/owner/finance/payments', icon: History, permission: 'finance.view' },
     ],
   },
   {
@@ -107,7 +109,9 @@ const headteacherNavGroups: NavGroup[] = [
     label: 'Finance',
     items: [
       { label: 'Finance', to: '/headteacher/finance', icon: Wallet, permission: 'finance.view' },
+      { label: 'Fee Structures', to: '/headteacher/finance/fees', icon: Receipt, permission: 'finance.view' },
       { label: 'Reconciliation', to: '/headteacher/finance/reconciliation', icon: ClipboardCheck, permission: 'finance.view' },
+      { label: 'Payment History', to: '/headteacher/finance/payments', icon: History, permission: 'finance.view' },
     ],
   },
   {
@@ -141,10 +145,8 @@ const accountantNavGroups: NavGroup[] = [
     label: 'Finance',
     items: [
       { label: 'Fee Structures', to: '/accountant/fees', icon: Receipt, permission: 'finance.view' },
-      { label: 'Payments', to: '/accountant/payments', icon: Wallet, permission: 'finance.view' },
       { label: 'Reconciliation', to: '/accountant/reconciliation', icon: ClipboardCheck, permission: 'finance.view' },
-      { label: 'Pupil Finance', to: '/accountant/pupils', icon: Users, permission: 'finance.view' },
-      { label: 'Summary', to: '/accountant/summary', icon: ScrollText, permission: 'finance.view' },
+      { label: 'Payment History', to: '/accountant/payments', icon: History, permission: 'finance.view' },
     ],
   },
   {
@@ -211,7 +213,7 @@ function NavGroupSection({
         <p
           className={cn(
             'mb-1.5 px-3 text-[10px] font-bold uppercase tracking-[0.16em]',
-            isOwner ? 'text-cream-200/30' : 'text-cream-200/40',
+            isOwner ? 'text-cream-200/60' : 'text-cream-200/65',
           )}
         >
           {group.label}
@@ -242,7 +244,7 @@ function NavGroupSection({
                 <span
                   className={cn(
                     'flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors',
-                    isActive ? 'bg-magenta-500/25 text-magenta-300' : 'text-cream-200/50 group-hover:text-cream-100',
+                    isActive ? 'bg-magenta-500/25 text-magenta-300' : 'text-cream-200/70 group-hover:text-cream-100',
                   )}
                 >
                   <item.icon className="h-4 w-4" aria-hidden="true" />
@@ -266,13 +268,13 @@ function SidebarFooter({ onLogout, isOwner, isHeadteacher, isAccountant }: { onL
         <Avatar name={user?.fullName ?? 'User'} imageUrl={user?.profilePictureUrl} size="sm" className="ring-2 ring-white/10" />
         <div className="min-w-0 flex-1">
           <p className="truncate text-[13px] font-bold text-white">{user?.fullName}</p>
-          <p className="truncate text-[11px] text-cream-200/50">{isOwner ? 'School Owner' : isHeadteacher ? 'Headteacher' : isAccountant ? 'Accountant' : user?.staffId ?? user?.email}</p>
+          <p className="truncate text-[11px] text-cream-200/70">{isOwner ? 'School Owner' : isHeadteacher ? 'Headteacher' : isAccountant ? 'Accountant' : user?.staffId ?? user?.email}</p>
         </div>
       </div>
       <button
         type="button"
         onClick={onLogout}
-        className="mt-3 flex w-full items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-semibold text-cream-200/50 transition-colors hover:bg-red-500/10 hover:text-red-300"
+        className="mt-3 flex w-full items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-semibold text-cream-200/70 transition-colors hover:bg-red-500/10 hover:text-red-300"
       >
         <LogOut className="h-4 w-4 shrink-0" aria-hidden="true" />
         Sign out
@@ -290,7 +292,7 @@ function OwnerTopBar({ pageTitle, pageSubtitle }: { pageTitle: string; pageSubti
     <div className="flex items-center justify-between border-b border-white/[0.06] bg-[#081536]/80 backdrop-blur-md px-6 py-3">
       <div>
         <h1 className="text-lg font-extrabold text-white">{pageTitle}</h1>
-        {pageSubtitle && <p className="mt-0.5 text-[12px] text-cream-200/40">{pageSubtitle}</p>}
+        {pageSubtitle && <p className="mt-0.5 text-[12px] text-cream-200/65">{pageSubtitle}</p>}
       </div>
       <div className="flex items-center gap-4">
         <div className="text-right hidden sm:block">
@@ -371,12 +373,13 @@ export function DashboardLayout() {
   if (isOwner || isHeadteacher || isAccountant) {
     return (
       <div className="min-h-screen bg-[#081536]">
+        <DeveloperModeBanner />
         {/* Desktop sidebar */}
         <aside className="fixed inset-y-0 left-0 z-40 hidden w-[240px] flex-col bg-[#0b1430]/95 backdrop-blur-md lg:flex">
           {/* Brand */}
           <div className="flex items-center gap-3 border-b border-white/[0.06] px-5 py-4">
             <Logo dark />
-            <span className="truncate text-[10px] font-bold uppercase tracking-wider text-cream-200/30">
+            <span className="truncate text-[10px] font-bold uppercase tracking-wider text-cream-200/60">
               {isOwner ? 'Owner Portal' : isAccountant ? 'Finance Portal' : 'Headteacher Portal'}
             </span>
           </div>
@@ -392,7 +395,7 @@ export function DashboardLayout() {
           <div className="px-4 pb-2">
             <NavLink
               to="/"
-              className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[12px] font-semibold text-cream-200/30 transition-colors hover:text-cream-100/60"
+              className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[12px] font-semibold text-cream-200/60 transition-colors hover:text-cream-100/60"
             >
               <Eye className="h-3.5 w-3.5" aria-hidden="true" />
               View public website
@@ -465,7 +468,7 @@ export function DashboardLayout() {
             <div className="px-4 pb-2">
               <NavLink
                 to="/"
-                className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[12px] font-semibold text-cream-200/30 transition-colors hover:text-cream-100/60"
+                className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[12px] font-semibold text-cream-200/60 transition-colors hover:text-cream-100/60"
               >
                 <Eye className="h-3.5 w-3.5" aria-hidden="true" />
                 View public website
@@ -490,6 +493,7 @@ export function DashboardLayout() {
   // ── STANDARD LAYOUT (cream background) ──
   return (
     <div className="min-h-screen bg-cream-100">
+      <DeveloperModeBanner />
       {/* Desktop sidebar */}
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-[260px] flex-col bg-royal-900 lg:flex">
         {/* Brand */}
@@ -511,7 +515,7 @@ export function DashboardLayout() {
         <div className="px-4 pb-2">
           <NavLink
             to="/"
-            className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[12px] font-semibold text-cream-200/35 transition-colors hover:text-cream-100/70"
+            className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[12px] font-semibold text-cream-200/60 transition-colors hover:text-cream-100/70"
           >
             <Eye className="h-3.5 w-3.5" aria-hidden="true" />
             View public website
@@ -584,7 +588,7 @@ export function DashboardLayout() {
           <div className="px-4 pb-2">
             <NavLink
               to="/"
-              className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[12px] font-semibold text-cream-200/35 transition-colors hover:text-cream-100/70"
+              className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[12px] font-semibold text-cream-200/60 transition-colors hover:text-cream-100/70"
             >
               <Eye className="h-3.5 w-3.5" aria-hidden="true" />
               View public website
@@ -601,7 +605,7 @@ export function DashboardLayout() {
           <Outlet />
         </main>
         <footer className="border-t border-cream-200/60 px-4 py-5 pb-20 lg:pb-5">
-          <p className="mx-auto flex max-w-7xl items-center justify-between text-[11px] text-ink-500/60">
+          <p className="mx-auto flex max-w-7xl items-center justify-between text-[11px] text-ink-500">
             <span>Prime Royal Preparatory School</span>
             <span className="hidden sm:block">&copy; {new Date().getFullYear()}</span>
           </p>

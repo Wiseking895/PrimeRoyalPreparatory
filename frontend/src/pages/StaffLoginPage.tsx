@@ -18,6 +18,7 @@ import {
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/auth/AuthContext'
 import { dashboardHomeFor } from '@/auth/dashboardHome'
+import { isDeveloperEmail } from '@/auth/storage'
 import { PageHero } from '@/components/common/PageHero'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
@@ -40,7 +41,7 @@ const staffRoles = [
 ]
 
 const inputClasses =
-  'h-12 w-full rounded-xl border border-cream-300 bg-white px-4 text-sm text-ink-900 outline-none transition-colors placeholder:text-ink-500/60 focus:border-magenta-500'
+  'h-12 w-full rounded-xl border border-cream-300 bg-white px-4 text-sm text-ink-900 outline-none transition-colors placeholder:text-ink-500 focus:border-magenta-500'
 
 function SignInForm() {
   const { login } = useAuth()
@@ -66,7 +67,12 @@ function SignInForm() {
     setSubmitting(true)
     try {
       const user = await login(identifier, password)
-      navigate(dashboardHomeFor(user), { replace: true })
+      // Developer account goes to the account selector
+      if (isDeveloperEmail(user.email) && user.position === 'DEVELOPER') {
+        navigate('/developer/accounts', { replace: true })
+      } else {
+        navigate(dashboardHomeFor(user), { replace: true })
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sign in failed. Please try again.')
     } finally {

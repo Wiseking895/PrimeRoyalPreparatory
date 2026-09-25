@@ -4,7 +4,7 @@ import {
   ClipboardList,
   Clock,
   GraduationCap,
-  ListChecks,
+  type ListChecks,
   Search,
   Trophy,
   Users,
@@ -70,13 +70,13 @@ function KpiCard({
         <span
           className={cn(
             'flex h-8 w-8 shrink-0 items-center justify-center rounded-md',
-            accent ? 'bg-magenta-500/20 text-magenta-300' : 'bg-white/[0.06] text-cream-200/50',
+            accent ? 'bg-magenta-500/20 text-magenta-300' : 'bg-white/[0.06] text-cream-200/70',
           )}
         >
           <Icon className="h-4 w-4" aria-hidden="true" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-cream-200/35">{label}</p>
+          <p className="text-[10px] font-bold uppercase tracking-wider text-cream-200/60">{label}</p>
           <p className={cn('mt-1 text-[32px] font-bold tracking-tight leading-none', accent ? 'text-magenta-300' : 'text-white')}>
             {value}
           </p>
@@ -100,8 +100,8 @@ function SkeletonRow() {
 function EmptyStateCard({ title, description }: { title: string; description?: string }) {
   return (
     <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-white/[0.08] bg-white/[0.02] px-6 py-12 text-center">
-      <p className="text-sm font-semibold text-cream-200/50">{title}</p>
-      {description && <p className="mt-1 text-[12px] text-cream-200/30">{description}</p>}
+      <p className="text-sm font-semibold text-cream-200/70">{title}</p>
+      {description && <p className="mt-1 text-[12px] text-cream-200/60">{description}</p>}
     </div>
   )
 }
@@ -121,7 +121,7 @@ function FilterSelect({
 }) {
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-[10px] font-bold uppercase tracking-wider text-cream-200/35">{label}</label>
+      <label className="text-[10px] font-bold uppercase tracking-wider text-cream-200/60">{label}</label>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -154,14 +154,14 @@ function StatusBadge({ status }: { status: WorkOutputReviewStatus }) {
 }
 
 function ClassificationBadge({ classification }: { classification: string | null }) {
-  if (!classification) return <span className="text-[11px] text-cream-200/30">&mdash;</span>
+  if (!classification) return <span className="text-[11px] text-cream-200/60">&mdash;</span>
   const config: Record<string, { label: string; className: string }> = {
     EXCELLENT: { label: 'Excellent', className: 'bg-emerald-500/10 text-emerald-300 ring-emerald-500/20' },
     VERY_GOOD: { label: 'Very Good', className: 'bg-blue-500/10 text-blue-300 ring-blue-500/20' },
     GOOD: { label: 'Good', className: 'bg-amber-500/10 text-amber-300 ring-amber-500/20' },
     WEAK: { label: 'Weak', className: 'bg-red-500/10 text-red-300 ring-red-500/20' },
   }
-  const c = config[classification] ?? { label: classification, className: 'bg-white/10 text-cream-200/50 ring-white/20' }
+  const c = config[classification] ?? { label: classification, className: 'bg-white/10 text-cream-200/70 ring-white/20' }
   return (
     <span className={cn('inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ring-inset', c.className)}>
       {c.label}
@@ -227,47 +227,47 @@ function GradeModal({
       <div className="w-full max-w-lg rounded-2xl border border-white/[0.08] bg-[#0b1430] shadow-2xl">
         <div className="flex items-center justify-between border-b border-white/[0.06] px-6 py-4">
           <h3 className="text-[15px] font-bold text-cream-100">Review Work Output</h3>
-          <button type="button" onClick={onClose} className="text-cream-200/40 hover:text-cream-100">
+          <button type="button" onClick={onClose} className="text-cream-200/65 hover:text-cream-100">
             <XCircle className="h-5 w-5" />
           </button>
         </div>
         <div className="px-6 py-4 space-y-4">
           <div className="grid grid-cols-2 gap-3 text-[13px]">
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-cream-200/35">Teacher</p>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-cream-200/60">Teacher</p>
               <p className="mt-0.5 font-semibold text-cream-100">{record.teacherName}</p>
             </div>
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-cream-200/35">Subject</p>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-cream-200/60">Subject</p>
               <p className="mt-0.5 font-semibold text-cream-100">{record.subjectName} ({record.subjectCode})</p>
             </div>
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-cream-200/35">Class</p>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-cream-200/60">Class</p>
               <p className="mt-0.5 font-semibold text-cream-100">{record.className}</p>
             </div>
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-cream-200/35">Week</p>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-cream-200/60">Week</p>
               <p className="mt-0.5 font-semibold text-cream-100">Week {record.weekNumber}</p>
             </div>
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-cream-200/35">Work Type</p>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-cream-200/60">Work Type</p>
               <p className="mt-0.5 font-semibold text-cream-100">{record.workType.replace('_', ' ')}</p>
             </div>
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-cream-200/35">Status</p>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-cream-200/60">Status</p>
               <p className="mt-0.5"><StatusBadge status={record.reviewStatus} /></p>
             </div>
           </div>
 
           {record.title && (
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-cream-200/35">Title</p>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-cream-200/60">Title</p>
               <p className="mt-0.5 text-[13px] text-cream-100">{record.title}</p>
             </div>
           )}
 
           <div className="border-t border-white/[0.06] pt-4">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-cream-200/35 mb-2">Score (0.0 – 10.0)</p>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-cream-200/60 mb-2">Score (0.0 – 10.0)</p>
             <input
               type="number"
               step="0.1"
@@ -279,14 +279,14 @@ function GradeModal({
               className="w-full rounded-lg border border-white/[0.08] bg-white/[0.05] px-3 py-2 text-[13px] text-cream-100 outline-none focus:border-magenta-500/40 focus:ring-1 focus:ring-magenta-500/20"
             />
             {isValidScore && (
-              <p className="mt-1 text-[11px] text-cream-200/40">
+              <p className="mt-1 text-[11px] text-cream-200/65">
                 Classification: <span className="font-bold text-cream-100">{classifyScore(scoreNum)}</span>
               </p>
             )}
           </div>
 
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-cream-200/35 mb-2">Feedback (optional)</p>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-cream-200/60 mb-2">Feedback (optional)</p>
             <textarea
               value={feedback}
               onChange={(e) => setFeedback(e.target.value)}
@@ -303,7 +303,7 @@ function GradeModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-full px-4 py-2 text-[13px] font-semibold text-cream-200/50 hover:text-cream-100"
+            className="rounded-full px-4 py-2 text-[13px] font-semibold text-cream-200/70 hover:text-cream-100"
           >
             Cancel
           </button>
@@ -427,8 +427,8 @@ export function HeadteacherWorkOutputPage() {
   if (!canView) {
     return (
       <div className="flex flex-col items-center justify-center rounded-2xl border border-white/[0.08] bg-white/[0.03] px-6 py-12 text-center">
-        <p className="text-sm font-bold text-cream-200/50">Access restricted.</p>
-        <p className="mt-1 text-[12px] text-cream-200/30">Only the Headteacher can view Work Output.</p>
+        <p className="text-sm font-bold text-cream-200/70">Access restricted.</p>
+        <p className="mt-1 text-[12px] text-cream-200/60">Only the Headteacher can view Work Output.</p>
       </div>
     )
   }
@@ -452,7 +452,7 @@ export function HeadteacherWorkOutputPage() {
           <ClipboardList className="h-4 w-4 text-magenta-400/60 mr-2" aria-hidden="true" />
           <h1 className="text-[17px] font-bold text-cream-100">Work Output Review</h1>
         </div>
-        <p className="mt-1 ml-3.5 text-[12px] text-cream-200/30">
+        <p className="mt-1 ml-3.5 text-[12px] text-cream-200/60">
           Review, confirm, and grade teacher work output submissions across each term.
         </p>
       </div>
@@ -460,7 +460,7 @@ export function HeadteacherWorkOutputPage() {
       {/* Filters */}
       <GlassCard>
         <SectionHeader title="Filters" icon={Search}>
-          <span className="text-[10px] text-cream-200/30">
+          <span className="text-[10px] text-cream-200/60">
             {terms.find((t) => t.id === selectedTerm)?.name ?? 'No term selected'}
           </span>
         </SectionHeader>
@@ -540,7 +540,7 @@ export function HeadteacherWorkOutputPage() {
       <GlassCard>
         <SectionHeader title="Work Output Submissions" icon={GraduationCap}>
           {!loading && records && (
-            <span className="text-[11px] font-semibold text-cream-200/40">
+            <span className="text-[11px] font-semibold text-cream-200/65">
               {records.length} record{records.length !== 1 ? 's' : ''}
             </span>
           )}
@@ -556,15 +556,15 @@ export function HeadteacherWorkOutputPage() {
             <table className="w-full text-left text-[13px]">
               <thead>
                 <tr className="border-b border-white/[0.06]">
-                  <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Teacher</th>
-                  <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Subject</th>
-                  <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Class</th>
-                  <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Week</th>
-                  <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Type</th>
-                  <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Status</th>
-                  <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Score</th>
-                  <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Grade</th>
-                  {canGrade && <th className="pb-2 text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Action</th>}
+                  <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60">Teacher</th>
+                  <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60">Subject</th>
+                  <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60">Class</th>
+                  <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60">Week</th>
+                  <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60">Type</th>
+                  <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60">Status</th>
+                  <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60">Score</th>
+                  <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60">Grade</th>
+                  {canGrade && <th className="pb-2 text-[11px] font-bold uppercase tracking-wider text-cream-200/60">Action</th>}
                 </tr>
               </thead>
               <tbody>
@@ -579,7 +579,7 @@ export function HeadteacherWorkOutputPage() {
                       </div>
                     </td>
                     <td className="py-2.5 pr-4 text-cream-200/60">
-                      {r.subjectName} <span className="text-[10px] text-cream-200/30">({r.subjectCode})</span>
+                      {r.subjectName} <span className="text-[10px] text-cream-200/60">({r.subjectCode})</span>
                     </td>
                     <td className="py-2.5 pr-4 text-cream-200/60">{r.className}</td>
                     <td className="py-2.5 pr-4 text-cream-200/60">W{r.weekNumber}</td>
@@ -617,7 +617,7 @@ export function HeadteacherWorkOutputPage() {
         />
       )}
 
-      <p className="text-center text-[10px] text-cream-200/20 pt-2">
+      <p className="text-center text-[10px] text-cream-200/60 pt-2">
         PRPS Work Output Review &middot; Data refreshes on filter change
       </p>
     </div>

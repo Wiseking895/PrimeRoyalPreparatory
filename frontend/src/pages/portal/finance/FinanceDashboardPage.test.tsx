@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { FinanceDashboardPage } from './FinanceDashboardPage'
-import type { FinanceSummaryView, OwnerFinanceOverviewView } from '@/types/portal'
+import type { FinanceSummaryView, OwnerFinanceClassRow, OwnerFinanceOverviewView } from '@/types/portal'
 
 const apiMock = vi.hoisted(() => ({
   financeSummary: vi.fn(),
@@ -91,7 +91,7 @@ function summaryFixture(overrides: Partial<FinanceSummaryView> = {}): FinanceSum
   }
 }
 
-function overviewFixture(): OwnerFinanceOverviewView {
+function overviewFixture(dailyFees: OwnerFinanceClassRow[] = []): OwnerFinanceOverviewView {
   return {
     session: { id: 'session-1', name: '2026/2027 Academic Session' },
     term: { id: 'term-1', name: 'First Term' },
@@ -103,11 +103,32 @@ function overviewFixture(): OwnerFinanceOverviewView {
       pupilsWithCharges: 120,
       pupilsWithPayments: 80,
     },
-    dailyFees: [],
+    dailyFees,
     ptaFees: [],
     maintenanceFees: [],
     paFees: [],
   }
+}
+
+const attendanceClassRow: OwnerFinanceClassRow = {
+  classId: 'class-1',
+  className: 'Primary 6',
+  pupilCount: 3,
+  expectedAmount: '30.00',
+  collectedAmount: '20.00',
+  outstandingAmount: '10.00',
+  boysPresent: 2,
+  boysAbsent: 1,
+  girlsPresent: 1,
+  girlsAbsent: 1,
+}
+
+function tableCellTexts(row: HTMLElement): string[] {
+  return Array.from(row.querySelectorAll('td')).map((td) => td.textContent ?? '')
+}
+
+function headerTexts(table: HTMLElement): string[] {
+  return Array.from(table.querySelectorAll('th')).map((th) => th.textContent ?? '')
 }
 
 function renderPage() {
@@ -154,8 +175,9 @@ describe('FinanceDashboardPage', () => {
     renderPage()
 
     expect(await screen.findByText('Quick Actions')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /Record Payment/i })).toHaveAttribute('href', '/accountant/payments')
-    expect(screen.getByRole('link', { name: /Pupil Finance/i })).toHaveAttribute('href', '/accountant/pupils')
+    expect(screen.getByRole('link', { name: /Fee Structures/i })).toHaveAttribute('href', '/accountant/fees')
+    expect(screen.getByRole('link', { name: /Reconciliation/i })).toHaveAttribute('href', '/accountant/reconciliation')
+    expect(screen.getByRole('link', { name: /Payment History/i })).toHaveAttribute('href', '/accountant/payments')
   })
 
   it('shows fee category toggle buttons', async () => {
@@ -179,5 +201,67 @@ describe('FinanceDashboardPage', () => {
 
     expect(await screen.findByText('Total Expected')).toBeInTheDocument()
     expect(screen.getByText('Outstanding Arrears')).toBeInTheDocument()
+  })
+
+  it('replaces the Pupils column with the attendance breakdown columns', async () => {
+    apiMock.financeOverview.mockResolvedValue(overviewFixture([attendanceClassRow]))
+    renderPage()
+
+    const classHeaders = await screen.findAllByText('Boys Present')
+    expect(classHeaders.length).toBeGreaterThan(0)
+    const table = classHeaders[0].closest('table') as HTMLElement
+    expect(headerTexts(table)).toEqual([
+      'Class',
+      'Boys Present',
+      'Boys Absent',
+      'Girls Present',
+      'Girls Absent',
+      'Total Present',
+      'Total Absent',
+      'Grand Total',
+      'Expected',
+      'Collected',
+      'Outstanding',
+    ])
+    expect(screen.queryByText('Pupils')).not.toBeInTheDocument()
+  })
+
+  it('renders per-row attendance maths for each class', async () => {
+    apiMock.financeOverview.mockResolvedValue(overviewFixture([attendanceClassRow]))
+    renderPage()
+
+    const classCells = (await screen.findAllByText('Primary 6')).filter((cell) => cell.closest('tr'))
+    expect(classCells.length).toBeGreaterThan(0)
+    for (const cell of classCells) {
+      const row = cell.closest('tr') as HTMLElement
+      const cells = tableCellTexts(row)
+      expect(cells.slice(0, 8)).toEqual(['Primary 6', '2', '1', '1', '1', '3', '2', '5'])
+    }
+
+    const feeTable = classCells[0].closest('table') as HTMLElement
+    const feeRow = classCells
+      .find((cell) => cell.closest('table') === feeTable)!
+      .closest('tr') as HTMLElement
+    expect(tableCellTexts(feeRow).slice(8)).toEqual(['30.00', '20.00', '10.00'])
+  })
+
+  it('shows a GRAND TOTAL footer summing attendance and finance columns', async () => {
+    apiMock.financeOverview.mockResolvedValue(overviewFixture([attendanceClassRow]))
+    renderPage()
+
+    const footers = await screen.findAllByText('GRAND TOTAL')
+    expect(footers.length).toBeGreaterThan(0)
+    for (const footer of footers) {
+      const row = footer.closest('tr') as HTMLElement
+      const cells = tableCellTexts(row)
+      expect(cells.slice(0, 8)).toEqual(['GRAND TOTAL', '2', '1', '1', '1', '3', '2', '5'])
+    }
+
+    const feeTableFooter = footers[0].closest('tr') as HTMLElement
+    expect(tableCellTexts(feeTableFooter).slice(8)).toEqual([
+      '1,500,000.00',
+      '500,000.00',
+      '1,000,000.00',
+    ])
   })
 })

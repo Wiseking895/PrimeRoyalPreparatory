@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/auth/AuthContext'
+import { getToken } from '@/auth/storage'
 import { useToast } from '@/components/dashboard/Toast'
 import { Button } from '@/components/ui/Button'
 
@@ -45,19 +46,10 @@ export function StaffCheckInPage() {
       (role) => role === 'NON_TEACHING_STAFF' || role === 'ADMINISTRATIVE_STAFF' || role === 'SUPPORT_STAFF',
     )
 
-  if (!canCheckIn) {
-    return (
-      <div className="p-6">
-        <h1 className="text-2xl font-bold">Access Denied</h1>
-        <p className="mt-2 text-ink-600">
-          You do not have permission to check in staff attendance.
-        </p>
-        <Button onClick={() => navigate('/')}>Go to Dashboard</Button>
-      </div>
-    )
-  }
-
   useEffect(() => {
+    if (!canCheckIn) {
+      return
+    }
     if (state.permissionGranted === null) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
@@ -98,7 +90,19 @@ export function StaffCheckInPage() {
         },
       )
     }
-  }, [state.permissionGranted])
+  }, [state.permissionGranted, canCheckIn])
+
+  if (!canCheckIn) {
+    return (
+      <div className="p-6">
+        <h1 className="text-2xl font-bold">Access Denied</h1>
+        <p className="mt-2 text-ink-600">
+          You do not have permission to check in staff attendance.
+        </p>
+        <Button onClick={() => navigate('/')}>Go to Dashboard</Button>
+      </div>
+    )
+  }
 
   const handleCheckIn = () => {
     if (!state.location || state.withinRadius === false) {
@@ -109,7 +113,7 @@ export function StaffCheckInPage() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${user?.email ?? ''}`,
+        Authorization: `Bearer ${getToken() ?? ''}`,
       },
       body: JSON.stringify({
         latitude: state.location!.latitude,
@@ -179,7 +183,7 @@ export function StaffCheckInPage() {
       {state.permissionGranted === null && (
         <div className="mb-4 p-4 rounded-xl border border-cream-300 bg-cream-50 text-sm">
           <p>We need your permission to access your location for attendance check-in.</p>
-          <p className="mt-2 text-ink-500/80">
+          <p className="mt-2 text-ink-500">
             The system will ask for your location when you press Check In below.
           </p>
         </div>

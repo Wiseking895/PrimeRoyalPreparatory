@@ -12,6 +12,8 @@ const apiMock = vi.hoisted(() => ({
   getClassTeacher: vi.fn(),
   assignTeachingAssignment: vi.fn(),
   deactivateTeachingAssignment: vi.fn(),
+  assignClassTeacher: vi.fn(),
+  removeClassTeacher: vi.fn(),
 }))
 
 vi.mock('@/lib/api', () => ({ api: apiMock }))
@@ -141,6 +143,8 @@ describe('TeacherAssignmentPage', () => {
     apiMock.listTeachingAssignments.mockResolvedValue([assignmentFixture()])
     apiMock.getClassTeacher.mockResolvedValue(classTeacherFixture())
     apiMock.assignTeachingAssignment.mockResolvedValue(assignmentFixture())
+    apiMock.assignClassTeacher.mockResolvedValue(classTeacherFixture())
+    apiMock.removeClassTeacher.mockResolvedValue(null)
   })
 
   it('renders the teaching assignments list', async () => {
@@ -187,5 +191,126 @@ describe('TeacherAssignmentPage', () => {
 
     expect(await screen.findByText('Class teacher assignment')).toBeInTheDocument()
     expect(screen.getByText('Current class teacher: Kofi Mensah')).toBeInTheDocument()
+  })
+
+  // -------------------------------------------------------------------------
+  // NO auto-association: a class with no class-teacher row shows no teacher
+  // -------------------------------------------------------------------------
+
+  it('does NOT show any teacher against an unassigned class (regression: teacher appearing everywhere)', async () => {
+    PERMISSIONS = ['teachers.view', 'assignments.manage']
+    apiMock.getClassTeacher.mockResolvedValue(null)
+    apiMock.listTeachingAssignments.mockResolvedValue([])
+    renderPage()
+
+    expect(await screen.findByText('Class teacher assignment')).toBeInTheDocument()
+    expect(screen.getByText('No class teacher assigned')).toBeInTheDocument()
+
+    const select = screen.getByLabelText('Teacher', { selector: '#class-teacher-class-1' }) as HTMLSelectElement
+    expect(select.value).toBe('')
+    expect(select.options[select.selectedIndex].textContent).toBe('Select a teacher')
+    expect(screen.queryByText('Current class teacher: Kofi Mensah')).not.toBeInTheDocument()
+  })
+
+  it('shows only the assigned class teacher when one class has an assignment and the other does not', async () => {
+    PERMISSIONS = ['teachers.view', 'assignments.manage']
+    apiMock.listClasses.mockResolvedValue([
+      classFixture({ id: 'nursery-1a', key: 'N1A', name: 'Nursery 1A' }),
+      classFixture({ id: 'nursery-1b', key: 'N1B', name: 'Nursery 1B', sortOrder: 2 }),
+    ])
+    apiMock.getClassTeacher.mockImplementation(async (classId: string) =>
+      classId === 'nursery-1a' ? classTeacherFixture({ classId: 'nursery-1a', className: 'Nursery 1A' }) : null,
+    )
+    renderPage()
+
+    expect(await screen.findByText('Current class teacher: Kofi Mensah')).toBeInTheDocument()
+    expect(screen.getByText('No class teacher assigned')).toBeInTheDocument()
+
+    const assignedSelect = screen.getByLabelText('Teacher', { selector: '#class-teacher-nursery-1a' }) as HTMLSelectElement
+    const unassignedSelect = screen.getByLabelText('Teacher', { selector: '#class-teacher-nursery-1b' }) as HTMLSelectElement
+    expect(assignedSelect.value).toBe('teacher-1')
+    expect(unassignedSelect.value).toBe('')
+  })
+
+  // -------------------------------------------------------------------------
+  // Explicit assignment flow
+  // -------------------------------------------------------------------------
+
+  it('does not call the API when Assign is clicked without selecting a teacher', async () => {
+    PERMISSIONS = ['teachers.view', 'assignments.manage']
+    apiMock.getClassTeacher.mockResolvedValue(null)
+    renderPage()
+
+    await screen.findByText('Class teacher assignment')
+    fireEvent.click(screen.getByRole('button', { name: 'Assign' }))
+
+    expect(pushMock).toHaveBeenCalledWith('error', 'Select a teacher to assign.')
+    expect(apiMock.assignClassTeacher).not.toHaveBeenCalled()
+  })
+
+  it('assigns a teacher to the selected class only, then reloads from the backend', async () => {
+    PERMISSIONS = ['teachers.view', 'assignments.manage']
+    apiMock.listClasses.mockResolvedValue([
+      classFixture({ id: 'basic-3', key: 'B3', name: 'Basic 3' }),
+      classFixture({ id: 'basic-4', key: 'B4', name: 'Basic 4', sortOrder: 2 }),
+    ])
+    apiMock.getClassTeacher
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null)
+      .mockImplementation(async (classId: string) =>
+        classId === 'basic-3' ? classTeacherFixture({ classId: 'basic-3', className: 'Basic 3' }) : null,
+      )
+    renderPage()
+
+    await screen.findByText('Class teacher assignment')
+    fireEvent.change(screen.getByLabelText('Teacher', { selector: '#class-teacher-basic-3' }), {
+      target: { value: 'teacher-1' },
+    })
+    fireEvent.click(screen.getAllByRole('button', { name: 'Assign' })[0])
+
+    await waitFor(() => {
+      expect(apiMock.assignClassTeacher).toHaveBeenCalledWith('basic-3', 'teacher-1')
+    })
+    expect(apiMock.assignClassTeacher).toHaveBeenCalledTimes(1)
+    expect(apiMock.assignClassTeacher).not.toHaveBeenCalledWith('basic-4', expect.anything())
+    expect(pushMock).toHaveBeenCalledWith('success', 'Class teacher assigned.')
+
+    // Refreshed from the backend: Basic 3 now shows the teacher, Basic 4 does not.
+    expect(await screen.findByText('Current class teacher: Kofi Mensah')).toBeInTheDocument()
+    expect(screen.getAllByText('No class teacher assigned')).toHaveLength(1)
+  })
+
+  it('reloads the page data from the backend after assignment (persistence via DB)', async () => {
+    PERMISSIONS = ['teachers.view', 'assignments.manage']
+    apiMock.getClassTeacher.mockResolvedValue(null)
+    renderPage()
+    await screen.findByText('Class teacher assignment')
+
+    fireEvent.change(screen.getByLabelText('Teacher', { selector: '#class-teacher-class-1' }), {
+      target: { value: 'teacher-1' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Assign' }))
+    await waitFor(() => expect(apiMock.assignClassTeacher).toHaveBeenCalled())
+
+    // load() re-fetches every source of truth after a successful assign
+    expect(apiMock.getClassTeacher).toHaveBeenCalledTimes(2)
+    expect(apiMock.listTeachingAssignments).toHaveBeenCalledTimes(2)
+    expect(apiMock.listClasses).toHaveBeenCalledTimes(2)
+  })
+
+  it('removes a class teacher; the class reverts to unassigned on reload (TEST 7)', async () => {
+    PERMISSIONS = ['teachers.view', 'assignments.manage']
+    apiMock.getClassTeacher.mockResolvedValueOnce(classTeacherFixture()).mockResolvedValue(null)
+    renderPage()
+
+    expect(await screen.findByText('Current class teacher: Kofi Mensah')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Remove class teacher for Primary 1' }))
+
+    await waitFor(() => {
+      expect(apiMock.removeClassTeacher).toHaveBeenCalledWith('class-1')
+    })
+    expect(apiMock.removeClassTeacher).toHaveBeenCalledTimes(1)
+    expect(await screen.findByText('No class teacher assigned')).toBeInTheDocument()
+    expect(screen.queryByText('Current class teacher: Kofi Mensah')).not.toBeInTheDocument()
   })
 })

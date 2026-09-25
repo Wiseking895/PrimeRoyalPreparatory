@@ -119,7 +119,7 @@ export function ParentAccountsPage() {
             value={q}
             onChange={(event) => setQ(event.target.value)}
             placeholder="Search guardians…"
-            className="h-12 w-full rounded-xl border border-cream-300 bg-white pl-11 pr-4 text-sm text-ink-900 outline-none transition-colors placeholder:text-ink-500/60 focus:border-magenta-500"
+            className="h-12 w-full rounded-xl border border-cream-300 bg-white pl-11 pr-4 text-sm text-ink-900 outline-none transition-colors placeholder:text-ink-500 focus:border-magenta-500"
           />
         </div>
         <div className="flex flex-wrap gap-1 rounded-2xl border border-cream-300/70 bg-white p-1.5">

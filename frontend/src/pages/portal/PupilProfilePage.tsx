@@ -2,19 +2,22 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import {
   ArrowLeft,
+  Banknote,
   Calendar,
   Camera,
+  ChevronRight,
   IdCard,
   Mail,
   MapPin,
   Pencil,
   Phone,
   ShieldCheck,
+  Shirt,
   Trash2,
   UserRound,
   Users,
 } from 'lucide-react'
-import { useParams } from 'react-router-dom'
+import { useParams, Link } from 'react-router-dom'
 import { OWNER_ROLE } from '@/auth/roles'
 import { useAuth } from '@/auth/AuthContext'
 import { Card } from '@/components/ui/Card'
@@ -28,7 +31,14 @@ import { ErrorState, EmptyState } from '@/components/dashboard/States'
 import { useToast } from '@/components/dashboard/Toast'
 import { api } from '@/lib/api'
 import { formatDate } from '@/lib/date'
-import type { GuardianView, PupilGender, PupilView, SchoolClassView } from '@/types/portal'
+import type {
+  GuardianView,
+  PupilGender,
+  PupilUniformView,
+  PupilView,
+  SchoolClassView,
+  UniformCollectionStatus,
+} from '@/types/portal'
 import { cn } from '@/lib/cn'
 
 interface GuardianEditRow {
@@ -44,9 +54,21 @@ interface GuardianEditRow {
   isEmergency: boolean
 }
 
+/** Canonical names of the five "Uniforms to be Collected" admission items. */
+const UNIFORM_NAMES = ['Main Uniform', 'Outing', 'Friday Wear', 'Thursday Wear', 'Cream Uniform']
+
+/** One of the five "Uniforms to be Collected" admission items on the edit form. */
+interface UniformEditRow {
+  slot: number
+  label: string
+  status: UniformCollectionStatus
+}
+
 interface EditForm {
   pupilId: string
   admissionNumber: string
+  sheetNumber: string
+  admissionFee: string
   firstName: string
   middleName: string
   lastName: string
@@ -55,11 +77,29 @@ interface EditForm {
   classId: string
   dateAdmitted: string
   address: string
+  /** "SCHOOL ATTENDED" on the physical admission form. */
+  previousSchool: string
+  /** "STAY WITH THE CHILD" living arrangement on the physical admission form. */
+  stayWithChild: string
   nationality: string
   religion: string
   admissionReason: string
   declarationAcknowledged: boolean
   guardians: GuardianEditRow[]
+  uniforms: UniformEditRow[]
+}
+
+/** Always produces the five admission slots, padded with empty/not-collected. */
+function toUniformRows(uniforms?: PupilUniformView[]): UniformEditRow[] {
+  const bySlot = new Map<number, UniformEditRow>()
+  for (const item of uniforms ?? []) {
+    if (!bySlot.has(item.slot)) {
+      bySlot.set(item.slot, { slot: item.slot, label: item.label ?? '', status: item.status })
+    }
+  }
+  return [1, 2, 3, 4, 5].map(
+    (slot) => bySlot.get(slot) ?? { slot, label: '', status: 'NOT_COLLECTED' },
+  )
 }
 
 let guardianSeq = 0
@@ -153,6 +193,8 @@ export function PupilProfilePage() {
     setForm({
       pupilId: pupil.pupilId,
       admissionNumber: pupil.admissionNumber ?? '',
+      sheetNumber: pupil.sheetNumber ?? '',
+      admissionFee: pupil.admissionFee ?? '',
       firstName: pupil.firstName,
       middleName: pupil.middleName ?? '',
       lastName: pupil.lastName,
@@ -161,22 +203,48 @@ export function PupilProfilePage() {
       classId: pupil.classId,
       dateAdmitted: toDateValue(pupil.dateAdmitted),
       address: pupil.address ?? '',
+      previousSchool: pupil.previousSchool ?? '',
+      stayWithChild: pupil.stayWithChild ?? '',
       nationality: pupil.nationality ?? '',
       religion: pupil.religion ?? '',
       admissionReason: pupil.admissionReason ?? '',
       declarationAcknowledged: pupil.declarationAcknowledged,
       guardians: pupil.guardians.map(toRow),
+      uniforms: toUniformRows(pupil.uniforms),
     })
     setFormErrors({})
     setEditing(true)
   }
 
-  const set = (field: Exclude<keyof EditForm, 'guardians'>, value: string) => {
+  const set = (field: Exclude<keyof EditForm, 'guardians' | 'uniforms'>, value: string) => {
     setForm((current) => (current ? { ...current, [field]: value } : current))
     setFormErrors((current) => {
       if (!current[field]) return current
       const next = { ...current }
       delete next[field]
+      return next
+    })
+  }
+
+  const setUniform = (slot: number, field: 'label' | 'status', value: string) => {
+    setForm((current) =>
+      current
+        ? {
+            ...current,
+            uniforms: current.uniforms.map((item) => {
+              if (item.slot !== slot) return item
+              return field === 'label'
+                ? { ...item, label: value }
+                : { ...item, status: value as UniformCollectionStatus }
+            }),
+          }
+        : current,
+    )
+    setFormErrors((current) => {
+      const key = `uniforms.${slot}.label`
+      if (!current[key]) return current
+      const next = { ...current }
+      delete next[key]
       return next
     })
   }
@@ -220,6 +288,21 @@ export function PupilProfilePage() {
     if (!form.dateOfBirth) errors.dateOfBirth = 'Date of birth is required.'
     if (!form.gender) errors.gender = 'Select a gender.'
     if (!form.classId) errors.classId = 'Select a class.'
+    if (form.admissionNumber.trim().length > 40) errors.admissionNumber = 'Admission number is too long.'
+    if (form.sheetNumber.trim().length > 40) errors.sheetNumber = 'Sheet number is too long.'
+    if (form.previousSchool.trim().length > 120)
+      errors.previousSchool = 'School attended must be 120 characters or fewer.'
+    if (form.stayWithChild.trim().length > 120)
+      errors.stayWithChild = 'Stay with the child must be 120 characters or fewer.'
+    const feeValue = form.admissionFee.trim()
+    if (feeValue && !/^\d+(\.\d{1,2})?$/.test(feeValue)) {
+      errors.admissionFee = 'Enter a valid admission fee with up to 2 decimal places.'
+    }
+    form.uniforms.forEach((item) => {
+      if (item.label.trim().length > 80) {
+        errors[`uniforms.${item.slot}.label`] = 'Uniform description must be 80 characters or fewer.'
+      }
+    })
     if (form.guardians.length === 0) {
       errors.guardians = 'At least one guardian is required.'
     } else {
@@ -240,6 +323,8 @@ export function PupilProfilePage() {
       const updated = await api.updatePupil(pupil.id, {
         pupilId: form.pupilId.trim() || undefined,
         admissionNumber: form.admissionNumber.trim() || null,
+        sheetNumber: form.sheetNumber.trim() || null,
+        admissionFee: form.admissionFee.trim() || null,
         firstName: form.firstName.trim(),
         middleName: form.middleName.trim() || null,
         lastName: form.lastName.trim(),
@@ -248,10 +333,17 @@ export function PupilProfilePage() {
         classId: form.classId,
         dateAdmitted: form.dateAdmitted,
         address: form.address.trim() || null,
+        previousSchool: form.previousSchool.trim() || null,
+        stayWithChild: form.stayWithChild.trim() || null,
         nationality: form.nationality.trim() || null,
         religion: form.religion.trim() || null,
         admissionReason: form.admissionReason.trim() || null,
         declarationAcknowledged: form.declarationAcknowledged,
+        uniforms: form.uniforms.map((item) => ({
+          slot: item.slot,
+          label: item.label.trim() || null,
+          status: item.status,
+        })),
         guardians: form.guardians.map((guardian) => ({
           fullName: guardian.fullName.trim(),
           relationship: guardian.relationship.trim(),
@@ -327,8 +419,8 @@ export function PupilProfilePage() {
 
   if (error) {
     return (
-      <div className="space-y-6">
-        <Button variant="ghost-dark" size="sm" to={`${basePath}/pupils`}>
+      <div className="space-y-6 rounded-3xl bg-royal-900 p-5 sm:p-7 lg:p-8">
+        <Button variant="outline" size="sm" to={`${basePath}/pupils`}>
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           Back to pupils
         </Button>
@@ -339,7 +431,7 @@ export function PupilProfilePage() {
 
   if (!pupil) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-6 rounded-3xl bg-royal-900 p-5 sm:p-7 lg:p-8">
         <CardSkeleton />
         <CardSkeleton />
         <CardSkeleton />
@@ -352,30 +444,49 @@ export function PupilProfilePage() {
     .map((klass) => ({ value: klass.id, label: klass.name }))
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between gap-3">
-        <Button variant="ghost-dark" size="sm" to={`${basePath}/pupils`}>
-          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          Back to pupils
-        </Button>
-        {can.update ? (
-          <Button variant="soft" size="sm" onClick={() => (editing ? setEditing(false) : startEditing())}>
-            <Pencil className="h-4 w-4" aria-hidden="true" />
-            {editing ? 'Cancel' : 'Edit'}
+    <div className="space-y-6 rounded-3xl bg-royal-900 p-5 sm:p-7 lg:p-8">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-xs font-semibold text-cream-200/70">
+            <Link to={`${basePath}/pupils`} className="transition-colors hover:text-white">
+              Pupils
+            </Link>
+            <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
+            <span className="text-gold-300">Profile</span>
+          </nav>
+          <h1 className="mt-1.5 text-2xl font-extrabold tracking-tight text-white sm:text-3xl">
+            Pupil Profile
+          </h1>
+          <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-cream-200/75">
+            Enrolment details, guardians and management for this pupil.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" to={`${basePath}/pupils`}>
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            Back to pupils
           </Button>
-        ) : null}
+          {can.update ? (
+            <Button variant="cream" size="sm" onClick={() => (editing ? setEditing(false) : startEditing())}>
+              <Pencil className="h-4 w-4" aria-hidden="true" />
+              {editing ? 'Cancel' : 'Edit'}
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       {/* Identity */}
-      <Card className="p-6">
+      <Card className="p-6 sm:p-7">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
           <div className="flex flex-col items-center gap-3">
             <div className="relative">
               <Avatar
                 name={pupil.fullName}
                 imageUrl={pupil.profilePictureUrl}
-                size="lg"
-                className={uploading ? 'opacity-50' : ''}
+                size="xl"
+                className={
+                  uploading ? 'opacity-50 ring-4 ring-cream-200' : 'ring-4 ring-cream-200'
+                }
               />
               {can.update && (
                 <>
@@ -390,7 +501,7 @@ export function PupilProfilePage() {
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={uploading}
-                    className="absolute -bottom-1 -right-1 flex h-8 w-8 items-center justify-center rounded-full bg-royal-600 text-white shadow-md transition-colors hover:bg-royal-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="absolute -bottom-1 -right-1 flex h-10 w-10 items-center justify-center rounded-full border-2 border-white bg-royal-700 text-white shadow-md transition-colors hover:bg-royal-800 disabled:cursor-not-allowed disabled:opacity-50"
                     aria-label="Change profile picture"
                   >
                     {uploading ? (
@@ -408,11 +519,11 @@ export function PupilProfilePage() {
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={uploading}
-                  className="text-sm font-semibold text-royal-600 transition-colors hover:text-magenta-600 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="text-sm font-bold text-royal-700 underline-offset-2 transition-colors hover:text-magenta-600 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {uploading ? 'Uploading...' : pupil.profilePictureUrl ? 'Change Photo' : 'Upload Photo'}
+                  {uploading ? 'Uploading…' : pupil.profilePictureUrl ? 'Change Photo' : 'Upload Photo'}
                 </button>
-                <p className="text-xs text-ink-400">JPG, PNG, WebP or GIF · Max 5 MB</p>
+                <p className="text-xs text-ink-500">JPG, PNG, WebP or GIF / Maximum 5 MB</p>
               </div>
             )}
             {can.update && pupil.profilePictureUrl && (
@@ -433,15 +544,19 @@ export function PupilProfilePage() {
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <p className="text-xl font-bold text-ink-900">{pupil.fullName}</p>
+              <p className="text-xl font-extrabold tracking-tight text-royal-800">{pupil.fullName}</p>
               <StatusBadge status={pupil.status} />
             </div>
             <p className="mt-0.5 text-sm text-ink-500">{pupil.pupilId} · {pupil.className}</p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              <Badge tone={pupil.gender === 'MALE' ? 'royal' : 'magenta'}>
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-gold-400/20 px-2.5 py-1 text-xs font-bold text-gold-700 ring-1 ring-inset ring-gold-500/30">
                 {pupil.gender === 'MALE' ? 'Male' : 'Female'}
-              </Badge>
-              {pupil.admissionNumber ? <Badge tone="green">{pupil.admissionNumber}</Badge> : null}
+              </span>
+              {pupil.admissionNumber ? (
+                <span className="rounded-full bg-cream-100 px-2.5 py-1 text-xs font-semibold text-ink-700 ring-1 ring-inset ring-cream-300">
+                  {pupil.admissionNumber}
+                </span>
+              ) : null}
             </div>
           </div>
         </div>
@@ -449,7 +564,7 @@ export function PupilProfilePage() {
 
       {editing && form ? (
         <Card className="p-6">
-          <h2 className="text-sm font-bold uppercase tracking-wider text-ink-500">Edit pupil profile</h2>
+          <h2 className="text-sm font-bold uppercase tracking-wider text-royal-800">Edit pupil profile</h2>
           <form onSubmit={handleEdit} noValidate className="mt-4 grid gap-4 sm:grid-cols-2">
             <TextField
               label="First name"
@@ -522,6 +637,13 @@ export function PupilProfilePage() {
               error={formErrors.admissionNumber}
             />
             <TextField
+              label="Sheet number"
+              name="sheetNumber"
+              value={form.sheetNumber}
+              onChange={(event) => set('sheetNumber', event.target.value)}
+              error={formErrors.sheetNumber}
+            />
+            <TextField
               label="Date admitted"
               name="dateAdmitted"
               type="date"
@@ -538,6 +660,22 @@ export function PupilProfilePage() {
                 error={formErrors.address}
               />
             </div>
+            <TextField
+              label="School attended"
+              name="previousSchool"
+              value={form.previousSchool}
+              onChange={(event) => set('previousSchool', event.target.value)}
+              error={formErrors.previousSchool}
+              hint="Previous school listed on the admission form, if any."
+            />
+            <TextField
+              label="Stay with the child"
+              name="stayWithChild"
+              value={form.stayWithChild}
+              onChange={(event) => set('stayWithChild', event.target.value)}
+              error={formErrors.stayWithChild}
+              hint="Who the child lives with, e.g. Father, Mother or Guardian."
+            />
             <TextField
               label="Nationality"
               name="nationality"
@@ -559,6 +697,47 @@ export function PupilProfilePage() {
               onChange={(event) => set('admissionReason', event.target.value)}
               error={formErrors.admissionReason}
             />
+            <TextField
+              label="Admission fee (GH₵)"
+              name="admissionFee"
+              value={form.admissionFee}
+              onChange={(event) => set('admissionFee', event.target.value)}
+              error={formErrors.admissionFee}
+              hint="One-time amount recorded with this admission record - not daily, PA or maintenance fees."
+            />
+
+            <div className="sm:col-span-2">
+              <p className="text-xs font-bold uppercase tracking-wider text-ink-500">Uniforms to be Collected</p>
+            </div>
+            <div className="sm:col-span-2 rounded-xl border border-cream-200 bg-cream-50 p-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                {form.uniforms.map((item) => (
+                  <div key={item.slot} className="rounded-xl border border-cream-200 bg-white p-3">
+                    <p className="text-xs font-bold uppercase tracking-wider text-ink-500">
+                      {UNIFORM_NAMES[item.slot - 1]}
+                    </p>
+                    <div className="mt-2">
+                      <SelectField
+                        label="Collection status"
+                        name={`uniform-${item.slot}-status`}
+                        value={item.status}
+                        onChange={(event) => setUniform(item.slot, 'status', event.target.value)}
+                        options={[
+                          { value: 'NOT_COLLECTED', label: 'Not collected' },
+                          { value: 'COLLECTED', label: 'Collected' },
+                        ]}
+                        placeholder="Select a status"
+                        error={formErrors[`uniforms.${item.slot}.status`]}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-3 text-xs text-ink-500">
+                &quot;Collected&quot; means the uniform item was physically handed over to the pupil or
+                guardian.
+              </p>
+            </div>
 
             <div className="sm:col-span-2">
               <div className="flex items-center justify-between">
@@ -668,10 +847,10 @@ export function PupilProfilePage() {
             ))}
 
             <div className="flex justify-end gap-2 sm:col-span-2">
-              <Button variant="cream" type="button" onClick={() => setEditing(false)}>
+              <Button variant="outline" type="button" onClick={() => setEditing(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={saving}>
+              <Button type="submit" variant="secondary" disabled={saving}>
                 {saving ? <Spinner className="h-4 w-4" /> : null}
                 Save changes
               </Button>
@@ -682,14 +861,18 @@ export function PupilProfilePage() {
         <div className="grid gap-6 lg:grid-cols-2">
           {/* Details */}
           <Card className="p-6">
-            <h2 className="text-sm font-bold uppercase tracking-wider text-ink-500">Pupil details</h2>
+            <h2 className="text-sm font-bold uppercase tracking-wider text-royal-800">Pupil details</h2>
             <dl className="mt-4 grid gap-x-6 gap-y-4 sm:grid-cols-2">
               {renderDetail(IdCard, 'Pupil ID', pupil.pupilId)}
               {renderDetail(ShieldCheck, 'Admission no.', pupil.admissionNumber ?? '—')}
+              {renderDetail(IdCard, 'Sheet no.', pupil.sheetNumber ?? '—')}
+              {renderDetail(Banknote, 'Admission fee', pupil.admissionFee ? `GH₵ ${pupil.admissionFee}` : '—')}
               {renderDetail(UserRound, 'Gender', pupil.gender === 'MALE' ? 'Male' : 'Female')}
               {renderDetail(Calendar, 'Date of birth', formatDate(pupil.dateOfBirth))}
               {renderDetail(Calendar, 'Date admitted', formatDate(pupil.dateAdmitted))}
               {renderDetail(MapPin, 'Home address', pupil.address ?? '—')}
+              {renderDetail(UserRound, 'School attended', pupil.previousSchool ?? '—')}
+              {renderDetail(Users, 'Stay with the child', pupil.stayWithChild ?? '—')}
               {renderDetail(UserRound, 'Nationality', pupil.nationality ?? '—')}
               {renderDetail(UserRound, 'Religion', pupil.religion ?? '—')}
               {renderDetail(UserRound, 'Reason for choosing school', pupil.admissionReason ?? '—')}
@@ -699,7 +882,7 @@ export function PupilProfilePage() {
           {/* Guardians */}
           <Card className="p-6">
             <div className="flex items-center justify-between">
-              <h2 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-ink-500">
+              <h2 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-royal-800">
                 <Users className="h-4 w-4" aria-hidden="true" />
                 Guardians
               </h2>
@@ -741,13 +924,38 @@ export function PupilProfilePage() {
               </ul>
             )}
           </Card>
+
+          {/* Uniforms to be collected */}
+          <Card className="p-6 lg:col-span-2">
+            <h2 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-royal-800">
+              <Shirt className="h-4 w-4" aria-hidden="true" />
+              Uniforms to be Collected
+            </h2>
+            <ul className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+              {pupil.uniforms.map((item, index) => (
+                <li key={item.slot} className="rounded-xl border border-cream-200 bg-cream-50 p-4">
+                  <p className="text-xs font-bold uppercase tracking-wider text-ink-500">
+                    {UNIFORM_NAMES[index]}
+                  </p>
+                  <p className="mt-1 break-words text-sm font-semibold text-ink-900">
+                    {item.label || '—'}
+                  </p>
+                  <div className="mt-2">
+                    <Badge tone={item.status === 'COLLECTED' ? 'green' : 'amber'}>
+                      {item.status === 'COLLECTED' ? 'Collected' : 'Not collected'}
+                    </Badge>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </Card>
         </div>
       )}
 
       {/* Management actions */}
       {can.update ? (
         <Card className="p-6">
-          <h2 className="text-sm font-bold uppercase tracking-wider text-ink-500">Pupil management</h2>
+          <h2 className="text-sm font-bold uppercase tracking-wider text-royal-800">Pupil management</h2>
           <div className="mt-4 flex flex-wrap items-center gap-2">
             <button
               type="button"

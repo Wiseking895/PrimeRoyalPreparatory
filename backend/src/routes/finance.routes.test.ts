@@ -60,11 +60,22 @@ const prismaMock = vi.hoisted(() => ({
   schoolClass: {
     findMany: vi.fn(),
   },
+  attendance: {
+    findFirst: vi.fn(),
+    findUnique: vi.fn(),
+    findMany: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+  },
+  dailyReconciliationClose: {
+    findUnique: vi.fn(),
+    create: vi.fn(),
+  },
   auditLog: { create: vi.fn() },
   $transaction: vi.fn(),
 }))
 
-vi.mock('../lib/jwt', () => ({ verifyToken: verifyTokenMock }))
+vi.mock('../lib/jwt', () => ({ verifyToken: verifyTokenMock, verifyTokenPayload: verifyTokenMock }))
 vi.mock('../lib/prisma', () => ({ prisma: prismaMock }))
 
 const app = createApp()
@@ -130,7 +141,7 @@ function financeTerm() {
 describe('finance routes (auth + RBAC enforcement)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    verifyTokenMock.mockReturnValue('user-1')
+    verifyTokenMock.mockReturnValue({ sub: 'user-1', kind: 'staff' })
     prismaMock.user.findUnique.mockResolvedValue(baseUser())
     prismaMock.user.findMany.mockResolvedValue([])
     prismaMock.auditLog.create.mockResolvedValue({})
@@ -562,11 +573,264 @@ describe('finance routes (auth + RBAC enforcement)', () => {
       prismaMock.schoolClass.findMany.mockResolvedValue([])
       prismaMock.financeFee.findFirst.mockResolvedValue(null)
 
-      const res = await request(app)
-        .get('/api/finance/pupils/daily?date=2026-01-05')
-        .set('Authorization', 'Bearer token')
+      const res = await request(app).get('/api/finance/pupils/daily?date=2026-01-05').set('Authorization', 'Bearer token')
       expect(res.status).toBe(400)
       expect(res.body.message).toContain('Daily Fee')
+    })
+  })
+
+  describe('PATCH /finance/reconciliation/attendance', () => {
+    const attendancePayload = { pupilId: 'p-1', date: '2026-01-05', status: 'PRESENT' }
+    const selectedDate = new Date('2026-01-05T00:00:00.000Z')
+
+    function bareAttendanceRecord(overrides: Record<string, unknown> = {}) {
+      return {
+        id: 'att-1',
+        pupilId: 'p-1',
+        staffId: 'user-1',
+        date: selectedDate,
+        status: 'ABSENT',
+        sessionId: 's-1',
+        classId: 'c-1',
+        notes: null,
+        latitude: null,
+        longitude: null,
+        accuracy: null,
+        capturedAt: null,
+        createdAt: new Date('2026-01-05T08:00:00.000Z'),
+        updatedAt: new Date('2026-01-05T08:00:00.000Z'),
+        ...overrides,
+      }
+    }
+
+    function attendanceViewRecord(overrides: Record<string, unknown> = {}) {
+      return {
+        ...bareAttendanceRecord(),
+        pupil: { firstName: 'Ama', lastName: 'Mensah', pupilId: 'PRPS-P-001' },
+        staff: { fullName: 'Ama Mensah' },
+        ...overrides,
+      }
+    }
+
+    function mockAuthorizedActor() {
+      prismaMock.user.findUnique.mockResolvedValue(
+        baseUser({ roles: [roleEntry('ACCOUNTANT', FINANCE_ROLES.accountant)] }),
+      )
+      prismaMock.pupil.findUnique.mockResolvedValue({ id: 'p-1', pupilId: 'PRPS-P-001', status: 'ACTIVE', classId: 'c-1' })
+      prismaMock.academicSession.findFirst.mockResolvedValue(financeSession())
+      prismaMock.dailyReconciliationClose.findUnique.mockResolvedValue(null)
+    }
+
+    beforeEach(() => {
+      prismaMock.attendance.findFirst.mockResolvedValue(null)
+      prismaMock.attendance.findUnique.mockResolvedValue(null)
+      prismaMock.attendance.create.mockResolvedValue(attendanceViewRecord({ status: 'PRESENT' }))
+      prismaMock.attendance.update.mockResolvedValue(attendanceViewRecord({ status: 'PRESENT' }))
+      prismaMock.dailyReconciliationClose.findUnique.mockResolvedValue(null)
+    })
+
+    it('rejects unauthenticated access with 401', async () => {
+      const res = await request(app).patch('/api/finance/reconciliation/attendance').send(attendancePayload)
+      expect(res.status).toBe(401)
+    })
+
+    it('rejects a user without payments.record with 403 and never touches attendance', async () => {
+      prismaMock.user.findUnique.mockResolvedValue(
+        baseUser({ roles: [roleEntry('SUPPORT_STAFF', [])] }),
+      )
+
+      const res = await request(app)
+        .patch('/api/finance/reconciliation/attendance')
+        .set('Authorization', 'Bearer token')
+        .send(attendancePayload)
+      expect(res.status).toBe(403)
+      expect(prismaMock.attendance.findFirst).not.toHaveBeenCalled()
+      expect(prismaMock.attendance.update).not.toHaveBeenCalled()
+      expect(prismaMock.attendance.create).not.toHaveBeenCalled()
+    })
+
+    it('keeps OWNER read-only: rejects with 403 even though OWNER has finance.view', async () => {
+      prismaMock.user.findUnique.mockResolvedValue(
+        baseUser({
+          roles: [
+            roleEntry('OWNER', ['owner.manage', 'finance.view', 'attendance.view', 'reports.view']),
+          ],
+        }),
+      )
+
+      const res = await request(app)
+        .patch('/api/finance/reconciliation/attendance')
+        .set('Authorization', 'Bearer token')
+        .send(attendancePayload)
+      expect(res.status).toBe(403)
+      expect(prismaMock.attendance.findFirst).not.toHaveBeenCalled()
+      expect(prismaMock.attendance.update).not.toHaveBeenCalled()
+      expect(prismaMock.attendance.create).not.toHaveBeenCalled()
+    })
+
+    it('allows an ACCOUNTANT with payments.record to toggle attendance', async () => {
+      mockAuthorizedActor()
+      prismaMock.attendance.findFirst.mockResolvedValue(bareAttendanceRecord({ status: 'ABSENT' }))
+      prismaMock.attendance.findUnique.mockResolvedValue(bareAttendanceRecord({ status: 'ABSENT' }))
+      prismaMock.attendance.update.mockResolvedValue(attendanceViewRecord({ status: 'PRESENT' }))
+
+      const res = await request(app)
+        .patch('/api/finance/reconciliation/attendance')
+        .set('Authorization', 'Bearer token')
+        .send(attendancePayload)
+      expect(res.status).toBe(200)
+      expect(res.body.success).toBe(true)
+      expect(res.body.data.status).toBe('PRESENT')
+    })
+
+    it('allows a HEADTEACHER with payments.record to toggle attendance', async () => {
+      prismaMock.user.findUnique.mockResolvedValue(
+        baseUser({ roles: [roleEntry('HEADTEACHER', ['finance.view', 'payments.record', 'attendance.view'])] }),
+      )
+      prismaMock.pupil.findUnique.mockResolvedValue({ id: 'p-1', pupilId: 'PRPS-P-001', status: 'ACTIVE', classId: 'c-1' })
+      prismaMock.academicSession.findFirst.mockResolvedValue(financeSession())
+      prismaMock.attendance.findFirst.mockResolvedValue(bareAttendanceRecord({ status: 'PRESENT' }))
+      prismaMock.attendance.findUnique.mockResolvedValue(bareAttendanceRecord({ status: 'PRESENT' }))
+      prismaMock.attendance.update.mockResolvedValue(attendanceViewRecord({ status: 'ABSENT' }))
+
+      const res = await request(app)
+        .patch('/api/finance/reconciliation/attendance')
+        .set('Authorization', 'Bearer token')
+        .send({ ...attendancePayload, status: 'ABSENT' })
+      expect(res.status).toBe(200)
+      expect(res.body.data.status).toBe('ABSENT')
+    })
+
+    it('persists ABSENT → PRESENT by updating the existing record (no duplicate created)', async () => {
+      mockAuthorizedActor()
+      prismaMock.attendance.findFirst.mockResolvedValue(bareAttendanceRecord({ status: 'ABSENT' }))
+      prismaMock.attendance.findUnique.mockResolvedValue(bareAttendanceRecord({ status: 'ABSENT' }))
+      prismaMock.attendance.update.mockResolvedValue(attendanceViewRecord({ status: 'PRESENT' }))
+
+      const res = await request(app)
+        .patch('/api/finance/reconciliation/attendance')
+        .set('Authorization', 'Bearer token')
+        .send(attendancePayload)
+      expect(res.status).toBe(200)
+      expect(prismaMock.attendance.create).not.toHaveBeenCalled()
+      expect(prismaMock.attendance.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'att-1' },
+          data: { status: 'PRESENT' },
+        }),
+      )
+    })
+
+    it('persists PRESENT → ABSENT by updating the existing record (no duplicate created)', async () => {
+      mockAuthorizedActor()
+      prismaMock.attendance.findFirst.mockResolvedValue(bareAttendanceRecord({ status: 'PRESENT' }))
+      prismaMock.attendance.findUnique.mockResolvedValue(bareAttendanceRecord({ status: 'PRESENT' }))
+      prismaMock.attendance.update.mockResolvedValue(attendanceViewRecord({ status: 'ABSENT' }))
+
+      const res = await request(app)
+        .patch('/api/finance/reconciliation/attendance')
+        .set('Authorization', 'Bearer token')
+        .send({ ...attendancePayload, status: 'ABSENT' })
+      expect(res.status).toBe(200)
+      expect(prismaMock.attendance.create).not.toHaveBeenCalled()
+      expect(prismaMock.attendance.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'att-1' },
+          data: { status: 'ABSENT' },
+        }),
+      )
+    })
+
+    it('updates the correct pupil on the selected date (not today)', async () => {
+      mockAuthorizedActor()
+      prismaMock.attendance.findFirst.mockResolvedValue(bareAttendanceRecord())
+      prismaMock.attendance.findUnique.mockResolvedValue(bareAttendanceRecord())
+
+      await request(app)
+        .patch('/api/finance/reconciliation/attendance')
+        .set('Authorization', 'Bearer token')
+        .send(attendancePayload)
+
+      expect(prismaMock.attendance.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { pupilId: 'p-1', date: selectedDate },
+        }),
+      )
+      expect(prismaMock.attendance.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'att-1' } }),
+      )
+    })
+
+    it('creates a record for the selected date when none exists, linked to the active session', async () => {
+      mockAuthorizedActor()
+      prismaMock.attendance.findFirst.mockResolvedValue(null)
+
+      const res = await request(app)
+        .patch('/api/finance/reconciliation/attendance')
+        .set('Authorization', 'Bearer token')
+        .send(attendancePayload)
+      expect(res.status).toBe(200)
+      expect(prismaMock.attendance.update).not.toHaveBeenCalled()
+      expect(prismaMock.attendance.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            pupilId: 'p-1',
+            staffId: 'user-1',
+            status: 'PRESENT',
+            date: selectedDate,
+            sessionId: 's-1',
+            classId: 'c-1',
+          }),
+        }),
+      )
+    })
+
+    it('returns 409 when the day\'s reconciliation is closed', async () => {
+      mockAuthorizedActor()
+      prismaMock.attendance.findFirst.mockResolvedValue(bareAttendanceRecord())
+      prismaMock.attendance.findUnique.mockResolvedValue(bareAttendanceRecord())
+      prismaMock.dailyReconciliationClose.findUnique.mockResolvedValue({
+        id: 'close-1',
+        date: selectedDate,
+        sessionId: 's-1',
+        termId: 't-1',
+        closedById: 'user-1',
+        closedAt: new Date('2026-01-05T18:00:00.000Z'),
+        metadata: {},
+      })
+
+      const res = await request(app)
+        .patch('/api/finance/reconciliation/attendance')
+        .set('Authorization', 'Bearer token')
+        .send(attendancePayload)
+      expect(res.status).toBe(409)
+      expect(res.body.message).toContain('closed and signed')
+      expect(prismaMock.attendance.update).not.toHaveBeenCalled()
+      expect(prismaMock.attendance.create).not.toHaveBeenCalled()
+    })
+
+    it('returns 404 for an unknown pupil', async () => {
+      mockAuthorizedActor()
+      prismaMock.pupil.findUnique.mockResolvedValue(null)
+
+      const res = await request(app)
+        .patch('/api/finance/reconciliation/attendance')
+        .set('Authorization', 'Bearer token')
+        .send(attendancePayload)
+      expect(res.status).toBe(404)
+    })
+
+    it('returns 422 for an invalid attendance status', async () => {
+      prismaMock.user.findUnique.mockResolvedValue(
+        baseUser({ roles: [roleEntry('ACCOUNTANT', FINANCE_ROLES.accountant)] }),
+      )
+
+      const res = await request(app)
+        .patch('/api/finance/reconciliation/attendance')
+        .set('Authorization', 'Bearer token')
+        .send({ ...attendancePayload, status: 'LATE' })
+      expect(res.status).toBe(422)
+      expect(res.body.errors.some((error: { field: string }) => error.field === 'status')).toBe(true)
     })
   })
 })

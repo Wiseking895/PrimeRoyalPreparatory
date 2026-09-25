@@ -130,4 +130,9 @@ export const API_ROUTES = {
   reportsPupils: '/api/reports/pupils',
   reportsPupilReports: '/api/reports/pupils/:pupilId/reports',
   reportsPupilReportByTerm: '/api/reports/pupils/:pupilId/reports/terms/:termId',
+  // Developer impersonation
+  developerAccounts: '/api/developer/accounts',
+  developerImpersonate: '/api/developer/impersonate',
+  developerStopImpersonation: '/api/developer/stop-impersonation',
+  developerSwitchAccount: '/api/developer/switch-account',
 } as const

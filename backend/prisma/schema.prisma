@@ -186,7 +186,14 @@ model AuditLog {
 model SchoolClass {
   id                 String              @id @default(cuid())
   key                String              @unique
+  /// Full display name (unique), e.g. "Nursery 1" or "Nursery 1A".
+  /// Composed via `formatClassName(classLevel, division)` at write time, so
+  /// every read path (pupils, finance, reports, dashboards) resolves the same
+  /// string without changes.
   name               String              @unique
+  /// Optional division: "A" | "B" | "C" | "D", or null for an undivided class.
+  /// Divisions are optional — existing classes keep division = null.
+  division           String?
   description        String?
   sortOrder          Int                 @default(0)
   status             AccountStatus       @default(ACTIVE)
@@ -255,12 +262,30 @@ model PupilGuardian {
   @@map("pupil_guardians")
 }
 
+/// Physical hand-over state of one admission uniform item. Distinct from
+/// "the item exists / was assigned": COLLECTED means the pupil or guardian
+/// has actually received it.
+enum UniformCollectionStatus {
+  NOT_COLLECTED
+  COLLECTED
+}
+
 /// Pupil / student record. Deactivation is preferred over physical deletion so
 /// school history is preserved.
+///
+/// Admission-only information kept on the record itself (never mixed into the
+/// recurring daily / PA / maintenance fee structures):
+///   - `admissionNumber` — school admission reference (separate from `pupilId`)
+///   - `sheetNumber`     — admission register sheet reference
+///   - `admissionFee`    — one-time admission amount charged at registration
+///   - `previousSchool`  — "SCHOOL ATTENDED" from the physical admission form
+///   - `stayWithChild`   — "STAY WITH THE CHILD" living arrangement
 model Pupil {
   id                      String          @id @default(cuid())
   pupilId                 String          @unique
   admissionNumber         String?         @unique
+  sheetNumber             String?
+  admissionFee            Decimal?        @db.Decimal(12, 2)
   firstName               String
   middleName              String?
   lastName                String
@@ -270,6 +295,8 @@ model Pupil {
   nationality             String?
   religion                String?
   admissionReason         String?
+  previousSchool          String?
+  stayWithChild           String?
   declarationAcknowledged Boolean         @default(false)
   classId                 String
   dateAdmitted            DateTime
@@ -277,6 +304,7 @@ model Pupil {
   address                 String?
   class                   SchoolClass     @relation(fields: [classId], references: [id])
   guardians               PupilGuardian[]
+  uniforms                PupilUniform[]
   feeAssignments          FeeAssignment[]
   payments                Payment[]
   sbaRecords              SbaRecord[]
@@ -291,6 +319,26 @@ model Pupil {
   @@index([dateAdmitted])
   @@index([createdAt])
   @@map("pupils")
+}
+
+/// One of the five admission uniform items recorded on a pupil's admission
+/// record ("Uniforms to be Collected"). `slot` 1–5 mirrors the five columns of
+/// the admission form / Word import template; `label` carries the description
+/// or type when the school document names the item, and `status` records
+/// whether it was physically collected. One row per slot per pupil.
+model PupilUniform {
+  id        String                 @id @default(cuid())
+  pupilId   String
+  slot      Int
+  label     String?
+  status    UniformCollectionStatus @default(NOT_COLLECTED)
+  pupil     Pupil                  @relation(fields: [pupilId], references: [id], onDelete: Cascade)
+  createdAt DateTime               @default(now())
+  updatedAt DateTime               @updatedAt
+
+  @@unique([pupilId, slot])
+  @@index([pupilId])
+  @@map("pupil_uniforms")
 }
 
 // =============================================================================

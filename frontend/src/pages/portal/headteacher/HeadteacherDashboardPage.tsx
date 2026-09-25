@@ -19,8 +19,7 @@ import type {
   AcademicStatsView,
   AttendanceView,
   OwnerFinanceOverviewView,
-  OwnerSummary,
-  StaffStats,
+  PupilStats,
   StaffView,
   TeacherListRow,
 } from '@/types/portal'
@@ -29,7 +28,7 @@ function todayStr(): string {
   return new Date().toISOString().slice(0, 10)
 }
 
-type FeeCategory = 'daily' | 'pta' | 'pa' | 'maintenance'
+type FeeCategory = 'daily' | 'pa' | 'maintenance'
 
 function GlassCard({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
@@ -68,17 +67,17 @@ function KpiCard({
             'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl',
             accent
               ? 'bg-magenta-500/20 text-magenta-300'
-              : 'bg-white/[0.06] text-cream-200/50',
+              : 'bg-white/[0.06] text-cream-200/70',
           )}
         >
           <Icon className="h-5 w-5" aria-hidden="true" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-cream-200/35">{label}</p>
+          <p className="text-[11px] font-bold uppercase tracking-wider text-cream-200/60">{label}</p>
           <p className={cn('mt-1 text-2xl font-extrabold tracking-tight', accent ? 'text-magenta-300' : 'text-white')}>
             {value}
           </p>
-          {supporting && <p className="mt-1 text-[11px] text-cream-200/30">{supporting}</p>}
+          {supporting && <p className="mt-1 text-[11px] text-cream-200/60">{supporting}</p>}
         </div>
       </div>
     </GlassCard>
@@ -99,8 +98,8 @@ function SkeletonRow() {
 function EmptyStateCard({ title, description }: { title: string; description?: string }) {
   return (
     <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-white/[0.08] bg-white/[0.02] px-6 py-12 text-center">
-      <p className="text-sm font-semibold text-cream-200/50">{title}</p>
-      {description && <p className="mt-1 text-[12px] text-cream-200/30">{description}</p>}
+      <p className="text-sm font-semibold text-cream-200/70">{title}</p>
+      {description && <p className="mt-1 text-[12px] text-cream-200/60">{description}</p>}
     </div>
   )
 }
@@ -128,14 +127,15 @@ function SectionHeader({
 export function HeadteacherDashboardPage() {
   const { hasPermission } = useAuth()
   const [staff, setStaff] = useState<StaffView[] | null>(null)
-  const [stats, setStats] = useState<StaffStats | null>(null)
-  const [summary, setSummary] = useState<OwnerSummary | null>(null)
   const [finance, setFinance] = useState<OwnerFinanceOverviewView | null>(null)
   const [academic, setAcademic] = useState<AcademicStatsView | null>(null)
-  const [teachers, setTeachers] = useState<TeacherListRow[]>([])
-  const [attendance, setAttendance] = useState<AttendanceView[]>([])
+  const [teachers, setTeachers] = useState<TeacherListRow[] | null>(null)
+  const [attendance, setAttendance] = useState<AttendanceView[] | null>(null)
+  const [pupilStats, setPupilStats] = useState<PupilStats | null>(null)
   const [activeCategory, setActiveCategory] = useState<FeeCategory>('daily')
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [sectionErrors, setSectionErrors] = useState<Record<string, string>>({})
 
   const canViewPupils = hasPermission('pupils.view')
   const canViewFinance = hasPermission('finance.view')
@@ -145,30 +145,62 @@ export function HeadteacherDashboardPage() {
 
   const load = useCallback(async () => {
     setError(null)
+    setSectionErrors({})
+    setLoading(true)
     try {
       const today = todayStr()
       const results = await Promise.allSettled([
         api.listStaff(),
-        api.staffStats(),
-        api.ownerSummary().catch(() => null),
         canViewFinance ? api.financeOverview() : Promise.resolve(null),
         canViewAcademic ? api.academicStats() : Promise.resolve(null),
-        canViewTeachers ? api.listTeachers() : Promise.resolve([]),
-        canViewAttendance ? api.listAttendance({ dateFrom: today, dateTo: today }) : Promise.resolve([]),
+        canViewTeachers ? api.listTeachers() : Promise.resolve(null),
+        canViewAttendance ? api.listAttendance({ dateFrom: today, dateTo: today }) : Promise.resolve(null),
+        canViewPupils ? api.pupilStats() : Promise.resolve(null),
       ])
 
-      const get = <T,>(i: number, fallback: T): T =>
-        results[i].status === 'fulfilled' ? (results[i] as PromiseFulfilledResult<T>).value : fallback
+      const settled = <T,>(index: number): { ok: true; value: T | null } | { ok: false; message: string } => {
+        const result = results[index]
+        if (result.status === 'fulfilled') return { ok: true, value: result.value as T | null }
+        return {
+          ok: false,
+          message: result.reason instanceof Error ? result.reason.message : 'Request failed.',
+        }
+      }
 
-      setStaff(get<StaffView[] | null>(0, null))
-      setStats(get<StaffStats | null>(1, null))
-      setSummary(get<OwnerSummary | null>(2, null))
-      setFinance(get<OwnerFinanceOverviewView | null>(3, null))
-      setAcademic(get<AcademicStatsView | null>(4, null))
-      setTeachers(get<TeacherListRow[]>(5, []))
-      setAttendance(get<AttendanceView[]>(6, []))
+      const recordSectionError = (key: string, message: string) => {
+        setSectionErrors((current) => ({ ...current, [key]: message }))
+      }
+
+      const staffResult = settled<StaffView[]>(0)
+      if (staffResult.ok) setStaff(staffResult.value)
+      else recordSectionError('staff', staffResult.message)
+
+      const financeResult = settled<OwnerFinanceOverviewView>(1)
+      if (financeResult.ok) setFinance(financeResult.value)
+      else recordSectionError('finance', financeResult.message)
+
+      const academicResult = settled<AcademicStatsView>(2)
+      if (academicResult.ok) setAcademic(academicResult.value)
+      else recordSectionError('academic', academicResult.message)
+
+      const teachersResult = settled<TeacherListRow[]>(3)
+      if (teachersResult.ok) setTeachers(teachersResult.value ?? [])
+      else recordSectionError('teachers', teachersResult.message)
+
+      const attendanceResult = settled<AttendanceView[]>(4)
+      if (attendanceResult.ok) setAttendance(attendanceResult.value ?? [])
+      else recordSectionError('attendance', attendanceResult.message)
+
+      const pupilStatsResult = settled<PupilStats>(5)
+      if (pupilStatsResult.ok) {
+        setPupilStats(pupilStatsResult.value)
+      } else if (canViewPupils) {
+        setError(pupilStatsResult.message)
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load the dashboard.')
+    } finally {
+      setLoading(false)
     }
   }, [canViewPupils, canViewFinance, canViewAcademic, canViewTeachers, canViewAttendance])
 
@@ -176,28 +208,26 @@ export function HeadteacherDashboardPage() {
     void load()
   }, [load])
 
-  const boys = summary ? summary.pupilsByClass.reduce((s, e) => s + e.boys, 0) : 0
-  const girls = summary ? summary.pupilsByClass.reduce((s, e) => s + e.girls, 0) : 0
-  const teachersPresent = teachers.filter((t) => t.status === 'ACTIVE').length
-  const teachersInactive = teachers.filter((t) => t.status === 'INACTIVE').length
+  const teachersPresent = teachers ? teachers.filter((t) => t.status === 'ACTIVE').length : 0
+  const teachersInactive = teachers ? teachers.filter((t) => t.status === 'INACTIVE').length : 0
 
   const attendanceByClass = useMemo(() => {
-    if (!summary) return []
-    return summary.pupilsByClass.map((cls) => {
-      const classAttendance = attendance.filter((a) => a.classId === cls.classId)
+    if (!pupilStats) return []
+    const records = attendance ?? []
+    return pupilStats.byClass.map((cls) => {
+      const classAttendance = records.filter((a) => a.classId === cls.classId)
       const present = classAttendance.filter((a) => a.status === 'PRESENT' || a.status === 'CHECKED_IN').length
       const absent = classAttendance.filter((a) => a.status === 'ABSENT').length
       return {
+        classId: cls.classId,
         className: cls.className,
-        totalPupils: cls.total,
-        boys: cls.boys,
-        girls: cls.girls,
+        totalPupils: cls.count,
         present,
         absent,
-        attendancePct: cls.total > 0 ? Math.round((present / cls.total) * 100) : 0,
+        attendancePct: cls.count > 0 ? Math.round((present / cls.count) * 100) : 0,
       }
     })
-  }, [summary, attendance])
+  }, [pupilStats, attendance])
 
   const totalPresent = attendanceByClass.reduce((s, c) => s + c.present, 0)
   const totalAbsent = attendanceByClass.reduce((s, c) => s + c.absent, 0)
@@ -207,7 +237,7 @@ export function HeadteacherDashboardPage() {
   const activeClassCount = useMemo(() => {
     if (!finance) return 0
     const ids = new Set<string>()
-    for (const row of [...finance.dailyFees, ...finance.ptaFees, ...finance.maintenanceFees]) {
+    for (const row of [...finance.dailyFees, ...finance.maintenanceFees]) {
       ids.add(row.classId)
     }
     return ids.size
@@ -224,7 +254,6 @@ export function HeadteacherDashboardPage() {
   const activeFeeRows = useMemo(() => {
     if (!finance) return []
     if (activeCategory === 'daily') return finance.dailyFees
-    if (activeCategory === 'pta') return finance.ptaFees
     if (activeCategory === 'pa') return finance.paFees
     return finance.maintenanceFees
   }, [finance, activeCategory])
@@ -237,6 +266,21 @@ export function HeadteacherDashboardPage() {
     const col = rows.reduce((s, r) => s + Number(r.collectedAmount), 0)
     return { expected: exp.toFixed(2), collected: col.toFixed(2), outstanding: (exp - col).toFixed(2) }
   }, [finance, activeCategory, activeFeeRows])
+
+  const activeAttendanceTotals = useMemo(() => {
+    return activeFeeRows.reduce(
+      (acc, row) => ({
+        boysPresent: acc.boysPresent + row.boysPresent,
+        boysAbsent: acc.boysAbsent + row.boysAbsent,
+        girlsPresent: acc.girlsPresent + row.girlsPresent,
+        girlsAbsent: acc.girlsAbsent + row.girlsAbsent,
+      }),
+      { boysPresent: 0, boysAbsent: 0, girlsPresent: 0, girlsAbsent: 0 },
+    )
+  }, [activeFeeRows])
+  const activeTotalPresent = activeAttendanceTotals.boysPresent + activeAttendanceTotals.girlsPresent
+  const activeTotalAbsent = activeAttendanceTotals.boysAbsent + activeAttendanceTotals.girlsAbsent
+  const activeGrandTotal = activeTotalPresent + activeTotalAbsent
 
   if (error) {
     return (
@@ -261,9 +305,15 @@ export function HeadteacherDashboardPage() {
         <KpiCard
           icon={Users}
           label="Total Pupils"
-          value={summary ? summary.totals.pupils : stats ? 0 : '—'}
+          value={pupilStats ? pupilStats.total : '—'}
           accent
-          supporting={summary ? `${boys} boys · ${girls} girls` : 'Loading...'}
+          supporting={
+            pupilStats
+              ? `${pupilStats.active} active · ${pupilStats.inactive} inactive`
+              : loading
+                ? 'Loading...'
+                : 'Unavailable'
+          }
         />
         <KpiCard
           icon={GraduationCap}
@@ -274,8 +324,10 @@ export function HeadteacherDashboardPage() {
         <KpiCard
           icon={BookOpenCheck}
           label="Active Pupils"
-          value={summary ? summary.totals.activePupils : '—'}
-          supporting={summary ? `${summary.totals.inactivePupils} inactive` : 'Loading...'}
+          value={pupilStats ? pupilStats.active : '—'}
+          supporting={
+            pupilStats ? `${pupilStats.inactive} inactive` : loading ? 'Loading...' : 'Unavailable'
+          }
         />
         <KpiCard
           icon={ClipboardList}
@@ -292,12 +344,16 @@ export function HeadteacherDashboardPage() {
           title="Attendance by Class"
           icon={Clock}
           action={
-            <span className="text-[11px] font-semibold text-cream-200/40">
+            <span className="text-[11px] font-semibold text-cream-200/65">
               {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' })}
             </span>
           }
         />
-        {!summary ? (
+        {!canViewAttendance ? (
+          <EmptyStateCard title="Access restricted." />
+        ) : sectionErrors.attendance ? (
+          <EmptyStateCard title="Could not load attendance." description={sectionErrors.attendance} />
+        ) : !pupilStats || attendance === null ? (
           <div className="space-y-2">{Array.from({ length: 4 }).map((_, i) => <SkeletonRow key={i} />)}</div>
         ) : attendanceByClass.length === 0 ? (
           <EmptyStateCard title="No attendance data available for today." description="Attendance records will appear here once checked in." />
@@ -306,14 +362,14 @@ export function HeadteacherDashboardPage() {
             <table className="w-full text-left text-[13px]">
               <thead>
                 <tr className="border-b border-white/[0.06]">
-                  <th className="pb-2 pr-3 text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Class</th>
-                  <th className="pb-2 pr-3 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Boys Present</th>
-                  <th className="pb-2 pr-3 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Boys Absent</th>
-                  <th className="pb-2 pr-3 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Girls Present</th>
-                  <th className="pb-2 pr-3 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Girls Absent</th>
-                  <th className="pb-2 pr-3 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Total Present</th>
-                  <th className="pb-2 pr-3 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Total Absent</th>
-                  <th className="pb-2 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Attendance %</th>
+                  <th className="pb-2 pr-3 text-[11px] font-bold uppercase tracking-wider text-cream-200/60">Class</th>
+                  <th className="pb-2 pr-3 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Boys Present</th>
+                  <th className="pb-2 pr-3 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Boys Absent</th>
+                  <th className="pb-2 pr-3 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Girls Present</th>
+                  <th className="pb-2 pr-3 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Girls Absent</th>
+                  <th className="pb-2 pr-3 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Total Present</th>
+                  <th className="pb-2 pr-3 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Total Absent</th>
+                  <th className="pb-2 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Attendance %</th>
                 </tr>
               </thead>
               <tbody>
@@ -367,13 +423,13 @@ export function HeadteacherDashboardPage() {
             action={
               <div className="flex items-center gap-3">
                 {finance?.term && (
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.05] px-3 py-1 text-[11px] font-semibold text-cream-200/50 ring-1 ring-white/[0.08]">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.05] px-3 py-1 text-[11px] font-semibold text-cream-200/70 ring-1 ring-white/[0.08]">
                     <Clock className="h-3 w-3" aria-hidden="true" />
                     {finance.term.name}
                   </span>
                 )}
                 {finance?.session && (
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.05] px-3 py-1 text-[11px] font-semibold text-cream-200/50 ring-1 ring-white/[0.08]">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.05] px-3 py-1 text-[11px] font-semibold text-cream-200/70 ring-1 ring-white/[0.08]">
                     {finance.session.name}
                   </span>
                 )}
@@ -387,36 +443,40 @@ export function HeadteacherDashboardPage() {
             }
           />
           {!finance ? (
-            <div className="space-y-2">{Array.from({ length: 3 }).map((_, i) => <SkeletonRow key={i} />)}</div>
+            sectionErrors.finance ? (
+              <EmptyStateCard title="Could not load finance overview." description={sectionErrors.finance} />
+            ) : (
+              <div className="space-y-2">{Array.from({ length: 3 }).map((_, i) => <SkeletonRow key={i} />)}</div>
+            )
           ) : (
             <>
               {/* KPI strip */}
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 mb-4">
                 <GlassInnerCard>
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Total Expected</p>
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-cream-200/60">Total Expected</p>
                   <p className="mt-1 text-xl font-extrabold text-cream-100">{formatMoney(finance.totals.totalExpected)}</p>
-                  <p className="text-[11px] text-cream-200/30">{finance.totals.pupilsWithCharges} pupils with charges</p>
+                  <p className="text-[11px] text-cream-200/60">{finance.totals.pupilsWithCharges} pupils with charges</p>
                 </GlassInnerCard>
                 <GlassInnerCard>
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Total Collected</p>
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-cream-200/60">Total Collected</p>
                   <p className="mt-1 text-xl font-extrabold text-emerald-400">{formatMoney(finance.totals.totalCollected)}</p>
-                  <p className="text-[11px] text-cream-200/30">{finance.totals.pupilsWithPayments} pupils have paid</p>
+                  <p className="text-[11px] text-cream-200/60">{finance.totals.pupilsWithPayments} pupils have paid</p>
                   <div className="mt-2 flex items-center gap-2">
                     <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/[0.08]">
                       <div className="h-full rounded-full bg-gradient-to-r from-magenta-500 to-pink-400" style={{ width: `${collectionPct}%` }} />
                     </div>
-                    <span className="text-[11px] font-bold text-cream-200/50 w-8 text-right">{collectionPct}%</span>
+                    <span className="text-[11px] font-bold text-cream-200/70 w-8 text-right">{collectionPct}%</span>
                   </div>
                 </GlassInnerCard>
                 <GlassInnerCard>
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Outstanding</p>
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-cream-200/60">Outstanding</p>
                   <p className="mt-1 text-xl font-extrabold text-red-400">{formatMoney(finance.totals.totalOutstanding)}</p>
-                  <p className="text-[11px] text-cream-200/30">{collectionPct}% collection rate</p>
+                  <p className="text-[11px] text-cream-200/60">{collectionPct}% collection rate</p>
                 </GlassInnerCard>
                 <GlassInnerCard>
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Active Classes</p>
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-cream-200/60">Active Classes</p>
                   <p className="mt-1 text-xl font-extrabold text-cream-100">{activeClassCount}</p>
-                  <p className="text-[11px] text-cream-200/30">{finance.totals.totalPupils} total active pupils</p>
+                  <p className="text-[11px] text-cream-200/60">{finance.totals.totalPupils} total active pupils</p>
                 </GlassInnerCard>
               </div>
 
@@ -425,7 +485,7 @@ export function HeadteacherDashboardPage() {
                 <div className="lg:col-span-2">
                   {/* Fee type toggle */}
                   <div className="mb-3 flex gap-2">
-                    {([['daily', 'Daily Fees'], ['pta', 'PTA Fees'], ['pa', 'PA Fees'], ['maintenance', 'Maintenance Fees']] as const).map(([key, label]) => (
+                    {([['daily', 'Daily Fees'], ['pa', 'PA Fees'], ['maintenance', 'Maintenance Fees']] as const).map(([key, label]) => (
                       <button
                         key={key}
                         type="button"
@@ -434,7 +494,7 @@ export function HeadteacherDashboardPage() {
                           'rounded-full px-3 py-1 text-[11px] font-semibold transition-colors',
                           activeCategory === key
                             ? 'bg-magenta-500/20 text-magenta-300 ring-1 ring-magenta-500/30'
-                            : 'bg-white/[0.05] text-cream-200/40 hover:bg-white/[0.08] hover:text-cream-200/60',
+                            : 'bg-white/[0.05] text-cream-200/65 hover:bg-white/[0.08] hover:text-cream-200/60',
                         )}
                       >
                         {label}
@@ -443,31 +503,54 @@ export function HeadteacherDashboardPage() {
                   </div>
 
                   {activeFeeRows.length === 0 ? (
-                    <p className="text-[12px] text-cream-200/30 py-4 text-center">No {activeCategory === 'daily' ? 'daily' : activeCategory === 'pta' ? 'PTA' : activeCategory === 'pa' ? 'PA' : 'maintenance'} fee data for this term.</p>
+                    <p className="text-[12px] text-cream-200/60 py-4 text-center">No {activeCategory === 'daily' ? 'daily' : activeCategory === 'pa' ? 'PA' : 'maintenance'} fee data for this term.</p>
                   ) : (
                     <div className="overflow-x-auto">
                       <table className="w-full text-left text-[13px]">
                         <thead>
                           <tr className="border-b border-white/[0.06]">
-                            <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Class</th>
-                            <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Pupils</th>
-                            <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Expected</th>
-                            <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Collected</th>
-                            <th className="pb-2 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Outstanding</th>
+                            <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60">Class</th>
+                            <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Boys Present</th>
+                            <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Boys Absent</th>
+                            <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Girls Present</th>
+                            <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Girls Absent</th>
+                            <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Total Present</th>
+                            <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Total Absent</th>
+                            <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Grand Total</th>
+                            <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Expected</th>
+                            <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Collected</th>
+                            <th className="pb-2 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Outstanding</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {activeFeeRows.map((row) => (
-                            <tr key={row.classId} className="border-b border-white/[0.04]">
-                              <td className="py-2.5 pr-4 font-semibold text-cream-100">{row.className}</td>
-                              <td className="py-2.5 pr-4 text-right text-cream-200/60">{row.pupilCount}</td>
-                              <td className="py-2.5 pr-4 text-right text-cream-200/60">{formatMoney(row.expectedAmount)}</td>
-                              <td className="py-2.5 pr-4 text-right font-semibold text-emerald-400">{formatMoney(row.collectedAmount)}</td>
-                              <td className="py-2.5 text-right font-semibold text-red-400">{formatMoney(row.outstandingAmount)}</td>
-                            </tr>
-                          ))}
+                          {activeFeeRows.map((row) => {
+                            const rowTotalPresent = row.boysPresent + row.girlsPresent
+                            const rowTotalAbsent = row.boysAbsent + row.girlsAbsent
+                            return (
+                              <tr key={row.classId} className="border-b border-white/[0.04]">
+                                <td className="py-2.5 pr-4 font-semibold text-cream-100">{row.className}</td>
+                                <td className="py-2.5 pr-4 text-right text-cream-200/60">{row.boysPresent}</td>
+                                <td className="py-2.5 pr-4 text-right text-cream-200/60">{row.boysAbsent}</td>
+                                <td className="py-2.5 pr-4 text-right text-cream-200/60">{row.girlsPresent}</td>
+                                <td className="py-2.5 pr-4 text-right text-cream-200/60">{row.girlsAbsent}</td>
+                                <td className="py-2.5 pr-4 text-right font-semibold text-emerald-400">{rowTotalPresent}</td>
+                                <td className="py-2.5 pr-4 text-right font-semibold text-red-400">{rowTotalAbsent}</td>
+                                <td className="py-2.5 pr-4 text-right text-cream-200/60">{rowTotalPresent + rowTotalAbsent}</td>
+                                <td className="py-2.5 pr-4 text-right text-cream-200/60">{formatMoney(row.expectedAmount)}</td>
+                                <td className="py-2.5 pr-4 text-right font-semibold text-emerald-400">{formatMoney(row.collectedAmount)}</td>
+                                <td className="py-2.5 text-right font-semibold text-red-400">{formatMoney(row.outstandingAmount)}</td>
+                              </tr>
+                            )
+                          })}
                           <tr className="border-t border-magenta-500/20">
-                            <td colSpan={2} className="pt-3 pr-4 text-[12px] font-bold text-magenta-300">Total</td>
+                            <td className="pt-3 pr-4 text-[12px] font-bold text-magenta-300">GRAND TOTAL</td>
+                            <td className="pt-3 pr-4 text-right text-[12px] font-bold text-magenta-300">{activeAttendanceTotals.boysPresent}</td>
+                            <td className="pt-3 pr-4 text-right text-[12px] font-bold text-magenta-300">{activeAttendanceTotals.boysAbsent}</td>
+                            <td className="pt-3 pr-4 text-right text-[12px] font-bold text-magenta-300">{activeAttendanceTotals.girlsPresent}</td>
+                            <td className="pt-3 pr-4 text-right text-[12px] font-bold text-magenta-300">{activeAttendanceTotals.girlsAbsent}</td>
+                            <td className="pt-3 pr-4 text-right text-[12px] font-bold text-magenta-300">{activeTotalPresent}</td>
+                            <td className="pt-3 pr-4 text-right text-[12px] font-bold text-magenta-300">{activeTotalAbsent}</td>
+                            <td className="pt-3 pr-4 text-right text-[12px] font-extrabold text-magenta-300">{activeGrandTotal}</td>
                             <td className="pt-3 pr-4 text-right text-[12px] font-bold text-magenta-300">{formatMoney(activeFeeTotals.expected)}</td>
                             <td className="pt-3 pr-4 text-right text-[12px] font-bold text-magenta-300">{formatMoney(activeFeeTotals.collected)}</td>
                             <td className="pt-3 text-right text-[12px] font-extrabold text-magenta-300">{formatMoney(activeFeeTotals.outstanding)}</td>
@@ -478,7 +561,7 @@ export function HeadteacherDashboardPage() {
                         <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/[0.08]">
                           <div className="h-full rounded-full bg-gradient-to-r from-magenta-500 to-pink-400" style={{ width: `${Number(activeFeeTotals.expected) > 0 ? Math.min(Math.round((Number(activeFeeTotals.collected) / Number(activeFeeTotals.expected)) * 100), 100) : 0}%` }} />
                         </div>
-                        <span className="text-[11px] font-bold text-cream-200/50 w-8 text-right">{Number(activeFeeTotals.expected) > 0 ? Math.min(Math.round((Number(activeFeeTotals.collected) / Number(activeFeeTotals.expected)) * 100), 100) : 0}%</span>
+                        <span className="text-[11px] font-bold text-cream-200/70 w-8 text-right">{Number(activeFeeTotals.expected) > 0 ? Math.min(Math.round((Number(activeFeeTotals.collected) / Number(activeFeeTotals.expected)) * 100), 100) : 0}%</span>
                       </div>
                     </div>
                   )}
@@ -492,11 +575,11 @@ export function HeadteacherDashboardPage() {
                       <h3 className="text-[12px] font-bold text-cream-100">Outstanding Arrears</h3>
                     </div>
                     {Number(finance.totals.totalOutstanding) <= 0 ? (
-                      <p className="text-[12px] text-cream-200/30 py-4 text-center">No outstanding arrears.</p>
+                      <p className="text-[12px] text-cream-200/60 py-4 text-center">No outstanding arrears.</p>
                     ) : (
                       <>
                         <div className="space-y-2">
-                          {[...finance.dailyFees, ...finance.ptaFees, ...finance.maintenanceFees, ...finance.paFees]
+                          {[...finance.dailyFees, ...finance.maintenanceFees, ...finance.paFees]
                             .filter((r) => Number(r.outstandingAmount) > 0)
                             .sort((a, b) => Number(b.outstandingAmount) - Number(a.outstandingAmount))
                             .slice(0, 8)
@@ -507,7 +590,7 @@ export function HeadteacherDashboardPage() {
                               >
                                 <div className="min-w-0">
                                   <p className="text-[12px] font-semibold text-cream-100 truncate">{row.className}</p>
-                                  <p className="text-[10px] text-cream-200/30">{row.pupilCount} pupils with charges</p>
+                                  <p className="text-[10px] text-cream-200/60">{row.pupilCount} pupils with charges</p>
                                 </div>
                                 <span className="text-[12px] font-bold text-red-400">{formatMoney(row.outstandingAmount)}</span>
                               </div>
@@ -515,7 +598,7 @@ export function HeadteacherDashboardPage() {
                         </div>
                         <div className="border-t border-white/[0.06] mt-3 pt-3">
                           <div className="flex items-center justify-between">
-                            <span className="text-[12px] font-bold text-cream-200/50">Total Arrears</span>
+                            <span className="text-[12px] font-bold text-cream-200/70">Total Arrears</span>
                             <span className="text-lg font-extrabold text-red-400">{formatMoney(finance.totals.totalOutstanding)}</span>
                           </div>
                         </div>
@@ -527,10 +610,18 @@ export function HeadteacherDashboardPage() {
 
               {/* All Classes Summary Table */}
               {(() => {
-                const classMap = new Map<string, { className: string; pupilCount: number; expected: number; collected: number; outstanding: number }>()
-    for (const row of [...finance.dailyFees, ...finance.ptaFees, ...finance.maintenanceFees, ...finance.paFees]) {
-                  const existing = classMap.get(row.classId) ?? { className: row.className, pupilCount: 0, expected: 0, collected: 0, outstanding: 0 }
-                  existing.pupilCount = Math.max(existing.pupilCount, row.pupilCount)
+                const classMap = new Map<string, { className: string; boysPresent: number; boysAbsent: number; girlsPresent: number; girlsAbsent: number; expected: number; collected: number; outstanding: number }>()
+    for (const row of [...finance.dailyFees, ...finance.maintenanceFees, ...finance.paFees]) {
+                  const existing = classMap.get(row.classId) ?? {
+                    className: row.className,
+                    boysPresent: row.boysPresent,
+                    boysAbsent: row.boysAbsent,
+                    girlsPresent: row.girlsPresent,
+                    girlsAbsent: row.girlsAbsent,
+                    expected: 0,
+                    collected: 0,
+                    outstanding: 0,
+                  }
                   existing.expected += Number(row.expectedAmount)
                   existing.collected += Number(row.collectedAmount)
                   existing.outstanding += Number(row.outstandingAmount)
@@ -541,6 +632,12 @@ export function HeadteacherDashboardPage() {
                 const grandExpected = allRows.reduce((s, r) => s + r.expected, 0)
                 const grandCollected = allRows.reduce((s, r) => s + r.collected, 0)
                 const grandOutstanding = allRows.reduce((s, r) => s + r.outstanding, 0)
+                const grandBoysPresent = allRows.reduce((s, r) => s + r.boysPresent, 0)
+                const grandBoysAbsent = allRows.reduce((s, r) => s + r.boysAbsent, 0)
+                const grandGirlsPresent = allRows.reduce((s, r) => s + r.girlsPresent, 0)
+                const grandGirlsAbsent = allRows.reduce((s, r) => s + r.girlsAbsent, 0)
+                const grandTotalPresent = grandBoysPresent + grandGirlsPresent
+                const grandTotalAbsent = grandBoysAbsent + grandGirlsAbsent
 
                 return (
                   <GlassInnerCard>
@@ -549,7 +646,7 @@ export function HeadteacherDashboardPage() {
                         <div className="inline-block w-1 h-5 rounded-full bg-magenta-500 shrink-0" aria-hidden="true" />
                         <h3 className="text-[12px] font-bold text-cream-100">All Classes — Finance Summary</h3>
                       </div>
-                      <span className="text-[11px] font-semibold text-cream-200/40">
+                      <span className="text-[11px] font-semibold text-cream-200/65">
                         {finance.session?.name ?? 'No active session'} &middot; {finance.term?.name ?? 'No active term'}
                       </span>
                     </div>
@@ -557,25 +654,48 @@ export function HeadteacherDashboardPage() {
                       <table className="w-full text-left text-[13px]">
                         <thead>
                           <tr className="border-b border-white/[0.06]">
-                            <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Class</th>
-                            <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Pupils</th>
-                            <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Expected</th>
-                            <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Collected</th>
-                            <th className="pb-2 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Outstanding</th>
+                            <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60">Class</th>
+                            <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Boys Present</th>
+                            <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Boys Absent</th>
+                            <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Girls Present</th>
+                            <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Girls Absent</th>
+                            <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Total Present</th>
+                            <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Total Absent</th>
+                            <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Grand Total</th>
+                            <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Expected</th>
+                            <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Collected</th>
+                            <th className="pb-2 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Outstanding</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {allRows.map((row) => (
-                            <tr key={row.className} className="border-b border-white/[0.04]">
-                              <td className="py-2.5 pr-4 font-semibold text-cream-100">{row.className}</td>
-                              <td className="py-2.5 pr-4 text-right text-cream-200/60">{row.pupilCount}</td>
-                              <td className="py-2.5 pr-4 text-right text-cream-200/60">{formatMoney(row.expected)}</td>
-                              <td className="py-2.5 pr-4 text-right font-semibold text-emerald-400">{formatMoney(row.collected)}</td>
-                              <td className="py-2.5 text-right font-semibold text-red-400">{formatMoney(row.outstanding)}</td>
-                            </tr>
-                          ))}
+                          {allRows.map((row) => {
+                            const rowTotalPresent = row.boysPresent + row.girlsPresent
+                            const rowTotalAbsent = row.boysAbsent + row.girlsAbsent
+                            return (
+                              <tr key={row.className} className="border-b border-white/[0.04]">
+                                <td className="py-2.5 pr-4 font-semibold text-cream-100">{row.className}</td>
+                                <td className="py-2.5 pr-4 text-right text-cream-200/60">{row.boysPresent}</td>
+                                <td className="py-2.5 pr-4 text-right text-cream-200/60">{row.boysAbsent}</td>
+                                <td className="py-2.5 pr-4 text-right text-cream-200/60">{row.girlsPresent}</td>
+                                <td className="py-2.5 pr-4 text-right text-cream-200/60">{row.girlsAbsent}</td>
+                                <td className="py-2.5 pr-4 text-right font-semibold text-emerald-400">{rowTotalPresent}</td>
+                                <td className="py-2.5 pr-4 text-right font-semibold text-red-400">{rowTotalAbsent}</td>
+                                <td className="py-2.5 pr-4 text-right text-cream-200/60">{rowTotalPresent + rowTotalAbsent}</td>
+                                <td className="py-2.5 pr-4 text-right text-cream-200/60">{formatMoney(row.expected)}</td>
+                                <td className="py-2.5 pr-4 text-right font-semibold text-emerald-400">{formatMoney(row.collected)}</td>
+                                <td className="py-2.5 text-right font-semibold text-red-400">{formatMoney(row.outstanding)}</td>
+                              </tr>
+                            )
+                          })}
                           <tr className="border-t border-magenta-500/20">
-                            <td colSpan={2} className="pt-3 pr-4 text-[12px] font-bold text-magenta-300">School Total</td>
+                            <td className="pt-3 pr-4 text-[12px] font-bold text-magenta-300">GRAND TOTAL</td>
+                            <td className="pt-3 pr-4 text-right text-[12px] font-bold text-magenta-300">{grandBoysPresent}</td>
+                            <td className="pt-3 pr-4 text-right text-[12px] font-bold text-magenta-300">{grandBoysAbsent}</td>
+                            <td className="pt-3 pr-4 text-right text-[12px] font-bold text-magenta-300">{grandGirlsPresent}</td>
+                            <td className="pt-3 pr-4 text-right text-[12px] font-bold text-magenta-300">{grandGirlsAbsent}</td>
+                            <td className="pt-3 pr-4 text-right text-[12px] font-bold text-magenta-300">{grandTotalPresent}</td>
+                            <td className="pt-3 pr-4 text-right text-[12px] font-bold text-magenta-300">{grandTotalAbsent}</td>
+                            <td className="pt-3 pr-4 text-right text-[12px] font-extrabold text-magenta-300">{grandTotalPresent + grandTotalAbsent}</td>
                             <td className="pt-3 pr-4 text-right text-[12px] font-bold text-magenta-300">{formatMoney(grandExpected)}</td>
                             <td className="pt-3 pr-4 text-right text-[12px] font-bold text-magenta-300">{formatMoney(grandCollected)}</td>
                             <td className="pt-3 text-right text-[12px] font-extrabold text-magenta-300">{formatMoney(grandOutstanding)}</td>
@@ -586,7 +706,7 @@ export function HeadteacherDashboardPage() {
                         <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/[0.08]">
                           <div className="h-full rounded-full bg-gradient-to-r from-magenta-500 to-pink-400" style={{ width: `${grandExpected > 0 ? Math.min(Math.round((grandCollected / grandExpected) * 100), 100) : 0}%` }} />
                         </div>
-                        <span className="text-[11px] font-bold text-cream-200/50 w-8 text-right">{grandExpected > 0 ? Math.min(Math.round((grandCollected / grandExpected) * 100), 100) : 0}%</span>
+                        <span className="text-[11px] font-bold text-cream-200/70 w-8 text-right">{grandExpected > 0 ? Math.min(Math.round((grandCollected / grandExpected) * 100), 100) : 0}%</span>
                       </div>
                     </div>
                   </GlassInnerCard>
@@ -619,6 +739,10 @@ export function HeadteacherDashboardPage() {
         />
         {!canViewTeachers ? (
           <EmptyStateCard title="Access restricted." />
+        ) : sectionErrors.teachers ? (
+          <EmptyStateCard title="Could not load teachers." description={sectionErrors.teachers} />
+        ) : teachers === null ? (
+          <div className="space-y-2">{Array.from({ length: 4 }).map((_, i) => <SkeletonRow key={i} />)}</div>
         ) : teachers.length === 0 ? (
           <EmptyStateCard title="No teacher data available yet." description="Teachers will appear here once registered." />
         ) : (
@@ -626,10 +750,10 @@ export function HeadteacherDashboardPage() {
             <table className="w-full text-left text-[13px]">
               <thead>
                 <tr className="border-b border-white/[0.06]">
-                  <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Teacher</th>
-                  <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Class / Subject</th>
-                  <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Assignments</th>
-                  <th className="pb-2 text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Status</th>
+                  <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60">Teacher</th>
+                  <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60">Class / Subject</th>
+                  <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60">Assignments</th>
+                  <th className="pb-2 text-[11px] font-bold uppercase tracking-wider text-cream-200/60">Status</th>
                 </tr>
               </thead>
               <tbody>
@@ -642,7 +766,7 @@ export function HeadteacherDashboardPage() {
                         </div>
                         <div className="min-w-0">
                           <p className="font-semibold text-cream-100 truncate">{t.fullName}</p>
-                          <p className="text-[10px] text-cream-200/30">{t.positionLabel}</p>
+                          <p className="text-[10px] text-cream-200/60">{t.positionLabel}</p>
                         </div>
                       </div>
                     </td>
@@ -691,32 +815,36 @@ export function HeadteacherDashboardPage() {
             }
           />
           {academic === null ? (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              {Array.from({ length: 4 }).map((_, index) => (
-                <SkeletonRow key={index} />
-              ))}
-            </div>
+            sectionErrors.academic ? (
+              <EmptyStateCard title="Could not load academic overview." description={sectionErrors.academic} />
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {Array.from({ length: 4 }).map((_, index) => (
+                  <SkeletonRow key={index} />
+                ))}
+              </div>
+            )
           ) : (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <GlassInnerCard>
-                <p className="text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Teachers</p>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-cream-200/60">Teachers</p>
                 <p className="mt-1 text-xl font-extrabold text-cream-100">{academic.teachers.total}</p>
-                <p className="text-[11px] text-cream-200/30">{academic.teachers.active} active</p>
+                <p className="text-[11px] text-cream-200/60">{academic.teachers.active} active</p>
               </GlassInnerCard>
               <GlassInnerCard>
-                <p className="text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Subjects</p>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-cream-200/60">Subjects</p>
                 <p className="mt-1 text-xl font-extrabold text-cream-100">{academic.subjects.total}</p>
-                <p className="text-[11px] text-cream-200/30">{academic.subjects.active} active</p>
+                <p className="text-[11px] text-cream-200/60">{academic.subjects.active} active</p>
               </GlassInnerCard>
               <GlassInnerCard>
-                <p className="text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Assignments</p>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-cream-200/60">Assignments</p>
                 <p className="mt-1 text-xl font-extrabold text-cream-100">{academic.assignments.total}</p>
-                <p className="text-[11px] text-cream-200/30">{academic.assignments.active} active</p>
+                <p className="text-[11px] text-cream-200/60">{academic.assignments.active} active</p>
               </GlassInnerCard>
               <GlassInnerCard>
-                <p className="text-[11px] font-bold uppercase tracking-wider text-cream-200/35">SBA Records</p>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-cream-200/60">SBA Records</p>
                 <p className="mt-1 text-xl font-extrabold text-cream-100">{academic.sba.total}</p>
-                <p className="text-[11px] text-cream-200/30">{academic.sba.recordsCurrentTerm} this term</p>
+                <p className="text-[11px] text-cream-200/60">{academic.sba.recordsCurrentTerm} this term</p>
               </GlassInnerCard>
             </div>
           )}
@@ -738,7 +866,13 @@ export function HeadteacherDashboardPage() {
           }
         />
         {staff === null ? (
-          <div className="space-y-2">{Array.from({ length: 4 }).map((_, i) => <SkeletonRow key={i} />)}</div>
+          sectionErrors.staff ? (
+            <EmptyStateCard title="Could not load staff." description={sectionErrors.staff} />
+          ) : loading ? (
+            <div className="space-y-2">{Array.from({ length: 4 }).map((_, i) => <SkeletonRow key={i} />)}</div>
+          ) : (
+            <EmptyStateCard title="Staff data unavailable." />
+          )
         ) : staff.length === 0 ? (
           <EmptyStateCard title="No staff members found." description="Teaching and non-teaching staff you manage will appear here." />
         ) : (
@@ -746,10 +880,10 @@ export function HeadteacherDashboardPage() {
             <table className="w-full text-left text-[13px]">
               <thead>
                 <tr className="border-b border-white/[0.06]">
-                  <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Staff Member</th>
-                  <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Staff ID</th>
-                  <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Role</th>
-                  <th className="pb-2 text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Status</th>
+                  <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60">Staff Member</th>
+                  <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60">Staff ID</th>
+                  <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60">Role</th>
+                  <th className="pb-2 text-[11px] font-bold uppercase tracking-wider text-cream-200/60">Status</th>
                 </tr>
               </thead>
               <tbody>

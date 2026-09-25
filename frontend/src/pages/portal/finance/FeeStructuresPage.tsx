@@ -264,7 +264,7 @@ export function FeeStructuresPage() {
       <PageHeader
         eyebrow="Fees & Finance"
         title="Fee Structures"
-        description="Fee structures belong to an academic session and term. Activate a fee, assign pupils, then generate charges."
+        description="Configure fees for an academic session and term. Activate a fee, assign pupils, then generate charges."
         actions={
           canManage ? (
             <Button onClick={openCreate}>

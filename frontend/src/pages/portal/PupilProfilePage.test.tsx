@@ -48,6 +48,8 @@ function pupilFixture(overrides: Partial<PupilView> = {}): PupilView {
     id: 'pupil-1',
     pupilId: 'PRPS-PUP-0001',
     admissionNumber: 'ADM-2026-001',
+    sheetNumber: '4',
+    admissionFee: '150.00',
     firstName: 'Ama',
     middleName: null,
     lastName: 'Boateng',
@@ -64,6 +66,8 @@ function pupilFixture(overrides: Partial<PupilView> = {}): PupilView {
     dateAdmitted: '2026-01-15T00:00:00.000Z',
     status: 'ACTIVE',
     address: 'Accra',
+    previousSchool: 'Sunrise Academy',
+    stayWithChild: 'Mother',
     guardians: [
       {
         id: 'guardian-1',
@@ -76,6 +80,13 @@ function pupilFixture(overrides: Partial<PupilView> = {}): PupilView {
         isPrimary: true,
         isEmergency: true,
       },
+    ],
+    uniforms: [
+      { slot: 1, label: 'Item 1', status: 'COLLECTED' },
+      { slot: 2, label: null, status: 'NOT_COLLECTED' },
+      { slot: 3, label: null, status: 'NOT_COLLECTED' },
+      { slot: 4, label: null, status: 'NOT_COLLECTED' },
+      { slot: 5, label: null, status: 'NOT_COLLECTED' },
     ],
     createdAt: '2026-01-15T00:00:00.000Z',
     updatedAt: '2026-01-15T00:00:00.000Z',
@@ -138,6 +149,58 @@ describe('PupilProfilePage', () => {
     expect(screen.getByText('+233 20 000 0000')).toBeInTheDocument()
     expect(screen.getAllByText('Primary').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Emergency contact').length).toBeGreaterThan(0)
+  })
+
+  it('renders admission details and uniform collection status', async () => {
+    renderPage()
+
+    expect(await screen.findByText('Ama Boateng')).toBeInTheDocument()
+    expect(screen.getByText('Sheet no.')).toBeInTheDocument()
+    expect(screen.getByText('4')).toBeInTheDocument()
+    expect(screen.getByText('GH₵ 150.00')).toBeInTheDocument()
+    expect(screen.getByText('Uniforms to be Collected')).toBeInTheDocument()
+    expect(screen.getByText('Main Uniform')).toBeInTheDocument()
+    expect(screen.getByText('Item 1')).toBeInTheDocument()
+    expect(screen.getByText('School attended')).toBeInTheDocument()
+    expect(screen.getByText('Sunrise Academy')).toBeInTheDocument()
+    expect(screen.getByText('Stay with the child')).toBeInTheDocument()
+    expect(screen.getByText('Mother')).toBeInTheDocument()
+    expect(screen.getByText('Collected')).toBeInTheDocument()
+    expect(screen.getAllByText('Not collected').length).toBe(4)
+  })
+
+  it('edits admission details and uniform collection status and saves', async () => {
+    renderPage()
+    await screen.findByText('Ama Boateng')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+    fireEvent.change(screen.getByLabelText(/^Sheet number/), { target: { value: '9' } })
+    fireEvent.change(screen.getByLabelText(/^Admission fee/), { target: { value: '300.25' } })
+    fireEvent.change(screen.getByLabelText(/^School attended/), {
+      target: { value: 'Melling Primary' },
+    })
+    fireEvent.change(screen.getAllByLabelText('Collection status')[1], {
+      target: { value: 'COLLECTED' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    await waitFor(() => {
+      expect(apiMock.updatePupil).toHaveBeenCalledWith(
+        'pupil-1',
+        expect.objectContaining({
+          sheetNumber: '9',
+          admissionFee: '300.25',
+          previousSchool: 'Melling Primary',
+          uniforms: [
+            { slot: 1, label: 'Item 1', status: 'COLLECTED' },
+            { slot: 2, label: null, status: 'COLLECTED' },
+            { slot: 3, label: null, status: 'NOT_COLLECTED' },
+            { slot: 4, label: null, status: 'NOT_COLLECTED' },
+            { slot: 5, label: null, status: 'NOT_COLLECTED' },
+          ],
+        }),
+      )
+    })
   })
 
   it('edits the pupil profile and saves', async () => {

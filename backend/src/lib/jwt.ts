@@ -1,6 +1,14 @@
 import jwt from 'jsonwebtoken'
 import { env } from '../config/env'
 
+export interface TokenPayload {
+  sub: string
+  kind: 'staff' | 'guardian'
+  /** When present, `sub` is the real authenticated developer and `act` is the impersonated user. */
+  act?: string
+  imp?: boolean
+}
+
 /**
  * Signs an access token carrying the user id as the subject. The token never
  * carries the user's role — the role/permissions are always resolved from the
@@ -16,6 +24,38 @@ export function signToken(userId: string, kind: 'staff' | 'guardian' = 'staff'):
   return jwt.sign({ sub: userId, kind }, env.jwtSecret, {
     expiresIn: env.jwtExpiresIn as jwt.SignOptions['expiresIn'],
   })
+}
+
+/**
+ * Signs a developer impersonation token. The real developer identity is carried
+ * in `sub`, while the impersonated (acting) user is in `act`. The `imp` flag
+ * signals downstream middleware to resolve permissions from the acting user.
+ */
+export function signImpersonationToken(developerId: string, actingUserId: string): string {
+  return jwt.sign(
+    { sub: developerId, kind: 'staff' as const, act: actingUserId, imp: true },
+    env.jwtSecret,
+    { expiresIn: env.jwtExpiresIn as jwt.SignOptions['expiresIn'] },
+  )
+}
+
+/**
+ * Verifies a token and returns the full payload, or null when the token
+ * is invalid or expired.
+ */
+export function verifyTokenPayload(token: string): TokenPayload | null {
+  try {
+    const payload = jwt.verify(token, env.jwtSecret) as jwt.JwtPayload
+    if (typeof payload.sub !== 'string') return null
+    return {
+      sub: payload.sub,
+      kind: (payload.kind as TokenPayload['kind']) ?? 'staff',
+      act: typeof payload.act === 'string' ? payload.act : undefined,
+      imp: payload.imp === true ? true : undefined,
+    }
+  } catch {
+    return null
+  }
 }
 
 /**

@@ -9,22 +9,43 @@ import { Card } from '@/components/ui/Card'
 import { StatusBadge } from '@/components/dashboard/Badge'
 import { ConfirmDialog } from '@/components/dashboard/ConfirmDialog'
 import { Modal } from '@/components/dashboard/Modal'
-import { TextField, TextAreaField } from '@/components/dashboard/Field'
+import { TextField, TextAreaField, SelectField } from '@/components/dashboard/Field'
 import { Spinner, CardSkeleton, TableSkeleton } from '@/components/dashboard/Loaders'
 import { EmptyState, ErrorState } from '@/components/dashboard/States'
 import { StatCard } from '@/components/dashboard/StatCard'
 import { useToast } from '@/components/dashboard/Toast'
+import {
+  getClassLevel,
+  toDivisionPayload,
+  toDivisionValue,
+  UNDIVIDED_DIVISION,
+} from '@/lib/class-name'
 import { api } from '@/lib/api'
 import type { ClassCreateInput, SchoolClassView } from '@/types/portal'
 
 interface ClassForm {
   key: string
   name: string
+  division: string
   description: string
   sortOrder: string
 }
 
-const emptyForm: ClassForm = { key: '', name: '', description: '', sortOrder: '' }
+const emptyForm: ClassForm = {
+  key: '',
+  name: '',
+  division: UNDIVIDED_DIVISION,
+  description: '',
+  sortOrder: '',
+}
+
+const DIVISION_OPTIONS = [
+  { value: UNDIVIDED_DIVISION, label: 'Undivided' },
+  { value: 'A', label: 'A' },
+  { value: 'B', label: 'B' },
+  { value: 'C', label: 'C' },
+  { value: 'D', label: 'D' },
+]
 
 export function ClassManagementPage() {
   const { push } = useToast()
@@ -72,7 +93,8 @@ export function ClassManagementPage() {
     setEditing(klass)
     setForm({
       key: klass.key,
-      name: klass.name,
+      name: klass.classLevel ?? getClassLevel(klass.name, klass.division),
+      division: toDivisionValue(klass.division),
       description: klass.description ?? '',
       sortOrder: String(klass.sortOrder),
     })
@@ -106,6 +128,7 @@ export function ClassManagementPage() {
     const payload: ClassCreateInput = {
       key: form.key.trim(),
       name: form.name.trim(),
+      division: toDivisionPayload(form.division),
       description: form.description.trim() || undefined,
       sortOrder: form.sortOrder === '' ? undefined : Number(form.sortOrder),
     }
@@ -358,9 +381,18 @@ export function ClassManagementPage() {
             value={form.name}
             onChange={(event) => set('name', event.target.value)}
             error={fieldErrors.name}
-            hint="Display name, e.g. Primary 1."
+            hint="Class level without division, e.g. Nursery 1 or Basic 3."
             required
             autoComplete="off"
+          />
+          <SelectField
+            label="Division (Optional)"
+            name="division"
+            value={form.division}
+            onChange={(event) => set('division', event.target.value)}
+            error={fieldErrors.division}
+            hint="Optional. Undivided displays as e.g. Nursery 1; A–D displays as e.g. Nursery 1A."
+            options={DIVISION_OPTIONS}
           />
           <div className="sm:col-span-2">
             <TextAreaField

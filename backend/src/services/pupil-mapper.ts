@@ -1,3 +1,16 @@
+import type { Prisma } from '@prisma/client'
+import { money } from './finance-mapper'
+
+export type UniformCollectionStatus = 'NOT_COLLECTED' | 'COLLECTED'
+
+export const ADMISSION_UNIFORM_SLOTS = [1, 2, 3, 4, 5] as const
+
+export interface PupilUniformRecord {
+  slot: number
+  label: string | null
+  status: UniformCollectionStatus
+}
+
 export interface PupilGuardianRecord {
   relationship: string | null
   isPrimary: boolean
@@ -16,6 +29,8 @@ export interface PupilRecord {
   id: string
   pupilId: string
   admissionNumber: string | null
+  sheetNumber?: string | null
+  admissionFee?: Prisma.Decimal | string | number | null
   firstName: string
   middleName: string | null
   lastName: string
@@ -25,6 +40,8 @@ export interface PupilRecord {
   nationality: string | null
   religion: string | null
   admissionReason: string | null
+  previousSchool?: string | null
+  stayWithChild?: string | null
   declarationAcknowledged: boolean
   classId: string
   dateAdmitted: Date
@@ -34,6 +51,7 @@ export interface PupilRecord {
   updatedAt: Date
   class: { id: string; name: string } | null
   guardians: PupilGuardianRecord[]
+  uniforms?: PupilUniformRecord[]
 }
 
 export interface GuardianView {
@@ -48,10 +66,19 @@ export interface GuardianView {
   isEmergency: boolean
 }
 
+export interface PupilUniformView {
+  slot: number
+  label: string | null
+  status: UniformCollectionStatus
+}
+
 export interface PupilView {
   id: string
   pupilId: string
   admissionNumber: string | null
+  sheetNumber: string | null
+  /** One-time admission fee as a fixed 2-decimal GHS string, or null. */
+  admissionFee: string | null
   firstName: string
   middleName: string | null
   lastName: string
@@ -62,6 +89,10 @@ export interface PupilView {
   nationality: string | null
   religion: string | null
   admissionReason: string | null
+  /** "SCHOOL ATTENDED" from the physical admission form. */
+  previousSchool: string | null
+  /** "STAY WITH THE CHILD" living arrangement from the physical form. */
+  stayWithChild: string | null
   declarationAcknowledged: boolean
   classId: string
   className: string
@@ -69,8 +100,24 @@ export interface PupilView {
   status: 'ACTIVE' | 'INACTIVE'
   address: string | null
   guardians: GuardianView[]
+  /** Always the five admission slots 1–5, padded with "Not collected". */
+  uniforms: PupilUniformView[]
   createdAt: string
   updatedAt: string
+}
+
+/**
+ * Pupils registered before the uniform rows existed have no stored items, so
+ * the view always exposes the five admission slots with a safe default.
+ */
+export function toUniformViews(records?: PupilUniformRecord[]): PupilUniformView[] {
+  const bySlot = new Map<number, PupilUniformView>()
+  for (const record of records ?? []) {
+    if (!bySlot.has(record.slot)) {
+      bySlot.set(record.slot, { slot: record.slot, label: record.label, status: record.status })
+    }
+  }
+  return ADMISSION_UNIFORM_SLOTS.map((slot) => bySlot.get(slot) ?? { slot, label: null, status: 'NOT_COLLECTED' })
 }
 
 export function toPupilView(record: PupilRecord): PupilView {
@@ -84,6 +131,8 @@ export function toPupilView(record: PupilRecord): PupilView {
     id: record.id,
     pupilId: record.pupilId,
     admissionNumber: record.admissionNumber,
+    sheetNumber: record.sheetNumber ?? null,
+    admissionFee: record.admissionFee === undefined || record.admissionFee === null ? null : money(record.admissionFee),
     firstName: record.firstName,
     middleName: record.middleName,
     lastName: record.lastName,
@@ -94,6 +143,8 @@ export function toPupilView(record: PupilRecord): PupilView {
     nationality: record.nationality,
     religion: record.religion,
     admissionReason: record.admissionReason,
+    previousSchool: record.previousSchool ?? null,
+    stayWithChild: record.stayWithChild ?? null,
     declarationAcknowledged: record.declarationAcknowledged,
     classId: record.classId,
     className: record.class?.name ?? '—',
@@ -111,6 +162,7 @@ export function toPupilView(record: PupilRecord): PupilView {
       isPrimary: entry.isPrimary,
       isEmergency: entry.isEmergency,
     })),
+    uniforms: toUniformViews(record.uniforms),
     createdAt: record.createdAt.toISOString(),
     updatedAt: record.updatedAt.toISOString(),
   }

@@ -21,6 +21,7 @@ import {
   listSessionsHandler,
   listTermsHandler,
   reconciliationHandler,
+  updateReconciliationAttendanceHandler,
   updateSessionHandler,
   updateTermHandler,
 } from '../controllers/finance.controller'
@@ -29,6 +30,7 @@ import { requirePermission } from '../middleware/require-permission'
 import { validate } from '../middleware/validate'
 import {
   chargeGenerateSchema,
+  reconciliationAttendanceSchema,
   sessionCreateSchema,
   sessionUpdateSchema,
   termCreateSchema,
@@ -45,6 +47,12 @@ router.get('/reconciliation', requirePermission('finance.view'), reconciliationH
 router.get('/reconciliation/combined', requirePermission('finance.view'), combinedReconciliationHandler)
 router.get('/reconciliation/close-status', requirePermission('finance.view'), getDailyReconciliationCloseStatusHandler)
 router.post('/reconciliation/close', requirePermission('payments.record'), closeDailyReconciliationHandler)
+router.patch(
+  '/reconciliation/attendance',
+  requirePermission('payments.record'),
+  validate(reconciliationAttendanceSchema),
+  updateReconciliationAttendanceHandler,
+)
 router.get('/pupils/daily', requirePermission('finance.view'), dailyPupilFinanceHandler)
 router.get('/pupils', requirePermission('finance.view'), listFinancePupilsHandler)
 router.get('/pupils/:id', requirePermission('finance.view'), getPupilFinanceHandler)

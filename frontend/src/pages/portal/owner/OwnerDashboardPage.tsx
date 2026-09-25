@@ -63,17 +63,17 @@ function KpiCard({
             'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl',
             accent
               ? 'bg-magenta-500/20 text-magenta-300'
-              : 'bg-white/[0.06] text-cream-200/50',
+              : 'bg-white/[0.06] text-cream-200/70',
           )}
         >
           <Icon className="h-5 w-5" aria-hidden="true" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-cream-200/35">{label}</p>
+          <p className="text-[11px] font-bold uppercase tracking-wider text-cream-200/60">{label}</p>
           <p className={cn('mt-1 text-2xl font-extrabold tracking-tight', accent ? 'text-magenta-300' : 'text-white')}>
             {value}
           </p>
-          {supporting && <p className="mt-1 text-[11px] text-cream-200/30">{supporting}</p>}
+          {supporting && <p className="mt-1 text-[11px] text-cream-200/60">{supporting}</p>}
         </div>
       </div>
     </GlassCard>
@@ -94,8 +94,8 @@ function SkeletonRow() {
 function EmptyStateCard({ title, description }: { title: string; description?: string }) {
   return (
     <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-white/[0.08] bg-white/[0.02] px-6 py-12 text-center">
-      <p className="text-sm font-semibold text-cream-200/50">{title}</p>
-      {description && <p className="mt-1 text-[12px] text-cream-200/30">{description}</p>}
+      <p className="text-sm font-semibold text-cream-200/70">{title}</p>
+      {description && <p className="mt-1 text-[12px] text-cream-200/60">{description}</p>}
     </div>
   )
 }
@@ -256,10 +256,10 @@ export function OwnerDashboardPage() {
             <table className="w-full text-left text-[13px]">
               <thead>
                 <tr className="border-b border-white/[0.06]">
-                  <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Class</th>
-                  <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Boys</th>
-                  <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Girls</th>
-                  <th className="pb-2 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Total</th>
+                  <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60">Class</th>
+                  <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Boys</th>
+                  <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Girls</th>
+                  <th className="pb-2 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Total</th>
                 </tr>
               </thead>
               <tbody>
@@ -289,7 +289,7 @@ export function OwnerDashboardPage() {
           title="Attendance by Class"
           icon={Clock}
           action={
-            <span className="text-[11px] font-semibold text-cream-200/40">
+            <span className="text-[11px] font-semibold text-cream-200/65">
               {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' })}
             </span>
           }
@@ -303,14 +303,14 @@ export function OwnerDashboardPage() {
             <table className="w-full text-left text-[13px]">
               <thead>
                 <tr className="border-b border-white/[0.06]">
-                  <th className="pb-2 pr-3 text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Class</th>
-                  <th className="pb-2 pr-3 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Boys Present</th>
-                  <th className="pb-2 pr-3 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Boys Absent</th>
-                  <th className="pb-2 pr-3 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Girls Present</th>
-                  <th className="pb-2 pr-3 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Girls Absent</th>
-                  <th className="pb-2 pr-3 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Total Present</th>
-                  <th className="pb-2 pr-3 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Total Absent</th>
-                  <th className="pb-2 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Attendance %</th>
+                  <th className="pb-2 pr-3 text-[11px] font-bold uppercase tracking-wider text-cream-200/60">Class</th>
+                  <th className="pb-2 pr-3 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Boys Present</th>
+                  <th className="pb-2 pr-3 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Boys Absent</th>
+                  <th className="pb-2 pr-3 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Girls Present</th>
+                  <th className="pb-2 pr-3 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Girls Absent</th>
+                  <th className="pb-2 pr-3 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Total Present</th>
+                  <th className="pb-2 pr-3 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Total Absent</th>
+                  <th className="pb-2 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Attendance %</th>
                 </tr>
               </thead>
               <tbody>
@@ -379,27 +379,27 @@ export function OwnerDashboardPage() {
                 <>
                   <div className="grid gap-3 sm:grid-cols-3 mb-4">
                     <GlassInnerCard>
-                      <p className="text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Expected Fees</p>
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-cream-200/60">Expected Fees</p>
                       <p className="mt-1 text-xl font-extrabold text-cream-100">{formatMoney(finance.expectedFees)}</p>
                     </GlassInnerCard>
                     <GlassInnerCard>
-                      <p className="text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Collected</p>
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-cream-200/60">Collected</p>
                       <p className="mt-1 text-xl font-extrabold text-emerald-400">{formatMoney(finance.collected)}</p>
                     </GlassInnerCard>
                     <GlassInnerCard>
-                      <p className="text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Outstanding</p>
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-cream-200/60">Outstanding</p>
                       <p className="mt-1 text-xl font-extrabold text-red-400">{formatMoney(finance.outstanding)}</p>
                     </GlassInnerCard>
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <GlassInnerCard>
-                      <p className="text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Daily Fees</p>
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-cream-200/60">Daily Fees</p>
                       <p className="mt-1 text-lg font-extrabold text-cream-100">
                         {finance.feeSummary.byType.DAILY ?? 0} fee types
                       </p>
                     </GlassInnerCard>
                     <GlassInnerCard>
-                      <p className="text-[11px] font-bold uppercase tracking-wider text-cream-200/35">PTA Fees</p>
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-cream-200/60">PTA Fees</p>
                       <p className="mt-1 text-lg font-extrabold text-cream-100">
                         {finance.feeSummary.byType.TERMLY ?? 0} fee types
                       </p>
@@ -425,7 +425,7 @@ export function OwnerDashboardPage() {
                       <div key={p.id} className="flex items-center justify-between rounded-xl bg-white/[0.03] px-3 py-2">
                         <div className="min-w-0">
                           <p className="text-[12px] font-semibold text-cream-100 truncate">{p.pupilName}</p>
-                          <p className="text-[10px] text-cream-200/30">{p.pupilCode}</p>
+                          <p className="text-[10px] text-cream-200/60">{p.pupilCode}</p>
                         </div>
                         <span className="text-[12px] font-bold text-red-400">{formatMoney(p.amountPaid)}</span>
                       </div>
@@ -433,7 +433,7 @@ export function OwnerDashboardPage() {
                   </div>
                   <div className="border-t border-white/[0.06] pt-3">
                     <div className="flex items-center justify-between">
-                      <span className="text-[12px] font-bold text-cream-200/50">Total Arrears</span>
+                      <span className="text-[12px] font-bold text-cream-200/70">Total Arrears</span>
                       <span className="text-lg font-extrabold text-red-400">{formatMoney(finance.outstanding)}</span>
                     </div>
                   </div>
@@ -476,10 +476,10 @@ export function OwnerDashboardPage() {
             <table className="w-full text-left text-[13px]">
               <thead>
                 <tr className="border-b border-white/[0.06]">
-                  <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Teacher</th>
-                  <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Class / Subject</th>
-                  <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Assignments</th>
-                  <th className="pb-2 text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Status</th>
+                  <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60">Teacher</th>
+                  <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60">Class / Subject</th>
+                  <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60">Assignments</th>
+                  <th className="pb-2 text-[11px] font-bold uppercase tracking-wider text-cream-200/60">Status</th>
                 </tr>
               </thead>
               <tbody>
@@ -492,7 +492,7 @@ export function OwnerDashboardPage() {
                         </div>
                         <div className="min-w-0">
                           <p className="font-semibold text-cream-100 truncate">{t.fullName}</p>
-                          <p className="text-[10px] text-cream-200/30">{t.positionLabel}</p>
+                          <p className="text-[10px] text-cream-200/60">{t.positionLabel}</p>
                         </div>
                       </div>
                     </td>
@@ -535,7 +535,7 @@ export function OwnerDashboardPage() {
               </span>
               <div>
                 <p className="text-[13px] font-bold text-cream-100">No Headteacher registered yet</p>
-                <p className="text-[11px] text-cream-200/35">Create the Headteacher account to enable school operations.</p>
+                <p className="text-[11px] text-cream-200/60">Create the Headteacher account to enable school operations.</p>
               </div>
             </div>
             <Link

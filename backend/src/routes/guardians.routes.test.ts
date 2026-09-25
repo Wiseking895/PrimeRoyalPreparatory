@@ -18,7 +18,7 @@ const prismaMock = vi.hoisted(() => ({
   auditLog: { create: vi.fn() },
 }))
 
-vi.mock('../lib/jwt', () => ({ verifyToken: verifyTokenMock }))
+vi.mock('../lib/jwt', () => ({ verifyToken: verifyTokenMock, verifyTokenPayload: verifyTokenMock }))
 vi.mock('../lib/prisma', () => ({ prisma: prismaMock }))
 vi.mock('../lib/password', () => ({ hashPassword: hashPasswordMock, verifyPassword: vi.fn() }))
 vi.mock('../lib/temporary-password', () => ({ generateTemporaryPassword: generateTemporaryPasswordMock }))
@@ -82,7 +82,7 @@ const auth = 'Bearer staff-token'
 describe('guardians.routes (Phase 7 — Parent Account administration)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    verifyTokenMock.mockReturnValue('user-1')
+    verifyTokenMock.mockReturnValue({ sub: 'user-1', kind: 'staff' })
     prismaMock.user.findUnique.mockResolvedValue(userRow())
     hashPasswordMock.mockResolvedValue('$2b$12$hash')
     generateTemporaryPasswordMock.mockReturnValue('TEMP1234abcd')

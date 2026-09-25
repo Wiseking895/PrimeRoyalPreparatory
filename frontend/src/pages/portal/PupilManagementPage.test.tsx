@@ -56,6 +56,8 @@ function pupilFixture(overrides: Partial<PupilView> = {}): PupilView {
     id: 'pupil-1',
     pupilId: 'PRPS-PUP-0001',
     admissionNumber: 'ADM-2026-001',
+    sheetNumber: '4',
+    admissionFee: '150.00',
     firstName: 'Ama',
     middleName: null,
     lastName: 'Boateng',
@@ -72,7 +74,10 @@ function pupilFixture(overrides: Partial<PupilView> = {}): PupilView {
     dateAdmitted: '2026-01-15T00:00:00.000Z',
     status: 'ACTIVE',
     address: null,
+    previousSchool: null,
+    stayWithChild: null,
     guardians: [],
+    uniforms: [1, 2, 3, 4, 5].map((slot) => ({ slot, label: null, status: 'NOT_COLLECTED' as const })),
     createdAt: '2026-01-15T00:00:00.000Z',
     updatedAt: '2026-01-15T00:00:00.000Z',
     ...overrides,
@@ -186,8 +191,8 @@ describe('PupilManagementPage', () => {
     fireEvent.change(screen.getByLabelText(/^Date of birth/), { target: { value: '2018-03-10' } })
     fireEvent.change(screen.getByLabelText(/^Gender/), { target: { value: 'MALE' } })
     fireEvent.change(screen.getByLabelText(/^Class/), { target: { value: 'class-1' } })
-    fireEvent.change(screen.getByLabelText(/^Full name/), { target: { value: 'Yaw Mensah' } })
-    fireEvent.change(screen.getByLabelText(/^Relationship/), { target: { value: 'Parent' } })
+    fireEvent.change(screen.getAllByLabelText(/^Full name/)[0], { target: { value: 'Yaw Mensah' } })
+    fireEvent.change(screen.getAllByLabelText(/^Relationship/)[0], { target: { value: 'Parent' } })
     fireEvent.click(screen.getByRole('checkbox', { name: /I agree to the Guardian/i }))
     fireEvent.click(screen.getByRole('button', { name: 'Register pupil' }))
 
@@ -213,6 +218,69 @@ describe('PupilManagementPage', () => {
       'success',
       expect.stringContaining('registered successfully'),
     )
+  })
+
+  it('saves admission details and uniform collection status when registering a pupil', async () => {
+    renderPage()
+    await screen.findAllByText('Ama Boateng')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Register Pupil' }))
+    fireEvent.change(screen.getByLabelText(/^First name/), { target: { value: 'Kojo' } })
+    fireEvent.change(screen.getByLabelText(/^Last name/), { target: { value: 'Mensah' } })
+    fireEvent.change(screen.getByLabelText(/^Date of birth/), { target: { value: '2018-03-10' } })
+    fireEvent.change(screen.getByLabelText(/^Gender/), { target: { value: 'MALE' } })
+    fireEvent.change(screen.getByLabelText(/^Class/), { target: { value: 'class-1' } })
+    fireEvent.change(screen.getByLabelText(/^Admission number/), { target: { value: 'ADM-2026-100' } })
+    fireEvent.change(screen.getByLabelText(/^Sheet number/), { target: { value: '7' } })
+    fireEvent.change(screen.getByLabelText(/^Admission fee/), { target: { value: '250.50' } })
+    fireEvent.change(screen.getAllByLabelText('Collection status')[0], { target: { value: 'COLLECTED' } })
+    fireEvent.change(screen.getAllByLabelText(/^Full name/)[0], { target: { value: 'Yaw Mensah' } })
+    fireEvent.change(screen.getAllByLabelText(/^Relationship/)[0], { target: { value: 'Parent' } })
+    fireEvent.click(screen.getByRole('checkbox', { name: /I agree to the Guardian/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'Register pupil' }))
+
+    await waitFor(() => {
+      expect(apiMock.createPupil).toHaveBeenCalled()
+    })
+    expect(apiMock.createPupil).toHaveBeenCalledWith(
+      expect.objectContaining({
+        admissionNumber: 'ADM-2026-100',
+        sheetNumber: '7',
+        admissionFee: '250.50',
+        uniforms: [
+          { slot: 1, label: 'Main Uniform', status: 'COLLECTED' },
+          { slot: 2, label: 'Outing', status: 'NOT_COLLECTED' },
+          { slot: 3, label: 'Friday Wear', status: 'NOT_COLLECTED' },
+          { slot: 4, label: 'Thursday Wear', status: 'NOT_COLLECTED' },
+          { slot: 5, label: 'Cream Uniform', status: 'NOT_COLLECTED' },
+        ],
+      }),
+    )
+  })
+
+  it('rejects an invalid admission fee before submitting', async () => {
+    renderPage()
+    await screen.findAllByText('Ama Boateng')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Register Pupil' }))
+    fireEvent.change(screen.getByLabelText(/^First name/), { target: { value: 'Kojo' } })
+    fireEvent.change(screen.getByLabelText(/^Last name/), { target: { value: 'Mensah' } })
+    fireEvent.change(screen.getByLabelText(/^Date of birth/), { target: { value: '2018-03-10' } })
+    fireEvent.change(screen.getByLabelText(/^Gender/), { target: { value: 'MALE' } })
+    fireEvent.change(screen.getByLabelText(/^Class/), { target: { value: 'class-1' } })
+    fireEvent.change(screen.getByLabelText(/^Admission fee/), { target: { value: 'abc' } })
+    fireEvent.change(screen.getAllByLabelText(/^Full name/)[0], { target: { value: 'Yaw Mensah' } })
+    fireEvent.change(screen.getAllByLabelText(/^Relationship/)[0], { target: { value: 'Parent' } })
+    fireEvent.click(screen.getByRole('checkbox', { name: /I agree to the Guardian/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'Register pupil' }))
+
+    const alerts = await screen.findAllByRole('alert')
+    expect(
+      alerts.some(
+        (alert) => alert.textContent === 'Enter a valid admission fee with up to 2 decimal places.',
+      ),
+    ).toBe(true)
+    expect(apiMock.createPupil).not.toHaveBeenCalled()
   })
 
   it('requires a class before registering a pupil', async () => {
@@ -275,8 +343,8 @@ describe('PupilManagementPage', () => {
     fireEvent.change(screen.getByLabelText(/^Date of birth/), { target: { value: '2018-03-10' } })
     fireEvent.change(screen.getByLabelText(/^Gender/), { target: { value: 'MALE' } })
     fireEvent.change(screen.getByLabelText(/^Class/), { target: { value: 'class-1' } })
-    fireEvent.change(screen.getByLabelText(/^Full name/), { target: { value: 'Yaw Mensah' } })
-    fireEvent.change(screen.getByLabelText(/^Relationship/), { target: { value: 'Parent' } })
+    fireEvent.change(screen.getAllByLabelText(/^Full name/)[0], { target: { value: 'Yaw Mensah' } })
+    fireEvent.change(screen.getAllByLabelText(/^Relationship/)[0], { target: { value: 'Parent' } })
     fireEvent.click(screen.getByRole('checkbox', { name: /I agree to the Guardian/i }))
     fireEvent.click(screen.getByRole('button', { name: 'Register pupil' }))
 
@@ -310,8 +378,8 @@ describe('PupilManagementPage', () => {
     fireEvent.change(screen.getByLabelText(/^Date of birth/), { target: { value: '2018-03-10' } })
     fireEvent.change(screen.getByLabelText(/^Gender/), { target: { value: 'MALE' } })
     fireEvent.change(screen.getByLabelText(/^Class/), { target: { value: 'class-1' } })
-    fireEvent.change(screen.getByLabelText(/^Full name/), { target: { value: 'Yaw Mensah' } })
-    fireEvent.change(screen.getByLabelText(/^Relationship/), { target: { value: 'Parent' } })
+    fireEvent.change(screen.getAllByLabelText(/^Full name/)[0], { target: { value: 'Yaw Mensah' } })
+    fireEvent.change(screen.getAllByLabelText(/^Relationship/)[0], { target: { value: 'Parent' } })
     fireEvent.click(screen.getByRole('checkbox', { name: /I agree to the Guardian/i }))
     fireEvent.click(screen.getByRole('button', { name: 'Register pupil' }))
 
@@ -354,8 +422,10 @@ describe('PupilManagementPage', () => {
     expect(screen.getByLabelText(/^Date of birth/)).toBeInTheDocument()
     expect(screen.getByLabelText(/^Gender/)).toBeInTheDocument()
     expect(screen.getByLabelText(/^Class/)).toBeInTheDocument()
-    expect(screen.getByText('Guardians')).toBeInTheDocument()
-    expect(screen.getByText('Admission information')).toBeInTheDocument()
+    expect(screen.getByText('Father Information')).toBeInTheDocument()
+    expect(screen.getByText('Mother Information')).toBeInTheDocument()
+    expect(screen.getByText('Office Use')).toBeInTheDocument()
     expect(screen.getByText("Guardian's Declaration")).toBeInTheDocument()
+    expect(screen.getByText('Uniforms Supplied')).toBeInTheDocument()
   })
 })

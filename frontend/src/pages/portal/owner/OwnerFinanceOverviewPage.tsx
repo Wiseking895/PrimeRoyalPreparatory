@@ -66,17 +66,17 @@ function KpiCard({
         <span
           className={cn(
             'flex h-8 w-8 shrink-0 items-center justify-center rounded-md',
-            accent ? 'bg-magenta-500/20 text-magenta-300' : 'bg-white/[0.06] text-cream-200/50',
+            accent ? 'bg-magenta-500/20 text-magenta-300' : 'bg-white/[0.06] text-cream-200/70',
           )}
         >
           <Icon className="h-4 w-4" aria-hidden="true" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-cream-200/35">{label}</p>
+          <p className="text-[10px] font-bold uppercase tracking-wider text-cream-200/60">{label}</p>
           <p className={cn('mt-1 text-[32px] font-bold tracking-tight leading-none', accent ? 'text-magenta-300' : 'text-white')}>
             {value}
           </p>
-          {supporting && <p className="mt-1 text-[11px] text-cream-200/30">{supporting}</p>}
+          {supporting && <p className="mt-1 text-[11px] text-cream-200/60">{supporting}</p>}
         </div>
       </div>
       {children}
@@ -97,7 +97,7 @@ function ProgressBar({ value, max }: { value: number; max: number }) {
           }}
         />
       </div>
-      <span className="text-[11px] font-bold text-cream-200/50 w-8 text-right">{pct}%</span>
+      <span className="text-[11px] font-bold text-cream-200/70 w-8 text-right">{pct}%</span>
     </div>
   )
 }
@@ -116,8 +116,8 @@ function SkeletonRow() {
 function EmptyStateCard({ title, description }: { title: string; description?: string }) {
   return (
     <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-white/[0.08] bg-white/[0.02] px-6 py-12 text-center">
-      <p className="text-sm font-semibold text-cream-200/50">{title}</p>
-      {description && <p className="mt-1 text-[12px] text-cream-200/30">{description}</p>}
+      <p className="text-sm font-semibold text-cream-200/70">{title}</p>
+      {description && <p className="mt-1 text-[12px] text-cream-200/60">{description}</p>}
     </div>
   )
 }
@@ -144,6 +144,19 @@ function FeeTable({
   const totalExpectedNum = Number(totalExpected)
   const totalCollectedNum = Number(totalCollected)
 
+  const attendanceTotals = rows.reduce(
+    (acc, row) => ({
+      boysPresent: acc.boysPresent + row.boysPresent,
+      boysAbsent: acc.boysAbsent + row.boysAbsent,
+      girlsPresent: acc.girlsPresent + row.girlsPresent,
+      girlsAbsent: acc.girlsAbsent + row.girlsAbsent,
+    }),
+    { boysPresent: 0, boysAbsent: 0, girlsPresent: 0, girlsAbsent: 0 },
+  )
+  const totalPresent = attendanceTotals.boysPresent + attendanceTotals.girlsPresent
+  const totalAbsent = attendanceTotals.boysAbsent + attendanceTotals.girlsAbsent
+  const grandTotal = totalPresent + totalAbsent
+
   return (
     <GlassCard>
       <SectionHeader title={title} icon={Icon} />
@@ -154,25 +167,48 @@ function FeeTable({
           <table className="w-full text-left text-[13px]">
             <thead>
               <tr className="border-b border-white/[0.06]">
-                <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Class</th>
-                <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Pupils</th>
-                <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Expected</th>
-                <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Collected</th>
-                <th className="pb-2 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Outstanding</th>
+                <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60">Class</th>
+                <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Boys Present</th>
+                <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Boys Absent</th>
+                <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Girls Present</th>
+                <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Girls Absent</th>
+                <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Total Present</th>
+                <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Total Absent</th>
+                <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Grand Total</th>
+                <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Expected</th>
+                <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Collected</th>
+                <th className="pb-2 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Outstanding</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => (
-                <tr key={row.classId} className="border-b border-white/[0.04]">
-                  <td className="py-2.5 pr-4 font-semibold text-cream-100">{row.className}</td>
-                  <td className="py-2.5 pr-4 text-right text-cream-200/60">{row.pupilCount}</td>
-                  <td className="py-2.5 pr-4 text-right text-cream-200/60">{formatMoney(row.expectedAmount)}</td>
-                  <td className="py-2.5 pr-4 text-right font-semibold text-emerald-400">{formatMoney(row.collectedAmount)}</td>
-                  <td className="py-2.5 text-right font-semibold text-red-400">{formatMoney(row.outstandingAmount)}</td>
-                </tr>
-              ))}
+              {rows.map((row) => {
+                const rowTotalPresent = row.boysPresent + row.girlsPresent
+                const rowTotalAbsent = row.boysAbsent + row.girlsAbsent
+                return (
+                  <tr key={row.classId} className="border-b border-white/[0.04]">
+                    <td className="py-2.5 pr-4 font-semibold text-cream-100">{row.className}</td>
+                    <td className="py-2.5 pr-4 text-right text-cream-200/60">{row.boysPresent}</td>
+                    <td className="py-2.5 pr-4 text-right text-cream-200/60">{row.boysAbsent}</td>
+                    <td className="py-2.5 pr-4 text-right text-cream-200/60">{row.girlsPresent}</td>
+                    <td className="py-2.5 pr-4 text-right text-cream-200/60">{row.girlsAbsent}</td>
+                    <td className="py-2.5 pr-4 text-right font-semibold text-emerald-400">{rowTotalPresent}</td>
+                    <td className="py-2.5 pr-4 text-right font-semibold text-red-400">{rowTotalAbsent}</td>
+                    <td className="py-2.5 pr-4 text-right text-cream-200/60">{rowTotalPresent + rowTotalAbsent}</td>
+                    <td className="py-2.5 pr-4 text-right text-cream-200/60">{formatMoney(row.expectedAmount)}</td>
+                    <td className="py-2.5 pr-4 text-right font-semibold text-emerald-400">{formatMoney(row.collectedAmount)}</td>
+                    <td className="py-2.5 text-right font-semibold text-red-400">{formatMoney(row.outstandingAmount)}</td>
+                  </tr>
+                )
+              })}
               <tr className="border-t border-magenta-500/20">
-                <td colSpan={2} className="pt-3 pr-4 text-[12px] font-bold text-magenta-300">Total</td>
+                <td className="pt-3 pr-4 text-[12px] font-bold text-magenta-300">GRAND TOTAL</td>
+                <td className="pt-3 pr-4 text-right text-[12px] font-bold text-magenta-300">{attendanceTotals.boysPresent}</td>
+                <td className="pt-3 pr-4 text-right text-[12px] font-bold text-magenta-300">{attendanceTotals.boysAbsent}</td>
+                <td className="pt-3 pr-4 text-right text-[12px] font-bold text-magenta-300">{attendanceTotals.girlsPresent}</td>
+                <td className="pt-3 pr-4 text-right text-[12px] font-bold text-magenta-300">{attendanceTotals.girlsAbsent}</td>
+                <td className="pt-3 pr-4 text-right text-[12px] font-bold text-magenta-300">{totalPresent}</td>
+                <td className="pt-3 pr-4 text-right text-[12px] font-bold text-magenta-300">{totalAbsent}</td>
+                <td className="pt-3 pr-4 text-right text-[12px] font-extrabold text-magenta-300">{grandTotal}</td>
                 <td className="pt-3 pr-4 text-right text-[12px] font-bold text-magenta-300">{formatMoney(totalExpected)}</td>
                 <td className="pt-3 pr-4 text-right text-[12px] font-bold text-magenta-300">{formatMoney(totalCollected)}</td>
                 <td className="pt-3 text-right text-[12px] font-extrabold text-magenta-300">{formatMoney(totalOutstanding)}</td>
@@ -216,7 +252,7 @@ function FeeToggle({
             'rounded-full px-3 py-1 text-[11px] font-semibold transition-colors',
             active === opt.key
               ? 'bg-magenta-500/20 text-magenta-300 ring-1 ring-magenta-500/30'
-              : 'bg-white/[0.05] text-cream-200/40 hover:bg-white/[0.08] hover:text-cream-200/60',
+              : 'bg-white/[0.05] text-cream-200/65 hover:bg-white/[0.08] hover:text-cream-200/60',
           )}
         >
           {opt.label}
@@ -254,7 +290,7 @@ function ArrearsPanel({
                 >
                   <div className="min-w-0">
                     <p className="text-[12px] font-semibold text-cream-100 truncate">{row.className}</p>
-                    <p className="text-[10px] text-cream-200/30">{row.pupilCount} pupils with charges</p>
+                    <p className="text-[10px] text-cream-200/60">{row.pupilCount} pupils with charges</p>
                   </div>
                   <span className="text-[12px] font-bold text-red-400">{formatMoney(row.outstandingAmount)}</span>
                 </div>
@@ -262,7 +298,7 @@ function ArrearsPanel({
           </div>
           <div className="border-t border-white/[0.06] pt-3">
             <div className="flex items-center justify-between">
-              <span className="text-[12px] font-bold text-cream-200/50">Total Arrears</span>
+              <span className="text-[12px] font-bold text-cream-200/70">Total Arrears</span>
               <span className="text-lg font-extrabold text-red-400">{formatMoney(summary.totals.totalOutstanding)}</span>
             </div>
           </div>
@@ -312,8 +348,8 @@ export function OwnerFinanceOverviewPage() {
   if (!canViewFinance) {
     return (
       <div className="flex flex-col items-center justify-center rounded-2xl border border-white/[0.08] bg-white/[0.03] px-6 py-12 text-center">
-        <p className="text-sm font-bold text-cream-200/50">Finance access is restricted.</p>
-        <p className="mt-1 text-[12px] text-cream-200/30">Contact the Headteacher for access.</p>
+        <p className="text-sm font-bold text-cream-200/70">Finance access is restricted.</p>
+        <p className="mt-1 text-[12px] text-cream-200/60">Contact the Headteacher for access.</p>
       </div>
     )
   }
@@ -344,12 +380,12 @@ export function OwnerFinanceOverviewPage() {
         </div>
         <div className="flex items-center gap-2">
           {summary?.term && (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.05] px-3 py-1 text-[11px] font-semibold text-cream-200/50 ring-1 ring-white/[0.08]">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.05] px-3 py-1 text-[11px] font-semibold text-cream-200/70 ring-1 ring-white/[0.08]">
               <Clock className="h-3 w-3" aria-hidden="true" />
               {summary.term.name}
             </span>
           )}
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.05] px-3 py-1 text-[11px] font-semibold text-cream-200/50 ring-1 ring-white/[0.08]">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.05] px-3 py-1 text-[11px] font-semibold text-cream-200/70 ring-1 ring-white/[0.08]">
             {todayLabel}
           </span>
         </div>
@@ -479,11 +515,19 @@ export function OwnerFinanceOverviewPage() {
 
       {/* ── All Classes Summary Table ── */}
       {summary && (() => {
-        // Merge all classes across fee types
-        const classMap = new Map<string, { className: string; pupilCount: number; expected: number; collected: number; outstanding: number }>()
+        // Merge all classes across fee types (attendance identical per class across fee types — first seen wins)
+        const classMap = new Map<string, { className: string; boysPresent: number; boysAbsent: number; girlsPresent: number; girlsAbsent: number; expected: number; collected: number; outstanding: number }>()
         for (const row of [...summary.dailyFees, ...summary.ptaFees, ...summary.maintenanceFees]) {
-          const existing = classMap.get(row.classId) ?? { className: row.className, pupilCount: 0, expected: 0, collected: 0, outstanding: 0 }
-          existing.pupilCount = Math.max(existing.pupilCount, row.pupilCount)
+          const existing = classMap.get(row.classId) ?? {
+            className: row.className,
+            boysPresent: row.boysPresent,
+            boysAbsent: row.boysAbsent,
+            girlsPresent: row.girlsPresent,
+            girlsAbsent: row.girlsAbsent,
+            expected: 0,
+            collected: 0,
+            outstanding: 0,
+          }
           existing.expected += Number(row.expectedAmount)
           existing.collected += Number(row.collectedAmount)
           existing.outstanding += Number(row.outstandingAmount)
@@ -494,11 +538,17 @@ export function OwnerFinanceOverviewPage() {
         const grandExpected = allRows.reduce((s, r) => s + r.expected, 0)
         const grandCollected = allRows.reduce((s, r) => s + r.collected, 0)
         const grandOutstanding = allRows.reduce((s, r) => s + r.outstanding, 0)
+        const grandBoysPresent = allRows.reduce((s, r) => s + r.boysPresent, 0)
+        const grandBoysAbsent = allRows.reduce((s, r) => s + r.boysAbsent, 0)
+        const grandGirlsPresent = allRows.reduce((s, r) => s + r.girlsPresent, 0)
+        const grandGirlsAbsent = allRows.reduce((s, r) => s + r.girlsAbsent, 0)
+        const grandTotalPresent = grandBoysPresent + grandGirlsPresent
+        const grandTotalAbsent = grandBoysAbsent + grandGirlsAbsent
 
         return (
           <GlassCard>
             <SectionHeader title="All Classes — Finance Summary" icon={Receipt}>
-              <span className="text-[11px] font-semibold text-cream-200/40">
+              <span className="text-[11px] font-semibold text-cream-200/65">
                 {summary.session?.name ?? 'No active session'} &middot; {summary.term?.name ?? 'No active term'}
               </span>
             </SectionHeader>
@@ -506,25 +556,48 @@ export function OwnerFinanceOverviewPage() {
               <table className="w-full text-left text-[13px]">
                 <thead>
                   <tr className="border-b border-white/[0.06]">
-                    <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Class</th>
-                    <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Pupils</th>
-                    <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Expected</th>
-                    <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Collected</th>
-                    <th className="pb-2 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Outstanding</th>
+                    <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60">Class</th>
+                    <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Boys Present</th>
+                    <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Boys Absent</th>
+                    <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Girls Present</th>
+                    <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Girls Absent</th>
+                    <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Total Present</th>
+                    <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Total Absent</th>
+                    <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Grand Total</th>
+                    <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Expected</th>
+                    <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Collected</th>
+                    <th className="pb-2 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Outstanding</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {allRows.map((row) => (
-                    <tr key={row.className} className="border-b border-white/[0.04]">
-                      <td className="py-2.5 pr-4 font-semibold text-cream-100">{row.className}</td>
-                      <td className="py-2.5 pr-4 text-right text-cream-200/60">{row.pupilCount}</td>
-                      <td className="py-2.5 pr-4 text-right text-cream-200/60">{formatMoney(row.expected)}</td>
-                      <td className="py-2.5 pr-4 text-right font-semibold text-emerald-400">{formatMoney(row.collected)}</td>
-                      <td className="py-2.5 text-right font-semibold text-red-400">{formatMoney(row.outstanding)}</td>
-                    </tr>
-                  ))}
+                  {allRows.map((row) => {
+                    const rowTotalPresent = row.boysPresent + row.girlsPresent
+                    const rowTotalAbsent = row.boysAbsent + row.girlsAbsent
+                    return (
+                      <tr key={row.className} className="border-b border-white/[0.04]">
+                        <td className="py-2.5 pr-4 font-semibold text-cream-100">{row.className}</td>
+                        <td className="py-2.5 pr-4 text-right text-cream-200/60">{row.boysPresent}</td>
+                        <td className="py-2.5 pr-4 text-right text-cream-200/60">{row.boysAbsent}</td>
+                        <td className="py-2.5 pr-4 text-right text-cream-200/60">{row.girlsPresent}</td>
+                        <td className="py-2.5 pr-4 text-right text-cream-200/60">{row.girlsAbsent}</td>
+                        <td className="py-2.5 pr-4 text-right font-semibold text-emerald-400">{rowTotalPresent}</td>
+                        <td className="py-2.5 pr-4 text-right font-semibold text-red-400">{rowTotalAbsent}</td>
+                        <td className="py-2.5 pr-4 text-right text-cream-200/60">{rowTotalPresent + rowTotalAbsent}</td>
+                        <td className="py-2.5 pr-4 text-right text-cream-200/60">{formatMoney(row.expected)}</td>
+                        <td className="py-2.5 pr-4 text-right font-semibold text-emerald-400">{formatMoney(row.collected)}</td>
+                        <td className="py-2.5 text-right font-semibold text-red-400">{formatMoney(row.outstanding)}</td>
+                      </tr>
+                    )
+                  })}
                   <tr className="border-t border-magenta-500/20">
-                    <td colSpan={2} className="pt-3 pr-4 text-[12px] font-bold text-magenta-300">School Total</td>
+                    <td className="pt-3 pr-4 text-[12px] font-bold text-magenta-300">GRAND TOTAL</td>
+                    <td className="pt-3 pr-4 text-right text-[12px] font-bold text-magenta-300">{grandBoysPresent}</td>
+                    <td className="pt-3 pr-4 text-right text-[12px] font-bold text-magenta-300">{grandBoysAbsent}</td>
+                    <td className="pt-3 pr-4 text-right text-[12px] font-bold text-magenta-300">{grandGirlsPresent}</td>
+                    <td className="pt-3 pr-4 text-right text-[12px] font-bold text-magenta-300">{grandGirlsAbsent}</td>
+                    <td className="pt-3 pr-4 text-right text-[12px] font-bold text-magenta-300">{grandTotalPresent}</td>
+                    <td className="pt-3 pr-4 text-right text-[12px] font-bold text-magenta-300">{grandTotalAbsent}</td>
+                    <td className="pt-3 pr-4 text-right text-[12px] font-extrabold text-magenta-300">{grandTotalPresent + grandTotalAbsent}</td>
                     <td className="pt-3 pr-4 text-right text-[12px] font-bold text-magenta-300">{formatMoney(grandExpected)}</td>
                     <td className="pt-3 pr-4 text-right text-[12px] font-bold text-magenta-300">{formatMoney(grandCollected)}</td>
                     <td className="pt-3 text-right text-[12px] font-extrabold text-magenta-300">{formatMoney(grandOutstanding)}</td>
@@ -540,7 +613,7 @@ export function OwnerFinanceOverviewPage() {
       })()}
 
       {/* ── Footer ── */}
-      <p className="text-center text-[10px] text-cream-200/20 pt-2">
+      <p className="text-center text-[10px] text-cream-200/60 pt-2">
         PRPS Owner Finance Overview &middot; Data refreshes on each page load
       </p>
     </div>

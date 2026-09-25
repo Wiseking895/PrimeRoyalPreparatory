@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { Prisma } from '@prisma/client'
 import { HttpStatus } from '../config/enums'
 import { logger } from '../config/logger'
 import { HEADTEACHER_ROLE, OWNER_ROLE, OWNER_ONLY_PERMISSIONS } from '../rbac/catalog'
@@ -6,6 +7,7 @@ import type { AuthenticatedUser } from '../types/auth'
 import {
   createHeadteacher,
   getHeadteacher,
+  getOwnerFinanceOverview,
   getOwnerSummary,
   listHeadteachers,
   resendHeadteacherInvitation,
@@ -37,8 +39,15 @@ const prismaMock = vi.hoisted(() => ({
   auditLog: { count: vi.fn(), create: vi.fn(), findMany: vi.fn() },
   $transaction: vi.fn(),
   permission: { upsert: vi.fn() },
-  pupil: { count: vi.fn(), groupBy: vi.fn() },
+  pupil: { count: vi.fn(), groupBy: vi.fn(), findMany: vi.fn() },
   schoolClass: { count: vi.fn(), findMany: vi.fn() },
+  academicSession: { findFirst: vi.fn() },
+  academicTerm: { findFirst: vi.fn() },
+  financeFee: { findMany: vi.fn() },
+  attendance: { findMany: vi.fn() },
+  feeAssignment: { findMany: vi.fn() },
+  payment: { findMany: vi.fn() },
+  feeCharge: { findMany: vi.fn() },
 }))
 
 vi.mock('../lib/prisma', () => ({ prisma: prismaMock }))
@@ -158,8 +167,16 @@ describe('owner.service', () => {
     prismaMock.user.findFirst.mockResolvedValue(null)
     prismaMock.pupil.count.mockResolvedValue(0)
     prismaMock.pupil.groupBy.mockResolvedValue([])
+    prismaMock.pupil.findMany.mockResolvedValue([])
     prismaMock.schoolClass.count.mockResolvedValue(0)
     prismaMock.schoolClass.findMany.mockResolvedValue([])
+    prismaMock.academicSession.findFirst.mockResolvedValue(null)
+    prismaMock.academicTerm.findFirst.mockResolvedValue(null)
+    prismaMock.financeFee.findMany.mockResolvedValue([])
+    prismaMock.attendance.findMany.mockResolvedValue([])
+    prismaMock.feeAssignment.findMany.mockResolvedValue([])
+    prismaMock.payment.findMany.mockResolvedValue([])
+    prismaMock.feeCharge.findMany.mockResolvedValue([])
   })
 
   describe('getOwnerSummary', () => {
@@ -202,6 +219,145 @@ describe('owner.service', () => {
         { classId: 'class-1', className: 'Primary 1', boys: 2, girls: 2, total: 4 },
         { classId: 'class-2', className: 'Primary 2', boys: 3, girls: 3, total: 6 },
       ])
+    })
+  })
+
+  describe('getOwnerFinanceOverview', () => {
+    const targetDate = '2026-09-10'
+
+    const roster = [
+      { id: 'p-boy1', classId: 'class-1', gender: 'MALE' },
+      { id: 'p-boy2', classId: 'class-1', gender: 'MALE' },
+      { id: 'p-girl1', classId: 'class-1', gender: 'FEMALE' },
+      { id: 'p-girl2', classId: 'class-1', gender: 'FEMALE' },
+    ]
+
+    function setupOverview({
+      presentFinanceRecords,
+      dayRecords,
+    }: {
+      presentFinanceRecords: Array<{ pupilId: string; classId: string }>
+      dayRecords: Array<{ pupilId: string; status: string }>
+    }) {
+      prismaMock.academicSession.findFirst.mockResolvedValue({ id: 'session-1', name: '2026/2027' })
+      prismaMock.academicTerm.findFirst.mockResolvedValue({
+        id: 'term-1',
+        name: 'First Term',
+        startDate: new Date('2026-09-01T00:00:00.000Z'),
+        endDate: new Date('2026-12-18T00:00:00.000Z'),
+      })
+      prismaMock.schoolClass.findMany.mockResolvedValue([{ id: 'class-1', name: 'Primary 6' }])
+      prismaMock.financeFee.findMany.mockResolvedValue([
+        { id: 'fee-daily', feeType: 'DAILY', amount: new Prisma.Decimal('10.00') },
+      ])
+      prismaMock.pupil.findMany.mockResolvedValue(roster)
+      prismaMock.pupil.groupBy.mockResolvedValue([{ classId: 'class-1', _count: { _all: 4 } }])
+      prismaMock.pupil.count.mockResolvedValue(4)
+      prismaMock.attendance.findMany.mockImplementation(
+        async ({ where }: { where: { status?: string } }) => {
+          if (where.status === 'PRESENT') return presentFinanceRecords
+          return dayRecords
+        },
+      )
+    }
+
+    it('returns a per-gender attendance breakdown for classes with attendance', async () => {
+      setupOverview({
+        presentFinanceRecords: [
+          { pupilId: 'p-boy1', classId: 'class-1' },
+          { pupilId: 'p-girl1', classId: 'class-1' },
+        ],
+        dayRecords: [
+          { pupilId: 'p-boy1', status: 'PRESENT' },
+          { pupilId: 'p-girl1', status: 'PRESENT' },
+          { pupilId: 'p-girl2', status: 'ABSENT' },
+        ],
+      })
+
+      const result = await getOwnerFinanceOverview(targetDate)
+
+      expect(result.dailyFees).toHaveLength(1)
+      const row = result.dailyFees[0]
+      expect(row.className).toBe('Primary 6')
+      expect(row.boysPresent).toBe(1)
+      expect(row.boysAbsent).toBe(1)
+      expect(row.girlsPresent).toBe(1)
+      expect(row.girlsAbsent).toBe(1)
+      expect(row.boysPresent + row.boysAbsent).toBe(2)
+      expect(row.girlsPresent + row.girlsAbsent).toBe(2)
+      expect(
+        row.boysPresent + row.boysAbsent + row.girlsPresent + row.girlsAbsent,
+      ).toBe(4)
+      expect(row.pupilCount).toBe(2)
+      expect(row.expectedAmount).toBe('20.00')
+    })
+
+    it('counts a missing attendance record as absent', async () => {
+      setupOverview({
+        presentFinanceRecords: [{ pupilId: 'p-boy1', classId: 'class-1' }],
+        dayRecords: [
+          { pupilId: 'p-boy1', status: 'PRESENT' },
+          { pupilId: 'p-girl1', status: 'PRESENT' },
+        ],
+      })
+
+      const result = await getOwnerFinanceOverview(targetDate)
+
+      const row = result.dailyFees[0]
+      expect(row.boysPresent).toBe(1)
+      expect(row.boysAbsent).toBe(1)
+      expect(row.girlsPresent).toBe(1)
+      expect(row.girlsAbsent).toBe(1)
+    })
+
+    it('reflects changed attendance counts on a later call', async () => {
+      setupOverview({
+        presentFinanceRecords: [
+          { pupilId: 'p-boy1', classId: 'class-1' },
+          { pupilId: 'p-boy2', classId: 'class-1' },
+          { pupilId: 'p-girl1', classId: 'class-1' },
+        ],
+        dayRecords: [
+          { pupilId: 'p-boy1', status: 'PRESENT' },
+          { pupilId: 'p-boy2', status: 'PRESENT' },
+          { pupilId: 'p-girl1', status: 'PRESENT' },
+        ],
+      })
+
+      const result = await getOwnerFinanceOverview(targetDate)
+
+      const row = result.dailyFees[0]
+      expect(row.boysPresent).toBe(2)
+      expect(row.boysAbsent).toBe(0)
+      expect(row.girlsPresent).toBe(1)
+      expect(row.girlsAbsent).toBe(1)
+      expect(row.pupilCount).toBe(3)
+      expect(row.expectedAmount).toBe('30.00')
+    })
+
+    it('keeps finance totals and attendance math consistent', async () => {
+      setupOverview({
+        presentFinanceRecords: [
+          { pupilId: 'p-boy1', classId: 'class-1' },
+          { pupilId: 'p-girl1', classId: 'class-1' },
+        ],
+        dayRecords: [
+          { pupilId: 'p-boy1', status: 'PRESENT' },
+          { pupilId: 'p-girl1', status: 'PRESENT' },
+          { pupilId: 'p-girl2', status: 'ABSENT' },
+        ],
+      })
+
+      const result = await getOwnerFinanceOverview(targetDate)
+
+      const row = result.dailyFees[0]
+      const totalPresent = row.boysPresent + row.girlsPresent
+      const totalAbsent = row.boysAbsent + row.girlsAbsent
+      expect(totalPresent).toBe(row.pupilCount)
+      expect(totalPresent + totalAbsent).toBe(4)
+      expect(result.totals.totalExpected).toBe('20.00')
+      expect(result.totals.totalCollected).toBe('0.00')
+      expect(result.totals.totalOutstanding).toBe('20.00')
     })
   })
 

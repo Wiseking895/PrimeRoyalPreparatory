@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   Calendar,
   KeyRound,
+  ChevronRight,
   Mail,
   MapPin,
   Pencil,
@@ -13,7 +14,7 @@ import {
   Trash2,
   UserRound,
 } from 'lucide-react'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { OWNER_ROLE, ASSIGNABLE_STAFF_ROLES, STAFF_POSITIONS, staffPositionByKey } from '@/auth/roles'
 import { useAuth } from '@/auth/AuthContext'
 import { Card } from '@/components/ui/Card'
@@ -221,8 +222,8 @@ export function StaffProfilePage() {
 
   if (error) {
     return (
-      <div className="space-y-6">
-        <Button variant="ghost-dark" size="sm" to={`${basePath}/staff`}>
+      <div className="space-y-6 rounded-3xl bg-royal-900 p-5 sm:p-7 lg:p-8">
+        <Button variant="outline" size="sm" to={`${basePath}/staff`}>
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           Back to staff
         </Button>
@@ -233,7 +234,7 @@ export function StaffProfilePage() {
 
   if (!staff) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-6 rounded-3xl bg-royal-900 p-5 sm:p-7 lg:p-8">
         <CardSkeleton />
         <CardSkeleton />
         <CardSkeleton />
@@ -245,40 +246,62 @@ export function StaffProfilePage() {
   const isSelf = staff.id === user?.id
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between gap-3">
-        <Button variant="ghost-dark" size="sm" to={`${basePath}/staff`}>
-          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          Back to staff
-        </Button>
-        {can.update && !isSelf ? (
-          <Button variant="soft" size="sm" onClick={() => (editing ? setEditing(false) : startEditing())}>
-            <Pencil className="h-4 w-4" aria-hidden="true" />
-            {editing ? 'Cancel' : 'Edit'}
+    <div className="space-y-6 rounded-3xl bg-royal-900 p-5 sm:p-7 lg:p-8">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-xs font-semibold text-cream-200/70">
+            <Link to={`${basePath}/staff`} className="transition-colors hover:text-white">
+              Staff
+            </Link>
+            <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
+            <span className="text-gold-300">Profile</span>
+          </nav>
+          <h1 className="mt-1.5 text-2xl font-extrabold tracking-tight text-white sm:text-3xl">
+            Staff Profile
+          </h1>
+          <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-cream-200/75">
+            Account details, access and management for this staff member.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" to={`${basePath}/staff`}>
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            Back to staff
           </Button>
-        ) : null}
+          {can.update && !isSelf ? (
+            <Button variant="cream" size="sm" onClick={() => (editing ? setEditing(false) : startEditing())}>
+              <Pencil className="h-4 w-4" aria-hidden="true" />
+              {editing ? 'Cancel' : 'Edit'}
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       {/* Identity */}
-      <Card className="p-6">
+      <Card className="p-6 sm:p-7">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-          <Avatar name={staff.fullName} size="lg" />
+          <Avatar name={staff.fullName} size="xl" className="ring-4 ring-cream-200" />
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <p className="text-xl font-bold text-ink-900">{staff.fullName}</p>
+              <p className="text-xl font-extrabold tracking-tight text-royal-800">{staff.fullName}</p>
               <StatusBadge status={staff.status} />
               {staff.mustChangePassword ? <Badge tone="amber">Awaiting password change</Badge> : null}
             </div>
             <p className="mt-0.5 text-sm text-ink-500">{staff.staffId} · {staff.email}</p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              <Badge tone={staff.category === 'TEACHING' ? 'magenta' : 'royal'}>
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-gold-400/20 px-2.5 py-1 text-xs font-bold text-gold-700 ring-1 ring-inset ring-gold-500/30">
                 {staff.category?.replace('_', ' ') ?? 'Staff'}
-              </Badge>
-              <Badge tone="green">
+              </span>
+              <span className="rounded-full bg-cream-100 px-2.5 py-1 text-xs font-semibold text-ink-700 ring-1 ring-inset ring-cream-300">
                 {staffPositionByKey(staff.position)?.label ?? staff.position ?? 'No position'}
-              </Badge>
+              </span>
               {staff.roles.map((role) => (
-                <Badge key={role} tone="neutral">{role}</Badge>
+                <span
+                  key={role}
+                  className="rounded-full bg-cream-100 px-2.5 py-1 text-xs font-semibold text-ink-700 ring-1 ring-inset ring-cream-300"
+                >
+                  {role}
+                </span>
               ))}
               {lastInvitation ? <InvitationBadge invitation={lastInvitation} /> : null}
             </div>
@@ -288,7 +311,7 @@ export function StaffProfilePage() {
 
       {editing && form ? (
         <Card className="p-6">
-          <h2 className="text-sm font-bold uppercase tracking-wider text-ink-500">Edit profile</h2>
+          <h2 className="text-sm font-bold uppercase tracking-wider text-royal-800">Edit profile</h2>
           <form onSubmit={handleEdit} noValidate className="mt-4 grid gap-4 sm:grid-cols-2">
             <TextField
               label="First name"
@@ -353,10 +376,10 @@ export function StaffProfilePage() {
               />
             </div>
             <div className="flex justify-end gap-2 sm:col-span-2">
-              <Button variant="cream" type="button" onClick={() => setEditing(false)}>
+              <Button variant="outline" type="button" onClick={() => setEditing(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={saving}>
+              <Button type="submit" variant="secondary" disabled={saving}>
                 {saving ? <Spinner className="h-4 w-4" /> : null}
                 Save changes
               </Button>
@@ -367,7 +390,7 @@ export function StaffProfilePage() {
         <div className="grid gap-6 lg:grid-cols-2">
           {/* Details */}
           <Card className="p-6">
-            <h2 className="text-sm font-bold uppercase tracking-wider text-ink-500">Profile details</h2>
+            <h2 className="text-sm font-bold uppercase tracking-wider text-royal-800">Profile details</h2>
             <dl className="mt-4 grid gap-x-6 gap-y-4 sm:grid-cols-2">
               {renderDetail(UserRound, 'Position', staffPositionByKey(staff.position)?.label ?? staff.position ?? '—')}
               {renderDetail(ShieldCheck, 'Category', staff.category?.replace('_', ' ') ?? '—')}
@@ -387,7 +410,7 @@ export function StaffProfilePage() {
 
           {/* Permissions */}
           <Card className="p-6">
-            <h2 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-ink-500">
+            <h2 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-royal-800">
               <ShieldCheck className="h-4 w-4" aria-hidden="true" />
               Permissions via role
             </h2>
@@ -414,7 +437,7 @@ export function StaffProfilePage() {
 
       {/* Management actions */}
       <Card className="p-6">
-        <h2 className="text-sm font-bold uppercase tracking-wider text-ink-500">Account management</h2>
+        <h2 className="text-sm font-bold uppercase tracking-wider text-royal-800">Account management</h2>
         <div className="mt-4 flex flex-col gap-4">
           <div className="flex flex-wrap items-center gap-2">
             {can.assignRole ? (
@@ -433,7 +456,7 @@ export function StaffProfilePage() {
                   type="button"
                   disabled={!roleValue || assignLoading}
                   onClick={() => void handleAssignRole()}
-                  className="inline-flex items-center gap-2 rounded-full bg-royal-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-royal-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex items-center gap-2 rounded-full bg-royal-700 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-royal-800 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {assignLoading ? <Spinner className="h-4 w-4" /> : <KeyRound className="h-4 w-4" aria-hidden="true" />}
                   Assign role
@@ -449,7 +472,7 @@ export function StaffProfilePage() {
 
           <div className="flex flex-wrap items-center gap-2 border-t border-cream-200 pt-4">
             <Button
-              variant="soft"
+              variant="outline"
               size="sm"
               onClick={() => setResendOpen(true)}
               disabled={resending}

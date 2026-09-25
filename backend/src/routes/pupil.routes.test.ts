@@ -7,6 +7,7 @@ const prismaMock = vi.hoisted(() => ({
   user: { findUnique: vi.fn() },
   pupil: {
     findMany: vi.fn(),
+    findFirst: vi.fn(),
     findUnique: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
@@ -19,11 +20,12 @@ const prismaMock = vi.hoisted(() => ({
   financeFee: { findMany: vi.fn() },
   feeAssignment: { createMany: vi.fn() },
   pupilGuardian: { create: vi.fn(), deleteMany: vi.fn() },
+  pupilUniform: { createMany: vi.fn(), deleteMany: vi.fn() },
   auditLog: { create: vi.fn() },
   $transaction: vi.fn(),
 }))
 
-vi.mock('../lib/jwt', () => ({ verifyToken: verifyTokenMock }))
+vi.mock('../lib/jwt', () => ({ verifyToken: verifyTokenMock, verifyTokenPayload: verifyTokenMock }))
 vi.mock('../lib/prisma', () => ({ prisma: prismaMock }))
 
 const app = createApp()
@@ -93,9 +95,11 @@ const validCreate = {
 describe('pupil routes (auth + RBAC enforcement)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    verifyTokenMock.mockReturnValue('user-1')
+    verifyTokenMock.mockReturnValue({ sub: 'user-1', kind: 'staff' })
     prismaMock.user.findUnique.mockResolvedValue(baseUser())
     prismaMock.auditLog.create.mockResolvedValue({})
+    prismaMock.pupilUniform.createMany.mockResolvedValue({ count: 5 })
+    prismaMock.pupilUniform.deleteMany.mockResolvedValue({ count: 0 })
     prismaMock.$transaction.mockImplementation((arg: unknown) => {
       if (typeof arg === 'function') return arg(prismaMock)
       return Promise.resolve(arg)
@@ -198,6 +202,133 @@ describe('pupil routes (auth + RBAC enforcement)', () => {
   it('rejects unauthenticated access to the class list with 401', async () => {
     const res = await request(app).get('/api/classes')
     expect(res.status).toBe(401)
+  })
+
+  // -------------------------------------------------------------------------
+  // Word admission import
+  // -------------------------------------------------------------------------
+
+  it('rejects unauthenticated access to the import preview with 401', async () => {
+    const res = await request(app).post('/api/pupils/import/preview')
+    expect(res.status).toBe(401)
+    expect(prismaMock.pupil.create).not.toHaveBeenCalled()
+  })
+
+  it('rejects a user without pupils.create from the import preview with 403', async () => {
+    prismaMock.user.findUnique.mockResolvedValue(
+      baseUser({ roles: [roleEntry('ACCOUNTANT', ['finance.view'])] }),
+    )
+
+    const res = await request(app)
+      .post('/api/pupils/import/preview')
+      .set('Authorization', 'Bearer token')
+    expect(res.status).toBe(403)
+    expect(prismaMock.pupil.create).not.toHaveBeenCalled()
+  })
+
+  it('rejects a user without pupils.create from confirming an import with 403', async () => {
+    prismaMock.user.findUnique.mockResolvedValue(
+      baseUser({ roles: [roleEntry('CLASS_TEACHER', ['pupils.view'])] }),
+    )
+
+    const res = await request(app)
+      .post('/api/pupils/import/confirm')
+      .set('Authorization', 'Bearer token')
+      .send({ pupils: [] })
+    expect(res.status).toBe(403)
+    expect(prismaMock.pupil.create).not.toHaveBeenCalled()
+  })
+
+  it('returns 400 when the preview has no uploaded file', async () => {
+    prismaMock.user.findUnique.mockResolvedValue(
+      baseUser({ roles: [roleEntry('HEADTEACHER', ['pupils.create'])] }),
+    )
+
+    const res = await request(app)
+      .post('/api/pupils/import/preview')
+      .set('Authorization', 'Bearer token')
+    expect(res.status).toBe(400)
+    expect(prismaMock.pupil.create).not.toHaveBeenCalled()
+  })
+
+  it('returns 422 for an empty confirm payload', async () => {
+    prismaMock.user.findUnique.mockResolvedValue(
+      baseUser({ roles: [roleEntry('HEADTEACHER', ['pupils.create'])] }),
+    )
+
+    const res = await request(app)
+      .post('/api/pupils/import/confirm')
+      .set('Authorization', 'Bearer token')
+      .send({ pupils: [] })
+    expect(res.status).toBe(422)
+    expect(prismaMock.pupil.create).not.toHaveBeenCalled()
+  })
+
+  it('confirms an import with pupils.create and creates the pupils', async () => {
+    prismaMock.user.findUnique.mockResolvedValue(
+      baseUser({ roles: [roleEntry('HEADTEACHER', ['pupils.view', 'pupils.create'])] }),
+    )
+    prismaMock.schoolClass.findUnique.mockResolvedValue({ id: 'class-1', name: 'Basic 3' })
+    prismaMock.pupil.findFirst.mockResolvedValue(null)
+    prismaMock.pupil.create.mockResolvedValue({ id: 'p-1' })
+    prismaMock.pupil.findUnique.mockImplementation(async ({ where }: { where: Record<string, string> }) =>
+      where.id === 'p-1' ? pupilRecord() : null,
+    )
+    prismaMock.guardian.findFirst.mockResolvedValue(null)
+    prismaMock.academicSession.findFirst.mockResolvedValue(null)
+    prismaMock.financeFee.findMany.mockResolvedValue([])
+    prismaMock.feeAssignment.createMany.mockResolvedValue({ count: 0 })
+
+    const res = await request(app)
+      .post('/api/pupils/import/confirm')
+      .set('Authorization', 'Bearer token')
+      .send({
+        pupils: [
+          {
+            rowNumber: 1,
+            firstName: 'Ama',
+            lastName: 'Owusu',
+            dateOfBirth: '2019-05-12',
+            gender: 'FEMALE',
+            classId: 'class-1',
+            guardians: [],
+          },
+        ],
+      })
+
+    expect(res.status).toBe(201)
+    expect(res.body.success).toBe(true)
+    expect(res.body.data.created).toBe(1)
+    expect(prismaMock.pupil.create).toHaveBeenCalledTimes(1)
+    expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ action: 'pupil.import_word' }),
+      }),
+    )
+  })
+
+  it('serves the import template to a user with pupils.create', async () => {
+    prismaMock.user.findUnique.mockResolvedValue(
+      baseUser({ roles: [roleEntry('HEADTEACHER', ['pupils.create'])] }),
+    )
+
+    const res = await request(app)
+      .get('/api/pupils/import/template')
+      .set('Authorization', 'Bearer token')
+    expect(res.status).toBe(200)
+    expect(res.headers['content-type']).toContain('wordprocessingml')
+    expect(res.headers['content-disposition']).toContain('PRPS-Pupil-Import-Template.docx')
+  })
+
+  it('rejects a user without pupils.create from downloading the template with 403', async () => {
+    prismaMock.user.findUnique.mockResolvedValue(
+      baseUser({ roles: [roleEntry('ACCOUNTANT', ['finance.view'])] }),
+    )
+
+    const res = await request(app)
+      .get('/api/pupils/import/template')
+      .set('Authorization', 'Bearer token')
+    expect(res.status).toBe(403)
   })
 
   it('rejects a user without classes.manage from creating a class with 403', async () => {

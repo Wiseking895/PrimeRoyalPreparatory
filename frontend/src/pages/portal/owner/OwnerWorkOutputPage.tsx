@@ -76,13 +76,13 @@ function KpiCard({
         <span
           className={cn(
             'flex h-8 w-8 shrink-0 items-center justify-center rounded-md',
-            accent ? 'bg-magenta-500/20 text-magenta-300' : 'bg-white/[0.06] text-cream-200/50',
+            accent ? 'bg-magenta-500/20 text-magenta-300' : 'bg-white/[0.06] text-cream-200/70',
           )}
         >
           <Icon className="h-4 w-4" aria-hidden="true" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-cream-200/35">{label}</p>
+          <p className="text-[10px] font-bold uppercase tracking-wider text-cream-200/60">{label}</p>
           <p className={cn('mt-1 text-[32px] font-bold tracking-tight leading-none', accent ? 'text-magenta-300' : 'text-white')}>
             {value}
           </p>
@@ -106,8 +106,8 @@ function SkeletonRow() {
 function EmptyStateCard({ title, description }: { title: string; description?: string }) {
   return (
     <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-white/[0.08] bg-white/[0.02] px-6 py-12 text-center">
-      <p className="text-sm font-semibold text-cream-200/50">{title}</p>
-      {description && <p className="mt-1 text-[12px] text-cream-200/30">{description}</p>}
+      <p className="text-sm font-semibold text-cream-200/70">{title}</p>
+      {description && <p className="mt-1 text-[12px] text-cream-200/60">{description}</p>}
     </div>
   )
 }
@@ -129,7 +129,7 @@ function FilterSelect({
 }) {
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-[10px] font-bold uppercase tracking-wider text-cream-200/35">{label}</label>
+      <label className="text-[10px] font-bold uppercase tracking-wider text-cream-200/60">{label}</label>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -164,7 +164,7 @@ function WeekPills({
           'rounded-full px-2.5 py-1 text-[10px] font-semibold transition-colors',
           activeWeek === null
             ? 'bg-magenta-500/20 text-magenta-300 ring-1 ring-magenta-500/30'
-            : 'bg-white/[0.05] text-cream-200/40 hover:bg-white/[0.08]',
+            : 'bg-white/[0.05] text-cream-200/65 hover:bg-white/[0.08]',
         )}
       >
         All Weeks
@@ -178,7 +178,7 @@ function WeekPills({
             'rounded-full px-2 py-1 text-[10px] font-semibold transition-colors',
             activeWeek === w
               ? 'bg-magenta-500/20 text-magenta-300 ring-1 ring-magenta-500/30'
-              : 'bg-white/[0.05] text-cream-200/40 hover:bg-white/[0.08]',
+              : 'bg-white/[0.05] text-cream-200/65 hover:bg-white/[0.08]',
           )}
         >
           W{w}
@@ -218,14 +218,14 @@ function TeacherSubjectTable({
       <table className="w-full text-left text-[13px]">
         <thead>
           <tr className="border-b border-white/[0.06]">
-            <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 w-8" />
-            <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Teacher</th>
-            <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Subject</th>
-            <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Class</th>
-            <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Exercises</th>
-            <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Quizzes</th>
-            <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Homework</th>
-            <th className="pb-2 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Mid-Term</th>
+            <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 w-8" />
+            <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60">Teacher</th>
+            <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60">Subject</th>
+            <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60">Class</th>
+            <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Exercises</th>
+            <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Quizzes</th>
+            <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Homework</th>
+            <th className="pb-2 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Mid-Term</th>
           </tr>
         </thead>
         <tbody>
@@ -244,7 +244,7 @@ function TeacherSubjectTable({
                   className="border-b border-white/[0.04] cursor-pointer hover:bg-white/[0.03]"
                   onClick={() => onToggle(teacherId)}
                 >
-                  <td className="py-2.5 pr-2 text-cream-200/40">
+                  <td className="py-2.5 pr-2 text-cream-200/65">
                     {isExpanded ? (
                       <ChevronDown className="h-3.5 w-3.5" />
                     ) : (
@@ -259,7 +259,7 @@ function TeacherSubjectTable({
                       <span className="font-semibold text-cream-100">{teacher.name}</span>
                     </div>
                   </td>
-                  <td className="py-2.5 pr-4 text-cream-200/40 text-[12px] italic" colSpan={2}>
+                  <td className="py-2.5 pr-4 text-cream-200/65 text-[12px] italic" colSpan={2}>
                     {teacher.subjects.length} subject{teacher.subjects.length !== 1 ? 's' : ''}
                   </td>
                   <td className="py-2.5 pr-4 text-right font-bold text-white">{totalExercises}</td>
@@ -273,16 +273,16 @@ function TeacherSubjectTable({
                   teacher.subjects.map((sub) => (
                     <tr key={`${teacherId}-${sub.subjectId}-${sub.classId}`} className="border-b border-white/[0.03] bg-white/[0.02]">
                       <td />
-                      <td className="py-2 pr-4 text-cream-200/40" />
+                      <td className="py-2 pr-4 text-cream-200/65" />
                       <td className="py-2 pr-4 text-cream-100">
                         <span className="font-semibold">{sub.subjectName}</span>
-                        <span className="ml-1.5 text-[10px] text-cream-200/30">({sub.subjectCode})</span>
+                        <span className="ml-1.5 text-[10px] text-cream-200/60">({sub.subjectCode})</span>
                       </td>
-                      <td className="py-2 pr-4 text-cream-200/50">{sub.className}</td>
+                      <td className="py-2 pr-4 text-cream-200/70">{sub.className}</td>
                       <td className="py-2 pr-4 text-right text-cream-200/70">{sub.exercises}</td>
                       <td className="py-2 pr-4 text-right text-cream-200/70">{sub.quizzes}</td>
                       <td className="py-2 pr-4 text-right text-cream-200/70">{sub.homework}</td>
-                      <td className="py-2 text-right text-magenta-300/70">{sub.midtermExams}</td>
+                      <td className="py-2 text-right text-magenta-300/85">{sub.midtermExams}</td>
                     </tr>
                   ))}
 
@@ -356,22 +356,22 @@ function WeeklyBreakdown({
   return (
     <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] overflow-hidden">
       <div className="px-3 py-2 border-b border-white/[0.06]">
-        <p className="text-[11px] font-semibold text-cream-200/50">
+        <p className="text-[11px] font-semibold text-cream-200/70">
           {teacherName} — {subjectName} — Weekly Breakdown
         </p>
       </div>
       {!hasWork ? (
-        <p className="px-3 py-3 text-[11px] text-cream-200/30 italic">No work recorded for this subject.</p>
+        <p className="px-3 py-3 text-[11px] text-cream-200/60 italic">No work recorded for this subject.</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-[11px]">
             <thead>
               <tr className="border-b border-white/[0.04]">
-                <th className="px-3 py-1.5 text-left font-bold uppercase tracking-wider text-cream-200/30">Week</th>
-                <th className="px-3 py-1.5 text-right font-bold uppercase tracking-wider text-cream-200/30">Exercises</th>
-                <th className="px-3 py-1.5 text-right font-bold uppercase tracking-wider text-cream-200/30">Quizzes</th>
-                <th className="px-3 py-1.5 text-right font-bold uppercase tracking-wider text-cream-200/30">Homework</th>
-                <th className="px-3 py-1.5 text-right font-bold uppercase tracking-wider text-cream-200/30">Mid-Term</th>
+                <th className="px-3 py-1.5 text-left font-bold uppercase tracking-wider text-cream-200/60">Week</th>
+                <th className="px-3 py-1.5 text-right font-bold uppercase tracking-wider text-cream-200/60">Exercises</th>
+                <th className="px-3 py-1.5 text-right font-bold uppercase tracking-wider text-cream-200/60">Quizzes</th>
+                <th className="px-3 py-1.5 text-right font-bold uppercase tracking-wider text-cream-200/60">Homework</th>
+                <th className="px-3 py-1.5 text-right font-bold uppercase tracking-wider text-cream-200/60">Mid-Term</th>
               </tr>
             </thead>
             <tbody>
@@ -381,7 +381,7 @@ function WeeklyBreakdown({
                   <td className="px-3 py-1.5 text-right text-cream-200/60">{w.exercises}</td>
                   <td className="px-3 py-1.5 text-right text-cream-200/60">{w.quizzes}</td>
                   <td className="px-3 py-1.5 text-right text-cream-200/60">{w.homework}</td>
-                  <td className="px-3 py-1.5 text-right text-magenta-300/60">{w.midtermExams}</td>
+                  <td className="px-3 py-1.5 text-right text-magenta-300/85">{w.midtermExams}</td>
                 </tr>
               ))}
             </tbody>
@@ -495,8 +495,8 @@ export function OwnerWorkOutputPage() {
   if (!canView) {
     return (
       <div className="flex flex-col items-center justify-center rounded-2xl border border-white/[0.08] bg-white/[0.03] px-6 py-12 text-center">
-        <p className="text-sm font-bold text-cream-200/50">Access restricted.</p>
-        <p className="mt-1 text-[12px] text-cream-200/30">Only the school Owner can view Work Output.</p>
+        <p className="text-sm font-bold text-cream-200/70">Access restricted.</p>
+        <p className="mt-1 text-[12px] text-cream-200/60">Only the school Owner can view Work Output.</p>
       </div>
     )
   }
@@ -521,7 +521,7 @@ export function OwnerWorkOutputPage() {
           <ClipboardList className="h-4 w-4 text-magenta-400/60 mr-2" aria-hidden="true" />
           <h1 className="text-[17px] font-bold text-cream-100">Work Output</h1>
         </div>
-        <p className="mt-1 ml-3.5 text-[12px] text-cream-200/30">
+        <p className="mt-1 ml-3.5 text-[12px] text-cream-200/60">
           Monitor exercises, quizzes, homework, and mid-term exams assigned by teachers across each term.
         </p>
       </div>
@@ -529,7 +529,7 @@ export function OwnerWorkOutputPage() {
       {/* ── Filters ── */}
       <GlassCard>
         <SectionHeader title="Filters" icon={Search}>
-          <span className="text-[10px] text-cream-200/30">
+          <span className="text-[10px] text-cream-200/60">
             {termInfo?.name ?? 'No term selected'}{sessionInfo ? ` · ${sessionInfo.name}` : ''}
           </span>
         </SectionHeader>
@@ -563,7 +563,7 @@ export function OwnerWorkOutputPage() {
             placeholder="All subjects"
           />
           <div className="flex flex-col gap-1">
-            <label className="text-[10px] font-bold uppercase tracking-wider text-cream-200/35">Week</label>
+            <label className="text-[10px] font-bold uppercase tracking-wider text-cream-200/60">Week</label>
             <select
               value={selectedWeek ?? ''}
               onChange={(e) => setSelectedWeek(e.target.value ? Number(e.target.value) : null)}
@@ -619,7 +619,7 @@ export function OwnerWorkOutputPage() {
           icon={GraduationCap}
         >
           {!loading && summary && (
-            <span className="text-[11px] font-semibold text-cream-200/40">
+            <span className="text-[11px] font-semibold text-cream-200/65">
               {summary.length} record{summary.length !== 1 ? 's' : ''}
             </span>
           )}
@@ -639,7 +639,7 @@ export function OwnerWorkOutputPage() {
       </GlassCard>
 
       {/* ── Footer ── */}
-      <p className="text-center text-[10px] text-cream-200/20 pt-2">
+      <p className="text-center text-[10px] text-cream-200/60 pt-2">
         PRPS Work Output Monitor &middot; Data refreshes on filter change
       </p>
     </div>

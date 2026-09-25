@@ -22,7 +22,7 @@ const initialValues: ContactFormValues = {
 }
 
 const inputClasses =
-  'w-full rounded-xl border border-cream-300 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition-colors placeholder:text-ink-500/60 focus:border-magenta-500'
+  'w-full rounded-xl border border-cream-300 bg-white px-4 py-3 text-sm text-ink-900 outline-none transition-colors placeholder:text-ink-500 focus:border-magenta-500'
 
 function validate(values: ContactFormValues): ContactFormErrors {
   const errors: ContactFormErrors = {}

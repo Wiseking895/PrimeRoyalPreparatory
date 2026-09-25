@@ -209,7 +209,12 @@ export type PupilGender = 'MALE' | 'FEMALE'
 export interface SchoolClassView {
   id: string
   key: string
+  /** Full display name, e.g. "Nursery 1" or "Nursery 1A". */
   name: string
+  /** Class level without division (derived), e.g. "Nursery 1". */
+  classLevel?: string
+  /** Optional division ("A"-"D"); null/absent = undivided. */
+  division?: string | null
   description: string | null
   sortOrder: number
   status: 'ACTIVE' | 'INACTIVE'
@@ -231,10 +236,30 @@ export interface GuardianView {
   isEmergency: boolean
 }
 
+/** Physical hand-over state of one admission uniform item. */
+export type UniformCollectionStatus = 'NOT_COLLECTED' | 'COLLECTED'
+
+/** One of the five "Uniforms to be Collected" admission items on a pupil. */
+export interface PupilUniformView {
+  slot: number
+  label: string | null
+  status: UniformCollectionStatus
+}
+
+/** Input shape for the five admission uniform items (create/update). */
+export interface PupilUniformInput {
+  slot: number
+  label?: string | null
+  status?: UniformCollectionStatus
+}
+
 export interface PupilView {
   id: string
   pupilId: string
   admissionNumber: string | null
+  sheetNumber: string | null
+  /** One-time admission fee as a fixed 2-decimal GHS string, or null. */
+  admissionFee: string | null
   firstName: string
   middleName: string | null
   lastName: string
@@ -245,6 +270,10 @@ export interface PupilView {
   nationality: string | null
   religion: string | null
   admissionReason: string | null
+  /** "SCHOOL ATTENDED" on the physical admission form. */
+  previousSchool: string | null
+  /** "STAY WITH THE CHILD" living arrangement on the physical admission form. */
+  stayWithChild: string | null
   declarationAcknowledged: boolean
   classId: string
   className: string
@@ -252,6 +281,8 @@ export interface PupilView {
   status: PupilStatus
   address: string | null
   guardians: GuardianView[]
+  /** Always the five admission slots 1-5, padded with "Not collected". */
+  uniforms: PupilUniformView[]
   createdAt: string
   updatedAt: string
 }
@@ -302,6 +333,8 @@ export interface GuardianInput {
 export interface PupilCreateInput {
   pupilId?: string
   admissionNumber?: string
+  sheetNumber?: string
+  admissionFee?: string
   firstName: string
   middleName?: string
   lastName: string
@@ -313,14 +346,21 @@ export interface PupilCreateInput {
   nationality?: string
   religion?: string
   admissionReason?: string
+  /** "SCHOOL ATTENDED" on the physical admission form. */
+  previousSchool?: string
+  /** "STAY WITH THE CHILD" living arrangement on the physical admission form. */
+  stayWithChild?: string
   declarationAcknowledged?: boolean
   status?: PupilStatus
   guardians: GuardianInput[]
+  uniforms?: PupilUniformInput[]
 }
 
 export interface PupilUpdateInput {
   pupilId?: string
   admissionNumber?: string | null
+  sheetNumber?: string | null
+  admissionFee?: string | null
   firstName?: string
   middleName?: string | null
   lastName?: string
@@ -332,14 +372,20 @@ export interface PupilUpdateInput {
   nationality?: string | null
   religion?: string | null
   admissionReason?: string | null
+  previousSchool?: string | null
+  stayWithChild?: string | null
   declarationAcknowledged?: boolean
   status?: PupilStatus
   guardians?: GuardianInput[]
+  uniforms?: PupilUniformInput[]
 }
 
 export interface ClassCreateInput {
   key: string
+  /** Class level, e.g. "Nursery 1". Composed with the division for display. */
   name: string
+  /** Optional division; null/omitted = undivided. */
+  division?: string | null
   description?: string
   sortOrder?: number
   status?: 'ACTIVE' | 'INACTIVE'
@@ -348,6 +394,7 @@ export interface ClassCreateInput {
 export interface ClassUpdateInput {
   key?: string
   name?: string
+  division?: string | null
   description?: string
   sortOrder?: number
   status?: 'ACTIVE' | 'INACTIVE'
@@ -630,34 +677,9 @@ export interface CombinedReconciliationView {
   }
 }
 
-// Daily Pupil Finance — per-pupil collection state for a given school day.
+// Daily Finance Status — per-pupil collection state for a given school day.
 
 export type DailyFinanceStatus = 'PAID' | 'PARTIALLY_PAID' | 'NOT_PAID' | 'ABSENT' | 'EXEMPT'
-
-export interface DailyPupilFinanceRow {
-  id: string
-  pupilId: string
-  fullName: string
-  className: string
-  classId: string
-  status: AccountStatusValue
-  dailyPaid: string
-  paPaid: string
-  outstanding: string
-  financeStatus: DailyFinanceStatus
-  attendanceStatus: string | null
-  dailyAssignmentStatus: FeeAssignmentStatusValue | null
-  paAssignmentStatus: FeeAssignmentStatusValue | null
-}
-
-export interface DailyPupilFinanceListResult {
-  items: DailyPupilFinanceRow[]
-  date: string
-  sessionName: string
-  termName: string
-  dailyFeeAmount: string
-  paFeeAmount: string
-}
 
 // Daily Reconciliation Close — records that a day's reconciliation was signed off.
 
@@ -756,6 +778,17 @@ export interface MarkPaidInput {
   dailyPaid: boolean
   paPaid: boolean
   note?: string
+}
+
+export interface MarkUnpaidInput {
+  pupilId: string
+  paymentDate?: string
+  dailyUnpaid: boolean
+  paUnpaid: boolean
+}
+
+export interface MarkUnpaidResult {
+  voided: number
 }
 
 export interface PaymentVoidInput {
@@ -1107,6 +1140,12 @@ export interface AttendanceUpdateInput {
   notes?: string
 }
 
+export interface ReconciliationAttendanceInput {
+  pupilId: string
+  date: string
+  status: 'PRESENT' | 'ABSENT'
+}
+
 export interface AttendanceAdminRecord {
   id: string
   staffId: string
@@ -1205,6 +1244,10 @@ export interface OwnerFinanceClassRow {
   expectedAmount: string
   collectedAmount: string
   outstandingAmount: string
+  boysPresent: number
+  boysAbsent: number
+  girlsPresent: number
+  girlsAbsent: number
 }
 
 export interface OwnerFinanceOverviewView {
@@ -1339,4 +1382,141 @@ export interface WorkOutputReviewQuery {
 export interface GradeWorkOutputInput {
   score: number
   feedback?: string
+}
+
+// =============================================================================
+// Developer Impersonation
+// =============================================================================
+
+export interface DeveloperAccount {
+  id: string
+  fullName: string
+  email: string
+  phone: string | null
+  profilePictureUrl: string | null
+  staffId: string | null
+  category: string | null
+  position: string | null
+  roles: string[]
+}
+
+export interface ImpersonationResult {
+  token: string
+  actingUser: PublicUser
+}
+
+export interface StopImpersonationResult {
+  token: string
+}
+
+// =============================================================================
+// Word pupil admission import
+// =============================================================================
+
+export type PupilImportRowStatus = 'VALID' | 'WARNING' | 'DUPLICATE' | 'ERROR'
+
+/** 'TABLE' = one-pupil-per-row import, 'FORM' = PRPS admission-form document. */
+export type PupilImportSourceFormat = 'TABLE' | 'FORM'
+
+/** One parent extracted from an admission-form document. */
+export interface PupilImportGuardian {
+  fullName: string
+  phone: string | null
+  address: string | null
+  occupation: string | null
+  relationship: string | null
+  isPrimary: boolean
+  isEmergency: boolean
+}
+
+export interface PupilImportPreviewRow {
+  rowNumber: number
+  status: PupilImportRowStatus
+  messages: string[]
+  /**
+   * Non-blocking notices (e.g. an unreadable uniform tick) that do not stop
+   * the row from being registered, unlike `messages`.
+   */
+  warnings?: string[]
+  /** Row only failed on class lookup/missing class - fixable in the preview. */
+  correctableClass: boolean
+  /**
+   * Row failed only on problems the preview can fix (class selection, gender,
+   * or the admission number / sheet number / admission fee / uniform label
+   * problems). Frontends fall back to `correctableClass` when absent.
+   */
+  correctable?: boolean
+  fullName: string
+  data: {
+    firstName: string
+    middleName: string | null
+    lastName: string
+    dateOfBirth: string | null
+    gender: PupilGender | null
+    classId: string | null
+    classLabel: string
+    /** "DATE OF ADMISSION" from the admission form, when present. */
+    dateAdmitted?: string | null
+    address: string | null
+    /** "SCHOOL ATTENDED" from the admission form, when present. */
+    previousSchool?: string | null
+    /** "STAY WITH THE CHILD" living arrangement, when present. */
+    stayWithChild?: string | null
+    nationality: string | null
+    religion: string | null
+    admissionReason: string | null
+    /** Guardian's Declaration section present/filled on the form. */
+    declarationAcknowledged?: boolean
+    admissionNumber: string | null
+    sheetNumber: string | null
+    /** Normalised amount, the raw cell when unparsable, else null. */
+    admissionFee: string | null
+    /** Always the five admission slots, padded with "Not collected". */
+    uniforms: PupilUniformView[]
+    /** Every guardian extracted from the document (father, mother, ...). */
+    guardians?: PupilImportGuardian[]
+    guardian: {
+      fullName: string
+      phone: string | null
+      address?: string | null
+      occupation: string | null
+      relationship: string | null
+    } | null
+  }
+  duplicateOf: { pupilId: string; fullName: string } | null
+}
+
+export interface PupilImportPreview {
+  /** 'TABLE' = one-pupil-per-row import, 'FORM' = PRPS admission-form document. */
+  sourceFormat?: PupilImportSourceFormat
+  totalRows: number
+  validCount: number
+  warningCount: number
+  duplicateCount: number
+  errorCount: number
+  rows: PupilImportPreviewRow[]
+}
+
+export type PupilImportResultStatus = 'CREATED' | 'SKIPPED' | 'FAILED'
+
+export interface PupilImportConfirmResult {
+  total: number
+  created: number
+  skipped: number
+  failed: number
+  results: Array<{
+    rowNumber: number
+    fullName: string
+    status: PupilImportResultStatus
+    pupilId?: string
+    reason?: string
+  }>
+}
+
+export interface PupilImportConfirmRow extends PupilCreateInput {
+  rowNumber: number
+}
+
+export interface PupilImportConfirmInput {
+  pupils: PupilImportConfirmRow[]
 }

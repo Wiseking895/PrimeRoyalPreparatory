@@ -33,7 +33,7 @@ const prismaMock = vi.hoisted(() => ({
   auditLog: { create: vi.fn() },
 }))
 
-vi.mock('../lib/jwt', () => ({ verifyToken: verifyTokenMock }))
+vi.mock('../lib/jwt', () => ({ verifyToken: verifyTokenMock, verifyTokenPayload: verifyTokenMock }))
 vi.mock('../lib/prisma', () => ({ prisma: prismaMock }))
 vi.mock('../services/audit.service', () => ({ recordAudit: vi.fn() }))
 
@@ -80,7 +80,7 @@ const auth = 'Bearer staff-token'
 describe('reports.routes (Phase 7 — Terminal Reports API)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    verifyTokenMock.mockReturnValue('user-1')
+    verifyTokenMock.mockReturnValue({ sub: 'user-1', kind: 'staff' })
     prismaMock.user.findUnique.mockResolvedValue(userWithKeys(HEADTEACHER))
     prismaMock.auditLog.create.mockResolvedValue({})
     prismaMock.pupil.findMany.mockResolvedValue([pupilRow()])

@@ -10,10 +10,33 @@ import { toPupilView, type PupilRecord, type PupilView } from './pupil-mapper'
 const pupilInclude = {
   class: { select: { id: true, name: true } },
   guardians: { include: { guardian: true } },
+  uniforms: { select: { slot: true, label: true, status: true } },
 } as const
 
 export type PupilStatus = 'ACTIVE' | 'INACTIVE'
 export type PupilGender = 'MALE' | 'FEMALE'
+export type UniformStatus = 'NOT_COLLECTED' | 'COLLECTED'
+
+/** The five "Uniforms to be Collected" admission slots. */
+export const UNIFORM_SLOTS = [1, 2, 3, 4, 5] as const
+
+/**
+ * The exact five uniform items printed on the PRPS physical admission form
+ * ("UNIFORMS SUPPLIED (TICK WHERE APPROPRIATE)"). Slot order is fixed by the
+ * school document; names are never invented or renamed by the system.
+ */
+export const ADMISSION_UNIFORM_ITEMS: ReadonlyArray<{ slot: 1 | 2 | 3 | 4 | 5; name: string }> = [
+  { slot: 1, name: 'Main Uniform' },
+  { slot: 2, name: 'Outing' },
+  { slot: 3, name: 'Friday Wear' },
+  { slot: 4, name: 'Thursday Wear' },
+  { slot: 5, name: 'Cream Uniform' },
+] as const
+
+/** Canonical name for a uniform slot (1-5), or null for unknown slots. */
+export function uniformItemName(slot: number): string | null {
+  return ADMISSION_UNIFORM_ITEMS.find((item) => item.slot === slot)?.name ?? null
+}
 
 export interface GuardianInput {
   fullName: string
@@ -26,9 +49,52 @@ export interface GuardianInput {
   isEmergency?: boolean
 }
 
+export interface PupilUniformInput {
+  slot: number
+  label?: string | null
+  status?: UniformStatus
+}
+
+export interface NormalizedUniform {
+  slot: number
+  label: string | null
+  status: UniformStatus
+}
+
+/**
+ * Collapses whatever the caller supplied into exactly five slots (1–5).
+ * Unknown/duplicate slots are ignored and missing slots default to
+ * "Not collected", so the admission record always carries all five items.
+ */
+export function normalizeUniforms(input?: PupilUniformInput[]): NormalizedUniform[] {
+  const bySlot = new Map<number, NormalizedUniform>()
+  for (const item of input ?? []) {
+    if (!UNIFORM_SLOTS.includes(item.slot as (typeof UNIFORM_SLOTS)[number])) continue
+    if (bySlot.has(item.slot)) continue
+    bySlot.set(item.slot, {
+      slot: item.slot,
+      label: item.label?.trim() || null,
+      status: item.status ?? 'NOT_COLLECTED',
+    })
+  }
+  return UNIFORM_SLOTS.map((slot) => bySlot.get(slot) ?? { slot, label: null, status: 'NOT_COLLECTED' })
+}
+
+/**
+ * "" / whitespace / null means "no admission fee recorded". Amounts are
+ * stored as fixed two-decimal money (Prisma accepts a decimal string) and
+ * stay separate from the recurring fee structures.
+ */
+function toAdmissionFee(value?: string | null): string | null {
+  const normalized = value?.trim()
+  return normalized ? normalized : null
+}
+
 export interface PupilCreateInput {
   pupilId?: string
   admissionNumber?: string
+  sheetNumber?: string
+  admissionFee?: string
   firstName: string
   middleName?: string
   lastName: string
@@ -40,14 +106,21 @@ export interface PupilCreateInput {
   nationality?: string
   religion?: string
   admissionReason?: string
+  /** "SCHOOL ATTENDED" on the physical admission form. */
+  previousSchool?: string
+  /** "STAY WITH THE CHILD" living arrangement on the physical admission form. */
+  stayWithChild?: string
   declarationAcknowledged?: boolean
   status?: PupilStatus
   guardians?: GuardianInput[]
+  uniforms?: PupilUniformInput[]
 }
 
 export interface PupilUpdateInput {
   pupilId?: string
   admissionNumber?: string | null
+  sheetNumber?: string | null
+  admissionFee?: string | null
   firstName?: string
   middleName?: string | null
   lastName?: string
@@ -59,9 +132,12 @@ export interface PupilUpdateInput {
   nationality?: string | null
   religion?: string | null
   admissionReason?: string | null
+  previousSchool?: string | null
+  stayWithChild?: string | null
   declarationAcknowledged?: boolean
   status?: PupilStatus
   guardians?: GuardianInput[]
+  uniforms?: PupilUniformInput[]
 }
 
 export interface PupilListOptions {
@@ -246,6 +322,10 @@ export async function createPupil(
     await assertAdmissionNumberAvailable(admissionNumber)
   }
 
+  const sheetNumber = input.sheetNumber?.trim() || null
+  const admissionFee = toAdmissionFee(input.admissionFee)
+  const uniforms = normalizeUniforms(input.uniforms)
+
   const assignedFeeIds: string[] = []
 
   const pupil = await prisma.$transaction(async (tx) => {
@@ -253,6 +333,8 @@ export async function createPupil(
       data: {
         pupilId,
         admissionNumber,
+        sheetNumber,
+        admissionFee,
         firstName: input.firstName.trim(),
         middleName: input.middleName?.trim() || null,
         lastName: input.lastName.trim(),
@@ -265,10 +347,20 @@ export async function createPupil(
         nationality: input.nationality?.trim() || null,
         religion: input.religion?.trim() || null,
         admissionReason: input.admissionReason?.trim() || null,
+        previousSchool: input.previousSchool?.trim() || null,
+        stayWithChild: input.stayWithChild?.trim() || null,
         declarationAcknowledged: input.declarationAcknowledged ?? false,
       },
     })
     await linkGuardians(tx, created.id, input.guardians ?? [])
+    await tx.pupilUniform.createMany({
+      data: uniforms.map((item) => ({
+        pupilId: created.id,
+        slot: item.slot,
+        label: item.label,
+        status: item.status,
+      })),
+    })
 
     if ((input.status ?? 'ACTIVE') === 'ACTIVE') {
       const activeSession = await tx.academicSession.findFirst({ where: { status: 'ACTIVE' } })
@@ -299,7 +391,7 @@ export async function createPupil(
     action: 'pupil.create',
     resourceType: 'pupil',
     resourceId: pupil.id,
-    metadata: { pupilId },
+    metadata: { pupilId, sheetNumber, admissionFee },
     ip: ip ?? null,
   })
 
@@ -331,6 +423,14 @@ export async function updatePupil(
     if (admissionNumber) await assertAdmissionNumberAvailable(admissionNumber, id)
     data.admissionNumber = admissionNumber
     changed.push('admissionNumber')
+  }
+  if (input.sheetNumber !== undefined) {
+    data.sheetNumber = input.sheetNumber?.trim() || null
+    changed.push('sheetNumber')
+  }
+  if (input.admissionFee !== undefined) {
+    data.admissionFee = toAdmissionFee(input.admissionFee)
+    changed.push('admissionFee')
   }
   if (input.firstName !== undefined) {
     data.firstName = input.firstName.trim()
@@ -380,6 +480,14 @@ export async function updatePupil(
     data.admissionReason = input.admissionReason?.trim() || null
     changed.push('admissionReason')
   }
+  if (input.previousSchool !== undefined) {
+    data.previousSchool = input.previousSchool?.trim() || null
+    changed.push('previousSchool')
+  }
+  if (input.stayWithChild !== undefined) {
+    data.stayWithChild = input.stayWithChild?.trim() || null
+    changed.push('stayWithChild')
+  }
   if (input.declarationAcknowledged !== undefined) {
     data.declarationAcknowledged = input.declarationAcknowledged
     changed.push('declarationAcknowledged')
@@ -397,6 +505,19 @@ export async function updatePupil(
       await tx.pupilGuardian.deleteMany({ where: { pupilId: id } })
       await linkGuardians(tx, id, input.guardians)
       changed.push('guardians')
+    }
+    if (input.uniforms !== undefined) {
+      await tx.pupilUniform.deleteMany({ where: { pupilId: id } })
+      const uniforms = normalizeUniforms(input.uniforms)
+      await tx.pupilUniform.createMany({
+        data: uniforms.map((item) => ({
+          pupilId: id,
+          slot: item.slot,
+          label: item.label,
+          status: item.status,
+        })),
+      })
+      changed.push('uniforms')
     }
   })
 

@@ -8,7 +8,7 @@ const prismaMock = vi.hoisted(() => ({
   user: { findUnique: vi.fn() },
 }))
 
-vi.mock('../lib/jwt', () => ({ verifyToken: verifyTokenMock }))
+vi.mock('../lib/jwt', () => ({ verifyToken: verifyTokenMock, verifyTokenPayload: verifyTokenMock }))
 vi.mock('../lib/prisma', () => ({ prisma: prismaMock }))
 
 function baseUser(overrides: Record<string, unknown> = {}) {
@@ -47,7 +47,7 @@ function invoke(url: string, authHeader = 'Bearer token'): Promise<Outcome> {
 describe('require-auth', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    verifyTokenMock.mockReturnValue('user-1')
+    verifyTokenMock.mockReturnValue({ sub: 'user-1', kind: 'staff' })
   })
 
   it('allows an account with a temporary password to reach the password-change endpoints', async () => {

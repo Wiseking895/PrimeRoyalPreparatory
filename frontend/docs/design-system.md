@@ -27,8 +27,11 @@ system mirrors it in `components/illustrations/illustration-colors.ts`.
 | `royal-600` | `#162D6E` | Secondary buttons, deep sections |
 | `royal-700` | `#10214F` | Statistics / promo bands |
 | `royal-800` | `#0C173B` | Footer |
-| `ink-900` | `#0B1430` | Headings / text (dark navy near-black) |
+| `ink-900` | `#0B1430` | Headings / primary text (deep navy, not pure black) |
+| `ink-700` | `#2A3456` | Secondary text |
+| `ink-600` | `#3D4768` | Supporting text |
 | `ink-500` | `#4A5578` | Muted body text |
+| `ink-400` | `#646D90` | Helper / timestamp text (AA on cream & white) |
 
 **Balance rule:** Cream = identity background. White = card surfaces. Deep
 blue = structural/authoritative bands. Magenta = accent (never the majority).

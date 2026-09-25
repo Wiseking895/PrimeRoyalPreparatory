@@ -22,8 +22,8 @@ import type {
   CreateHeadteacherResult,
   CreateStaffInput,
   CreateStaffResult,
-  DailyPupilFinanceListResult,
   DailyReconciliationCloseView,
+  DeveloperAccount,
   FeeAssignmentView,
   FeeBatchCreateInput,
   FeeCreateInput,
@@ -34,14 +34,18 @@ import type {
   GroupedPermission,
   GuardianAccountView,
   GuardianListResult,
+  ImpersonationResult,
   LoginResult,
   MarkPaidInput,
+  MarkUnpaidInput,
+  MarkUnpaidResult,
   NotificationListResult,
   NotificationPreferenceUpdateInput,
   NotificationPreferenceView,
   NotificationView,
   OwnerFinanceOverviewView,
   OwnerSetupInput,
+  ReconciliationAttendanceInput,
   ReconciliationView,
   OwnerSummary,
   ParentAccountResult,
@@ -55,6 +59,9 @@ import type {
   PublicUser,
   PupilCreateInput,
   PupilFinanceView,
+  PupilImportConfirmInput,
+  PupilImportConfirmResult,
+  PupilImportPreview,
   PupilListQuery,
   PupilPage,
   PupilStats,
@@ -78,6 +85,7 @@ import type {
   StaffListQuery,
   StaffStats,
   StaffView,
+  StopImpersonationResult,
   SubjectCreateInput,
   SubjectUpdateInput,
   SubjectView,
@@ -349,6 +357,56 @@ export const api = {
       method: 'POST',
     }),
 
+  // Word pupil admission import
+  previewPupilImport: async (file: File): Promise<PupilImportPreview> => {
+    const token = getToken()
+    const formData = new FormData()
+    formData.append('document', file)
+    const response = await fetch(`${API_BASE_URL}/api/pupils/import/preview`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    })
+    const body = (await response.json()) as {
+      success: boolean
+      message: string
+      data?: PupilImportPreview
+      errors?: Array<{ field: string; message: string }>
+    }
+    if (!response.ok || !body.success) {
+      const message = body?.message ?? 'Could not parse the Word document.'
+      const fieldErrors: Record<string, string> = {}
+      if (Array.isArray(body?.errors)) {
+        for (const error of body.errors) {
+          fieldErrors[error.field] = error.message
+        }
+      }
+      throw new ApiError(message, response.status, fieldErrors)
+    }
+    return body.data as PupilImportPreview
+  },
+  confirmPupilImport: (input: PupilImportConfirmInput) =>
+    request<PupilImportConfirmResult>('/api/pupils/import/confirm', jsonBody(input)),
+  downloadImportTemplate: async (): Promise<void> => {
+    const token = getToken()
+    const response = await fetch(`${API_BASE_URL}/api/pupils/import/template`, {
+      method: 'GET',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+    if (!response.ok) {
+      throw new ApiError('Could not download the import template.', response.status)
+    }
+    const blob = await response.blob()
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'PRPS-Pupil-Import-Template.docx'
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(url)
+  },
+
   // Classes
   listClasses: () => request<SchoolClassView[]>('/api/classes'),
   getClass: (id: string) => request<SchoolClassView>(`/api/classes/${id}`),
@@ -387,6 +445,11 @@ export const api = {
     const search = new URLSearchParams({ date })
     return request<DailyReconciliationCloseView | null>(`/api/finance/reconciliation/close-status?${search.toString()}`)
   },
+  updateReconciliationAttendance: (input: ReconciliationAttendanceInput) =>
+    request<AttendanceView>('/api/finance/reconciliation/attendance', {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    }),
   listFinancePupils: (params?: { q?: string; page?: number; pageSize?: number }) => {
     const search = new URLSearchParams()
     if (params?.q) search.set('q', params.q)
@@ -395,13 +458,6 @@ export const api = {
     const query = search.toString()
     return request<FinancePupilListResult>(`/api/finance/pupils${query ? `?${query}` : ''}`)
   },
-  listDailyPupilFinance: (params: { date: string; classId?: string; q?: string }) => {
-    const search = new URLSearchParams({ date: params.date })
-    if (params.classId) search.set('classId', params.classId)
-    if (params.q) search.set('q', params.q)
-    return request<DailyPupilFinanceListResult>(`/api/finance/pupils/daily?${search.toString()}`)
-  },
-  getPupilFinance: (id: string) => request<PupilFinanceView>(`/api/finance/pupils/${id}`),
 
   // Academic sessions & terms
   listSessions: () => request<AcademicSessionView[]>('/api/finance/sessions'),
@@ -485,6 +541,7 @@ export const api = {
   getPayment: (id: string) => request<PaymentView>(`/api/payments/${id}`),
   createPayment: (input: PaymentCreateInput) => request<PaymentView>('/api/payments', jsonBody(input)),
   markPaid: (input: MarkPaidInput) => request<PaymentView>('/api/payments/mark-paid', jsonBody(input)),
+  markUnpaid: (input: MarkUnpaidInput) => request<MarkUnpaidResult>('/api/payments/mark-unpaid', jsonBody(input)),
   voidPayment: (id: string, input: PaymentVoidInput) =>
     request<PaymentView>(`/api/payments/${id}/void`, jsonBody(input)),
 
@@ -714,4 +771,13 @@ export const api = {
     }),
   reviewWorkOutput: (id: string) =>
     request<WorkOutputDetailView>(`/api/work-output/${id}/review`, { method: 'POST' }),
+
+  // Developer impersonation
+  developerAccounts: () => request<DeveloperAccount[]>('/api/developer/accounts'),
+  developerImpersonate: (targetUserId: string) =>
+    request<ImpersonationResult>('/api/developer/impersonate', jsonBody({ targetUserId })),
+  developerStopImpersonation: () =>
+    request<StopImpersonationResult>('/api/developer/stop-impersonation', { method: 'POST' }),
+  developerSwitchAccount: (targetUserId: string) =>
+    request<ImpersonationResult>('/api/developer/switch-account', jsonBody({ targetUserId })),
 }

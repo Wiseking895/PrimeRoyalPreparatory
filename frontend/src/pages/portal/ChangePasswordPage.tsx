@@ -6,7 +6,7 @@ import { useAuth } from '@/auth/AuthContext'
 import { dashboardHomeFor } from '@/auth/dashboardHome'
 import { Logo } from '@/components/common/Logo'
 import { Spinner } from '@/components/dashboard/Loaders'
-import { TextField } from '@/components/dashboard/Field'
+import { PasswordField } from '@/components/dashboard/Field'
 import { cn } from '@/lib/cn'
 import { api } from '@/lib/api'
 
@@ -83,23 +83,26 @@ export function ChangePasswordPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-cream-100">
+    <div className="flex min-h-screen flex-col bg-royal-900">
       <header className="flex items-center justify-between px-5 py-5">
         <Link to="/" aria-label="PRPS — go to homepage" className="inline-flex">
           <Logo />
         </Link>
-        <span className="text-sm font-semibold text-ink-500">Staff Portal</span>
+        <span className="text-sm font-semibold text-cream-200">Staff Portal</span>
       </header>
 
       <main className="flex flex-1 items-center justify-center px-4 pb-16">
         <div className="w-full max-w-md">
-          <div className="rounded-2xl border border-cream-300/70 bg-white p-7 shadow-[0_4px_24px_-8px_rgba(11,20,48,0.12)] sm:p-8">
+          <div className="rounded-3xl border border-white/10 bg-white p-7 shadow-[0_4px_24px_-8px_rgba(11,20,48,0.28)] sm:p-8">
             <div className="flex items-center gap-4">
-              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-magenta-500 text-white">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-royal-700 text-white">
                 <KeyRound className="h-6 w-6" aria-hidden="true" />
               </span>
               <div>
-                <h1 className="text-xl font-extrabold tracking-tight text-ink-900">Set a new password</h1>
+                <p className="text-xs font-bold uppercase tracking-wider text-cream-300/90">
+                  Account Security
+                </p>
+                <h1 className="text-xl font-extrabold tracking-tight text-royal-800">Set a new password</h1>
                 <p className="mt-0.5 text-sm text-ink-500">Prime Royal Preparatory School</p>
               </div>
             </div>
@@ -110,10 +113,9 @@ export function ChangePasswordPage() {
             </div>
 
             <form onSubmit={handleSubmit} noValidate className="mt-5 space-y-4">
-              <TextField
+              <PasswordField
                 label="New Password"
                 name="newPassword"
-                type="password"
                 autoComplete="new-password"
                 value={form.newPassword}
                 onChange={(event) => set('newPassword', event.target.value)}
@@ -121,10 +123,9 @@ export function ChangePasswordPage() {
                 hint="At least 8 characters, including a letter and a number."
                 required
               />
-              <TextField
+              <PasswordField
                 label="Confirm New Password"
                 name="confirmPassword"
-                type="password"
                 autoComplete="new-password"
                 value={form.confirmPassword}
                 onChange={(event) => set('confirmPassword', event.target.value)}
@@ -146,7 +147,7 @@ export function ChangePasswordPage() {
                 type="submit"
                 disabled={submitting}
                 className={cn(
-                  'flex h-12 w-full items-center justify-center gap-2 rounded-full bg-magenta-500 text-sm font-bold text-white transition-colors hover:bg-magenta-600 disabled:cursor-not-allowed disabled:opacity-60',
+                  'flex h-12 w-full items-center justify-center gap-2 rounded-full bg-royal-700 text-sm font-bold text-white transition-colors hover:bg-royal-800 disabled:cursor-not-allowed disabled:opacity-60',
                 )}
               >
                 {submitting ? (

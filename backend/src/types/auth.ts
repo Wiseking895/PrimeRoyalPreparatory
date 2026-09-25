@@ -14,6 +14,12 @@ export interface AuthenticatedUser {
   staffId: string | null
   roleNames: string[]
   permissionKeys: string[]
+  /** Present when the real authenticated user is a developer impersonating another account. */
+  impersonator?: {
+    id: string
+    fullName: string
+    email: string
+  }
 }
 
 export interface AuthRequest extends Request {

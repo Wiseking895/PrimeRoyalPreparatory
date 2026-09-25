@@ -47,6 +47,11 @@ const prismaMock = vi.hoisted(() => ({
     create: vi.fn(),
     deleteMany: vi.fn(),
   },
+  pupilUniform: {
+    createMany: vi.fn(),
+    deleteMany: vi.fn(),
+    findMany: vi.fn(),
+  },
 }))
 
 vi.mock('../lib/prisma', () => ({ prisma: prismaMock }))
@@ -145,6 +150,8 @@ describe('pupil.service', () => {
     prismaMock.academicSession.findFirst.mockResolvedValue(null)
     prismaMock.financeFee.findMany.mockResolvedValue([])
     prismaMock.feeAssignment.createMany.mockResolvedValue({ count: 0 })
+    prismaMock.pupilUniform.createMany.mockResolvedValue({ count: 5 })
+    prismaMock.pupilUniform.deleteMany.mockResolvedValue({ count: 0 })
     prismaMock.$transaction.mockImplementation((arg: unknown) => {
       if (typeof arg === 'function') return arg(prismaMock)
       return Promise.resolve(arg)
@@ -270,6 +277,64 @@ describe('pupil.service', () => {
         data: expect.objectContaining({ pupilId: 'P-2026-014', admissionNumber: 'ADM-014' }),
       })
       expect(prismaMock.pupil.count).not.toHaveBeenCalled()
+    })
+
+    it('saves the sheet number and admission fee with the admission record', async () => {
+      prismaMock.pupil.create.mockResolvedValue({ id: 'p-1' })
+      prismaMock.academicSession.findFirst.mockResolvedValue(null)
+      prismaMock.financeFee.findMany.mockResolvedValue([])
+      prismaMock.feeAssignment.createMany.mockResolvedValue({ count: 0 })
+
+      await createPupil(owner, {
+        ...createInput,
+        admissionNumber: 'ADM-014',
+        sheetNumber: '12',
+        admissionFee: '250.50',
+      })
+
+      expect(prismaMock.pupil.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          admissionNumber: 'ADM-014',
+          sheetNumber: '12',
+          admissionFee: '250.50',
+        }),
+      })
+      expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            action: 'pupil.create',
+            metadata: expect.objectContaining({ sheetNumber: '12', admissionFee: '250.50' }),
+          }),
+        }),
+      )
+      // The one-time admission fee lives on the pupil record only; it is never
+      // turned into a recurring DAILY / PA / TERMLY fee assignment.
+      expect(prismaMock.feeAssignment.createMany).not.toHaveBeenCalled()
+    })
+
+    it('saves the five uniform items with their collection status', async () => {
+      prismaMock.pupil.create.mockResolvedValue({ id: 'p-1' })
+      prismaMock.academicSession.findFirst.mockResolvedValue(null)
+      prismaMock.financeFee.findMany.mockResolvedValue([])
+      prismaMock.feeAssignment.createMany.mockResolvedValue({ count: 0 })
+
+      await createPupil(owner, {
+        ...createInput,
+        uniforms: [
+          { slot: 1, label: 'Item 1', status: 'COLLECTED' },
+          { slot: 2, label: null, status: 'NOT_COLLECTED' },
+        ],
+      })
+
+      expect(prismaMock.pupilUniform.createMany).toHaveBeenCalledWith({
+        data: [
+          { pupilId: 'p-1', slot: 1, label: 'Item 1', status: 'COLLECTED' },
+          { pupilId: 'p-1', slot: 2, label: null, status: 'NOT_COLLECTED' },
+          { pupilId: 'p-1', slot: 3, label: null, status: 'NOT_COLLECTED' },
+          { pupilId: 'p-1', slot: 4, label: null, status: 'NOT_COLLECTED' },
+          { pupilId: 'p-1', slot: 5, label: null, status: 'NOT_COLLECTED' },
+        ],
+      })
     })
 
     it('creates guardian links with relationship flags', async () => {
@@ -424,6 +489,38 @@ describe('pupil.service', () => {
         expect.objectContaining({
           data: expect.objectContaining({
             metadata: expect.objectContaining({ changed: expect.arrayContaining(['guardians']) }),
+          }),
+        }),
+      )
+    })
+
+    it('updates the sheet number, admission fee and uniform collection status', async () => {
+      await updatePupil(owner, 'p-1', {
+        sheetNumber: '9',
+        admissionFee: '300.25',
+        uniforms: [
+          { slot: 1, label: 'Item 1', status: 'COLLECTED' },
+          { slot: 2, label: 'Item 2', status: 'COLLECTED' },
+        ],
+      })
+
+      expect(prismaMock.pupil.update).toHaveBeenCalledWith({
+        where: { id: 'p-1' },
+        data: expect.objectContaining({ sheetNumber: '9', admissionFee: '300.25' }),
+      })
+      expect(prismaMock.pupilUniform.deleteMany).toHaveBeenCalledWith({ where: { pupilId: 'p-1' } })
+      expect(prismaMock.pupilUniform.createMany).toHaveBeenCalledWith({
+        data: expect.arrayContaining([
+          { pupilId: 'p-1', slot: 1, label: 'Item 1', status: 'COLLECTED' },
+          { pupilId: 'p-1', slot: 2, label: 'Item 2', status: 'COLLECTED' },
+        ]),
+      })
+      expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            metadata: expect.objectContaining({
+              changed: expect.arrayContaining(['sheetNumber', 'admissionFee', 'uniforms']),
+            }),
           }),
         }),
       )

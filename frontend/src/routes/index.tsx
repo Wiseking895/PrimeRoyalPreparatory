@@ -1,4 +1,4 @@
-import { createBrowserRouter, Navigate } from 'react-router-dom'
+import { createBrowserRouter, Navigate, Outlet } from 'react-router-dom'
 import { ACCOUNTANT_ROLE, CLASS_TEACHER_ROLE, HEADTEACHER_ROLE, OWNER_ROLE, SUBJECT_TEACHER_ROLE } from '@/auth/roles'
 import { ProtectedRoute } from '@/auth/ProtectedRoute'
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout'
@@ -13,6 +13,7 @@ import NewsPage from '@/pages/NewsPage'
 import NotFoundPage from '@/pages/NotFoundPage'
 import SchoolLifePage from '@/pages/SchoolLifePage'
 import StaffLoginPage from '@/pages/StaffLoginPage'
+import DeveloperAccountSelectorPage from '@/pages/portal/developer/DeveloperAccountSelectorPage'
 import { ClassManagementPage } from '@/pages/portal/ClassManagementPage'
 import { ForbiddenPage } from '@/pages/portal/ForbiddenPage'
 import { LoginPage } from '@/pages/portal/LoginPage'
@@ -27,11 +28,8 @@ import { ChargeGenerationPage } from '@/pages/portal/finance/ChargeGenerationPag
 import { FeeAssignmentsPage } from '@/pages/portal/finance/FeeAssignmentsPage'
 import { FeeStructuresPage } from '@/pages/portal/finance/FeeStructuresPage'
 import { FinanceDashboardPage } from '@/pages/portal/finance/FinanceDashboardPage'
-import { FinanceSummaryPage } from '@/pages/portal/finance/FinanceSummaryPage'
 import { PaymentDetailPage } from '@/pages/portal/finance/PaymentDetailPage'
 import { PaymentsPage } from '@/pages/portal/finance/PaymentsPage'
-import { PupilFinancePage } from '@/pages/portal/finance/PupilFinancePage'
-import { PupilFinanceProfilePage } from '@/pages/portal/finance/PupilFinanceProfilePage'
 import { ReconciliationPage } from '@/pages/portal/finance/ReconciliationPage'
 import { SessionsPage } from '@/pages/portal/finance/SessionsPage'
 import { HeadteacherDashboardPage } from '@/pages/portal/headteacher/HeadteacherDashboardPage'
@@ -54,6 +52,16 @@ import { TeacherProfilePage } from '@/pages/portal/teacher/TeacherProfilePage'
 import { NotificationsPage } from '@/pages/portal/NotificationsPage'
 import { AnnouncementsPage } from '@/pages/portal/AnnouncementsPage'
 import { NotificationPreferencesPage } from '@/pages/portal/NotificationPreferencesPage'
+import { ParentAuthProvider } from '@/auth/ParentAuthContext'
+import { ParentProtectedRoute } from '@/auth/ParentProtectedRoute'
+import { ParentLoginPage } from '@/pages/parent/ParentLoginPage'
+import { ParentChangePasswordPage } from '@/pages/parent/ParentChangePasswordPage'
+import { ParentDashboardLayout } from '@/pages/parent/ParentDashboardLayout'
+import { ParentDashboardPage } from '@/pages/parent/ParentDashboardPage'
+import { ParentChildrenPage } from '@/pages/parent/ParentChildrenPage'
+import { ParentChildDetailPage } from '@/pages/parent/ParentChildDetailPage'
+import { ParentReportViewPage } from '@/pages/parent/ParentReportViewPage'
+import { ParentProfilePage } from '@/pages/parent/ParentProfilePage'
 
 export const router = createBrowserRouter([
   {
@@ -89,6 +97,10 @@ export const router = createBrowserRouter([
     ),
   },
   {
+    path: '/developer/accounts',
+    element: <DeveloperAccountSelectorPage />,
+  },
+  {
     path: '/owner',
     element: (
       <ProtectedRoute roles={[OWNER_ROLE]}>
@@ -104,6 +116,8 @@ export const router = createBrowserRouter([
       { path: 'settings', element: <SettingsPage /> },
       { path: 'finance', element: <Navigate to="/owner/finance/overview" replace /> },
       { path: 'finance/overview', element: <OwnerFinanceOverviewPage /> },
+      { path: 'finance/payments', element: <PaymentsPage /> },
+      { path: 'finance/payments/:id', element: <PaymentDetailPage /> },
       { path: 'finance/reconciliation', element: <ReconciliationPage /> },
       { path: 'work-output', element: <OwnerWorkOutputPage /> },
       { path: 'notifications', element: <NotificationsPage /> },
@@ -142,9 +156,8 @@ export const router = createBrowserRouter([
       { path: 'finance/payments', element: <PaymentsPage /> },
       { path: 'finance/payments/:id', element: <PaymentDetailPage /> },
       { path: 'finance/reconciliation', element: <ReconciliationPage /> },
-      { path: 'finance/pupils', element: <PupilFinancePage /> },
-      { path: 'finance/pupils/:id', element: <PupilFinanceProfilePage /> },
-      { path: 'finance/summary', element: <FinanceSummaryPage /> },
+      { path: 'finance/pupils', element: <Navigate to="/headteacher/finance/reconciliation" replace /> },
+      { path: 'finance/pupils/:id', element: <Navigate to="/headteacher/finance/reconciliation" replace /> },
       { path: 'notifications', element: <NotificationsPage /> },
       { path: 'announcements', element: <AnnouncementsPage /> },
       { path: 'notification-preferences', element: <NotificationPreferencesPage /> },
@@ -167,9 +180,8 @@ export const router = createBrowserRouter([
       { path: 'payments', element: <PaymentsPage /> },
       { path: 'payments/:id', element: <PaymentDetailPage /> },
       { path: 'reconciliation', element: <ReconciliationPage /> },
-      { path: 'pupils', element: <PupilFinancePage /> },
-      { path: 'pupils/:id', element: <PupilFinanceProfilePage /> },
-      { path: 'summary', element: <FinanceSummaryPage /> },
+      { path: 'pupils', element: <Navigate to="/accountant/reconciliation" replace /> },
+      { path: 'pupils/:id', element: <Navigate to="/accountant/reconciliation" replace /> },
       { path: 'profile', element: <ProfilePage /> },
       { path: 'notifications', element: <NotificationsPage /> },
       { path: 'announcements', element: <AnnouncementsPage /> },
@@ -198,5 +210,33 @@ export const router = createBrowserRouter([
   {
     path: '/forbidden',
     element: <ForbiddenPage />,
+  },
+  {
+    path: '/parent',
+    element: (
+      <ParentAuthProvider>
+        <Outlet />
+      </ParentAuthProvider>
+    ),
+    children: [
+      { index: true, element: <Navigate to="/parent/login" replace /> },
+      { path: 'login', element: <ParentLoginPage /> },
+      { path: 'change-password', element: <ParentChangePasswordPage /> },
+      {
+        element: (
+          <ParentProtectedRoute>
+            <ParentDashboardLayout />
+          </ParentProtectedRoute>
+        ),
+        children: [
+          { index: true, element: <Navigate to="/parent/dashboard" replace /> },
+          { path: 'dashboard', element: <ParentDashboardPage /> },
+          { path: 'children', element: <ParentChildrenPage /> },
+          { path: 'children/:pupilId', element: <ParentChildDetailPage /> },
+          { path: 'children/:pupilId/reports/:termId', element: <ParentReportViewPage /> },
+          { path: 'profile', element: <ParentProfilePage /> },
+        ],
+      },
+    ],
   },
 ])

@@ -28,6 +28,15 @@ export function TeacherAssignmentPage() {
 
   const canManage = hasPermission('assignments.manage')
 
+  /**
+   * Single source for the per-class select value: an explicit user selection
+   * wins, otherwise the class's actual stored class teacher, otherwise empty
+   * (no class teacher). This keeps the rendered value and the submitted value
+   * identical, so a class with no assignment never appears to have a teacher.
+   */
+  const classTeacherSelectValue = (classId: string): string =>
+    classTeacherSelections[classId] ?? classTeachers[classId]?.teacherId ?? ''
+
   const load = useCallback(async () => {
     setError(null)
     try {
@@ -99,7 +108,7 @@ export function TeacherAssignmentPage() {
   }
 
   const handleClassTeacher = async (classId: string) => {
-    const teacherId = classTeacherSelections[classId]
+    const teacherId = classTeacherSelectValue(classId)
     if (!teacherId) {
       push('error', 'Select a teacher to assign.')
       return
@@ -265,7 +274,7 @@ export function TeacherAssignmentPage() {
                 ) : (
                   classes.map((entry) => {
                     const current = classTeachers[entry.id]
-                    const selection = classTeacherSelections[entry.id] ?? current?.teacherId ?? ''
+                    const selection = classTeacherSelectValue(entry.id)
                     return (
                       <div
                         key={entry.id}
@@ -281,6 +290,7 @@ export function TeacherAssignmentPage() {
                           <SelectField
                             label="Teacher"
                             name={`class-teacher-${entry.id}`}
+                            placeholder="Select a teacher"
                             value={selection}
                             onChange={(event) =>
                               setClassTeacherSelections((currentSelections) => ({

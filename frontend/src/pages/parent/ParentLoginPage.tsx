@@ -12,7 +12,7 @@ interface LocationState {
 }
 
 const fieldClasses =
-  'h-12 w-full rounded-xl border border-cream-300 bg-white pl-11 pr-11 text-sm text-ink-900 outline-none transition-colors placeholder:text-ink-500/60 focus:border-gold-400'
+  'h-12 w-full rounded-xl border border-cream-300 bg-white pl-11 pr-11 text-sm text-ink-900 outline-none transition-colors placeholder:text-ink-500 focus:border-gold-400'
 
 export function ParentLoginPage() {
   const { status, profile, login } = useParentAuth()

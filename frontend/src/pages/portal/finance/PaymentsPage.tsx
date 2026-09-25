@@ -1,21 +1,24 @@
-import { useCallback, useEffect, useState } from 'react'
-import type { FormEvent } from 'react'
-import { Eye, Plus, Wallet } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Eye, Wallet } from 'lucide-react'
 import { useAuth } from '@/auth/AuthContext'
 import { PageHeader } from '@/components/dashboard/PageHeader'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/dashboard/Badge'
-import { Modal } from '@/components/dashboard/Modal'
 import { TextField, SelectField } from '@/components/dashboard/Field'
-import { Spinner, TableSkeleton } from '@/components/dashboard/Loaders'
+import { TableSkeleton } from '@/components/dashboard/Loaders'
 import { EmptyState, ErrorState } from '@/components/dashboard/States'
-import { useToast } from '@/components/dashboard/Toast'
 import { api } from '@/lib/api'
 import { formatMoney } from '@/lib/money'
-import { formatDate } from '@/lib/date'
+import { formatDate, schoolDaysBetween } from '@/lib/date'
 import { financeRoute } from './financeRoute'
-import type { PaymentListResult, PaymentMethodValue } from '@/types/portal'
+import type {
+  AcademicSessionView,
+  AcademicTermView,
+  FinanceSummaryView,
+  PaymentListResult,
+  PaymentMethodValue,
+} from '@/types/portal'
 
 const methodOptions: Array<{ value: PaymentMethodValue; label: string }> = [
   { value: 'CASH', label: 'Cash' },
@@ -24,35 +27,20 @@ const methodOptions: Array<{ value: PaymentMethodValue; label: string }> = [
   { value: 'CHEQUE', label: 'Cheque' },
 ]
 
-interface RecordForm {
-  pupilId: string
-  pupilLabel: string
-  dailyPaid: boolean
-  paPaid: boolean
+/** History is initially shown in windows of this many school days. */
+const HISTORY_WINDOW_DAYS = 7
+
+function dayStartIso(day: string): string {
+  return `${day.split('T')[0]}T00:00:00.000Z`
 }
 
-const emptyForm: RecordForm = {
-  pupilId: '',
-  pupilLabel: '',
-  dailyPaid: false,
-  paPaid: false,
-}
-
-function todayDisplay(): string {
-  return new Date().toLocaleDateString('en-GB', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  })
+function dayEndIso(day: string): string {
+  return `${day.split('T')[0]}T23:59:59.999Z`
 }
 
 export function PaymentsPage() {
-  const { push } = useToast()
-  const { user, hasPermission } = useAuth()
+  const { user } = useAuth()
   const base = financeRoute(user?.roles ?? [])
-
-  const canRecord = hasPermission('payments.record')
 
   const [result, setResult] = useState<PaymentListResult | null>(null)
   const [q, setQ] = useState('')
@@ -61,25 +49,60 @@ export function PaymentsPage() {
   const [page, setPage] = useState(1)
   const [error, setError] = useState<string | null>(null)
 
-  const [recordOpen, setRecordOpen] = useState(false)
-  const [form, setForm] = useState<RecordForm>(emptyForm)
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
-  const [pupilSearch, setPupilSearch] = useState('')
-  const [pupilResults, setPupilResults] = useState<Array<{ id: string; pupilId: string; fullName: string; className: string }>>([])
-  const [pupilSearching, setPupilSearching] = useState(false)
-  const [pupilSearchError, setPupilSearchError] = useState<string | null>(null)
-  const [submitting, setSubmitting] = useState(false)
+  // Session / term period for the history view
+  const [sessions, setSessions] = useState<AcademicSessionView[]>([])
+  const [terms, setTerms] = useState<AcademicTermView[]>([])
+  const [selectedSessionId, setSelectedSessionId] = useState<string>('')
+  const [selectedTermId, setSelectedTermId] = useState<string>('')
+  // Blocks list loads until the session/term period (and its school-day
+  // window) is resolved, so the very first render shows School Days 1–7
+  // rather than an unfiltered list.
+  const [periodReady, setPeriodReady] = useState(false)
 
-  const [dailyFeeAmount, setDailyFeeAmount] = useState<string | null>(null)
-  const [paFeeAmount, setPaFeeAmount] = useState<string | null>(null)
+  // School-day history window (0 = School Days 1–7 of the selected term)
+  const [windowIndex, setWindowIndex] = useState(0)
+
+  const selectedSession = sessions.find((session) => session.id === selectedSessionId) ?? null
+  const selectedTerm = terms.find((term) => term.id === selectedTermId) ?? null
+
+  const schoolDays = useMemo(
+    () => (selectedTerm ? schoolDaysBetween(selectedTerm.startDate, selectedTerm.endDate) : []),
+    [selectedTerm],
+  )
+  const totalWindows = Math.max(1, Math.ceil(schoolDays.length / HISTORY_WINDOW_DAYS))
+  const safeWindowIndex = Math.min(windowIndex, totalWindows - 1)
+  const windowDays = schoolDays.slice(
+    safeWindowIndex * HISTORY_WINDOW_DAYS,
+    safeWindowIndex * HISTORY_WINDOW_DAYS + HISTORY_WINDOW_DAYS,
+  )
+  const windowLabelStart = safeWindowIndex * HISTORY_WINDOW_DAYS + 1
+  const windowLabelEnd = Math.min(safeWindowIndex * HISTORY_WINDOW_DAYS + HISTORY_WINDOW_DAYS, schoolDays.length)
+
+  // Date range for the current history window. Falls back to the full term
+  // calendar when the term has no enumerable school days.
+  const rangeFrom =
+    windowDays.length > 0
+      ? dayStartIso(windowDays[0])
+      : selectedTerm
+        ? dayStartIso(selectedTerm.startDate)
+        : undefined
+  const rangeTo =
+    windowDays.length > 0
+      ? dayEndIso(windowDays[windowDays.length - 1])
+      : selectedTerm
+        ? dayEndIso(selectedTerm.endDate)
+        : undefined
 
   const load = useCallback(async () => {
+    if (!periodReady) return
     setError(null)
     try {
       const data = await api.listPayments({
         q: q.trim() || undefined,
         status: statusFilter === 'ACTIVE' || statusFilter === 'VOIDED' ? statusFilter : undefined,
         paymentMethod: methodFilter ? (methodFilter as PaymentMethodValue) : undefined,
+        from: rangeFrom,
+        to: rangeTo,
         page,
         pageSize: 20,
       })
@@ -87,106 +110,95 @@ export function PaymentsPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load payments.')
     }
-  }, [q, statusFilter, methodFilter, page])
+  }, [q, statusFilter, methodFilter, rangeFrom, rangeTo, page, periodReady])
 
   useEffect(() => {
     void load()
   }, [load])
 
-  const loadFeeAmounts = useCallback(async () => {
-    try {
-      const fees = await api.listFees({ status: 'ACTIVE' })
-      const daily = fees.find((f) => f.feeType === 'DAILY')
-      const pa = fees.find((f) => f.feeType === 'PA')
-      setDailyFeeAmount(daily?.amount ?? null)
-      setPaFeeAmount(pa?.amount ?? null)
-    } catch {
-      setDailyFeeAmount(null)
-      setPaFeeAmount(null)
+  // Resolve the default session/term period once on mount.
+  useEffect(() => {
+    let cancelled = false
+    const bootstrap = async () => {
+      let sessionList: AcademicSessionView[] = []
+      let summary: FinanceSummaryView | null = null
+      try {
+        sessionList = await api.listSessions()
+      } catch {
+        sessionList = []
+      }
+      try {
+        summary = await api.financeSummary()
+      } catch {
+        summary = null
+      }
+      if (cancelled) return
+
+      if (summary?.session && !sessionList.some((session) => session.id === summary!.session!.id)) {
+        sessionList = [summary.session, ...sessionList]
+      }
+      setSessions(sessionList)
+
+      const session =
+        (summary?.session && sessionList.find((candidate) => candidate.id === summary!.session!.id)) ||
+        sessionList.find((candidate) => candidate.status === 'ACTIVE') ||
+        sessionList[0] ||
+        null
+      if (!session) {
+        setPeriodReady(true)
+        return
+      }
+      setSelectedSessionId(session.id)
+
+      let termList: AcademicTermView[] = []
+      try {
+        termList = await api.listTerms(session.id)
+      } catch {
+        termList = []
+      }
+      if (cancelled) return
+      if (summary?.term && summary.session?.id === session.id && !termList.some((t) => t.id === summary!.term!.id)) {
+        termList = [summary.term, ...termList]
+      }
+      setTerms(termList)
+
+      const term =
+        (summary?.term && summary.session?.id === session.id && termList.find((t) => t.id === summary!.term!.id)) ||
+        termList.find((candidate) => candidate.status === 'ACTIVE') ||
+        termList[0] ||
+        null
+      if (term) setSelectedTermId(term.id)
+      setPeriodReady(true)
+    }
+    void bootstrap()
+    return () => {
+      cancelled = true
     }
   }, [])
 
-  const openRecord = () => {
-    setForm(emptyForm)
-    setFieldErrors({})
-    setPupilSearch('')
-    setPupilResults([])
-    setPupilSearchError(null)
-    setDailyFeeAmount(null)
-    setPaFeeAmount(null)
-    setRecordOpen(true)
-    void loadFeeAmounts()
-  }
-
-  const runPupilSearch = async () => {
-    setPupilSearching(true)
-    setPupilSearchError(null)
+  const handleSessionChange = async (sessionId: string) => {
+    setPeriodReady(false)
+    setSelectedSessionId(sessionId)
+    setSelectedTermId('')
+    setWindowIndex(0)
+    setPage(1)
     try {
-      const data = await api.listFinancePupils({ q: pupilSearch.trim() || undefined, pageSize: 20 })
-      setPupilResults(data.items)
-    } catch (err) {
-      setPupilSearchError(err instanceof Error ? err.message : 'Could not search pupils.')
+      const termList = await api.listTerms(sessionId)
+      setTerms(termList)
+      const term = termList.find((candidate) => candidate.status === 'ACTIVE') || termList[0] || null
+      setSelectedTermId(term?.id ?? '')
+    } catch {
+      setTerms([])
     } finally {
-      setPupilSearching(false)
+      setPeriodReady(true)
     }
   }
 
-  const set = (field: keyof RecordForm, value: string | boolean) => {
-    setForm((current) => ({ ...current, [field]: value }))
-    setFieldErrors((current) => {
-      const key = field as string
-      if (!current[key]) return current
-      const next = { ...current }
-      delete next[key]
-      return next
-    })
+  const handleTermChange = (termId: string) => {
+    setSelectedTermId(termId)
+    setWindowIndex(0)
+    setPage(1)
   }
-
-  const selectPupil = (pupil: { id: string; pupilId: string; fullName: string; className: string }) => {
-    setForm((current) => ({ ...current, pupilId: pupil.id, pupilLabel: `${pupil.fullName} · ${pupil.pupilId}` }))
-    setPupilSearchError(null)
-  }
-
-  const handleRecord = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    const errors: Record<string, string> = {}
-    if (!form.pupilId) errors.pupilId = 'Select a pupil.'
-    if (!form.dailyPaid && !form.paPaid) errors.feeStatus = 'Select at least one fee as Paid.'
-    if (Object.keys(errors).length > 0) {
-      setFieldErrors(errors)
-      return
-    }
-
-    setSubmitting(true)
-    try {
-      const created = await api.markPaid({
-        pupilId: form.pupilId,
-        dailyPaid: form.dailyPaid,
-        paPaid: form.paPaid,
-      })
-      setRecordOpen(false)
-      setQ('')
-      setPage(1)
-      await load()
-      push('success', `${created.paymentReference} recorded.`)
-    } catch (err) {
-      const apiError = err as { fieldErrors?: Record<string, string> }
-      if (apiError.fieldErrors && Object.keys(apiError.fieldErrors).length > 0) {
-        setFieldErrors(apiError.fieldErrors)
-      } else {
-        push('error', err instanceof Error ? err.message : 'Could not record the payment.')
-      }
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  const calculatedTotal = (() => {
-    let total = 0
-    if (form.dailyPaid && dailyFeeAmount) total += Number(dailyFeeAmount)
-    if (form.paPaid && paFeeAmount) total += Number(paFeeAmount)
-    return total
-  })()
 
   const totalPages = result ? Math.max(1, Math.ceil(result.total / result.pageSize)) : 1
 
@@ -194,17 +206,83 @@ export function PaymentsPage() {
     <div className="space-y-6">
       <PageHeader
         eyebrow="Fees & Finance"
-        title="Payments"
-        description="Payments recorded against pupil fee charges. Payments are immutable — a payment can only be reversed by voiding it."
-        actions={
-          canRecord ? (
-            <Button onClick={openRecord}>
-              <Plus className="h-4 w-4" aria-hidden="true" />
-              Record payment
-            </Button>
-          ) : undefined
-        }
+        title="Payment History"
+        description="Read-only historical payment transactions recorded against pupil fee charges. Payments are immutable — a payment can only be reversed by voiding it."
       />
+
+      {/* Period: session / term selection + school-day history window */}
+      <div className="flex flex-wrap items-end justify-between gap-3 rounded-xl border border-cream-200 bg-cream-50 p-4">
+        <div className="flex flex-wrap items-end gap-3">
+          <SelectField
+            label="Session"
+            name="sessionFilter"
+            value={selectedSessionId}
+            onChange={(event) => {
+              void handleSessionChange(event.target.value)
+            }}
+            options={sessions.map((session) => ({ value: session.id, label: session.name }))}
+            placeholder="Select session"
+            className="sm:w-44"
+          />
+          <SelectField
+            label="Term"
+            name="termFilter"
+            value={selectedTermId}
+            onChange={(event) => {
+              handleTermChange(event.target.value)
+            }}
+            options={terms.map((term) => ({ value: term.id, label: term.name }))}
+            placeholder="Select term"
+            className="sm:w-44"
+          />
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          {selectedSession && selectedTerm ? (
+            <p className="text-sm font-bold text-ink-900">
+              {selectedSession.name} — {selectedTerm.name}
+            </p>
+          ) : null}
+          {schoolDays.length > 0 ? (
+            <>
+              <p className="text-xs font-semibold text-ink-500">
+                School Days {windowLabelStart}–{windowLabelEnd} of {schoolDays.length}
+                {windowDays.length > 0 ? (
+                  <span className="text-ink-400">
+                    {' · '}
+                    {formatDate(windowDays[0])} – {formatDate(windowDays[windowDays.length - 1])}
+                  </span>
+                ) : null}
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  variant="soft"
+                  size="sm"
+                  ariaLabel="Previous 7 school days"
+                  disabled={safeWindowIndex <= 0}
+                  onClick={() => {
+                    setWindowIndex((current) => Math.max(0, current - 1))
+                    setPage(1)
+                  }}
+                >
+                  Previous
+                </Button>
+                <Button
+                  variant="soft"
+                  size="sm"
+                  ariaLabel="Next 7 school days"
+                  disabled={safeWindowIndex >= totalWindows - 1}
+                  onClick={() => {
+                    setWindowIndex((current) => Math.min(totalWindows - 1, current + 1))
+                    setPage(1)
+                  }}
+                >
+                  Next
+                </Button>
+              </div>
+            </>
+          ) : null}
+        </div>
+      </div>
 
       <div className="flex flex-wrap items-end gap-3">
         <TextField
@@ -257,16 +335,8 @@ export function PaymentsPage() {
           title="No payments found."
           description={
             result.total === 0
-              ? 'Record a payment against a pupil\'s outstanding fee charges.'
+              ? 'No payment transactions were recorded in this period.'
               : 'No payments match the selected filters.'
-          }
-          action={
-            canRecord && result.total === 0 ? (
-              <Button onClick={openRecord}>
-                <Plus className="h-4 w-4" aria-hidden="true" />
-                Record payment
-              </Button>
-            ) : undefined
           }
         />
       ) : (
@@ -372,183 +442,6 @@ export function PaymentsPage() {
           </div>
         </div>
       ) : null}
-
-      {/* Record payment dialog */}
-      <Modal
-        open={recordOpen}
-        onClose={() => setRecordOpen(false)}
-        title="Record payment"
-        description="Select a pupil and mark Daily Fee / PA Fee as Paid or Not Paid. Amounts are resolved automatically from the active fee structures."
-        size="lg"
-      >
-        <form onSubmit={handleRecord} noValidate className="space-y-4">
-          {/* Today's date */}
-          <div className="rounded-xl border border-cream-200 bg-cream-50 p-4">
-            <p className="text-xs font-bold uppercase tracking-wider text-ink-500">Payment Date</p>
-            <p className="mt-1 text-sm font-semibold text-ink-900">{todayDisplay()}</p>
-            <p className="text-xs text-ink-500">Automatically determined by the system.</p>
-          </div>
-
-          {!form.pupilId ? (
-            <div className="rounded-xl border border-cream-200 bg-cream-50 p-4">
-              <div className="flex gap-2">
-                <TextField
-                  label="Search pupil"
-                  name="pupilSearch"
-                  value={pupilSearch}
-                  onChange={(event) => setPupilSearch(event.target.value)}
-                  placeholder="Name or pupil ID"
-                  autoComplete="off"
-                  className="flex-1"
-                />
-                <div className="flex items-end">
-                  <Button variant="soft" type="button" onClick={() => void runPupilSearch()} disabled={pupilSearching}>
-                    {pupilSearching ? <Spinner className="h-4 w-4" /> : null}
-                    Search
-                  </Button>
-                </div>
-              </div>
-              {pupilSearchError ? (
-                <p role="alert" className="mt-2 text-xs font-medium text-red-600">{pupilSearchError}</p>
-              ) : null}
-              {pupilResults.length > 0 ? (
-                <ul className="mt-3 max-h-56 space-y-2 overflow-y-auto">
-                  {pupilResults.map((pupil) => (
-                    <li key={pupil.id}>
-                      <button
-                        type="button"
-                        onClick={() => selectPupil(pupil)}
-                        className="w-full rounded-xl border border-cream-200 bg-white p-3 text-left transition-colors hover:border-magenta-500"
-                      >
-                        <span className="block text-sm font-bold text-ink-900">{pupil.fullName}</span>
-                        <span className="block text-xs text-ink-500">{pupil.pupilId} · {pupil.className}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-            </div>
-          ) : (
-            <div className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-              <div>
-                <p className="text-sm font-bold text-ink-900">{form.pupilLabel}</p>
-                <p className="text-xs text-ink-500">Selected pupil</p>
-              </div>
-              <Button
-                variant="soft"
-                size="sm"
-                type="button"
-                onClick={() => setForm((current) => ({ ...current, pupilId: '', pupilLabel: '' }))}
-              >
-                Change
-              </Button>
-            </div>
-          )}
-          {fieldErrors.pupilId ? (
-            <p role="alert" className="text-xs font-medium text-red-600">{fieldErrors.pupilId}</p>
-          ) : null}
-
-          {/* Fee status toggles */}
-          {form.pupilId ? (
-            <div className="rounded-xl border border-cream-200 bg-cream-50 p-4 space-y-4">
-              <p className="text-xs font-bold uppercase tracking-wider text-ink-500">Fee Payment Status</p>
-
-              {/* Daily Fee */}
-              <div className="flex items-center justify-between gap-4">
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-bold text-ink-900">Daily Fee</p>
-                  <p className="text-xs text-ink-500">Monday – Friday school day fee</p>
-                  {dailyFeeAmount ? (
-                    <p className="mt-0.5 text-xs text-ink-500">Configured amount: <span className="font-semibold text-ink-700">{formatMoney(dailyFeeAmount)}</span></p>
-                  ) : null}
-                </div>
-                <div className="flex gap-1">
-                  <button
-                    type="button"
-                    onClick={() => set('dailyPaid', true)}
-                    className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
-                      form.dailyPaid
-                        ? 'bg-emerald-600 text-white shadow-sm'
-                        : 'bg-white text-ink-700 border border-cream-200 hover:border-emerald-300'
-                    }`}
-                  >
-                    Paid
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => set('dailyPaid', false)}
-                    className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
-                      !form.dailyPaid
-                        ? 'bg-ink-200 text-ink-700 shadow-sm'
-                        : 'bg-white text-ink-700 border border-cream-200 hover:border-ink-300'
-                    }`}
-                  >
-                    Not Paid
-                  </button>
-                </div>
-              </div>
-
-              {/* PA Fee */}
-              <div className="flex items-center justify-between gap-4">
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-bold text-ink-900">PA Fee</p>
-                  <p className="text-xs text-ink-500">Monday – Friday PA contribution</p>
-                  {paFeeAmount ? (
-                    <p className="mt-0.5 text-xs text-ink-500">Configured amount: <span className="font-semibold text-ink-700">{formatMoney(paFeeAmount)}</span></p>
-                  ) : null}
-                </div>
-                <div className="flex gap-1">
-                  <button
-                    type="button"
-                    onClick={() => set('paPaid', true)}
-                    className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
-                      form.paPaid
-                        ? 'bg-emerald-600 text-white shadow-sm'
-                        : 'bg-white text-ink-700 border border-cream-200 hover:border-emerald-300'
-                    }`}
-                  >
-                    Paid
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => set('paPaid', false)}
-                    className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
-                      !form.paPaid
-                        ? 'bg-ink-200 text-ink-700 shadow-sm'
-                        : 'bg-white text-ink-700 border border-cream-200 hover:border-ink-300'
-                    }`}
-                  >
-                    Not Paid
-                  </button>
-                </div>
-              </div>
-
-              {fieldErrors.feeStatus ? (
-                <p role="alert" className="text-xs font-medium text-red-600">{fieldErrors.feeStatus}</p>
-              ) : null}
-
-              {/* Calculated total */}
-              {(form.dailyPaid || form.paPaid) && calculatedTotal > 0 ? (
-                <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
-                  <p className="text-xs font-bold uppercase tracking-wider text-ink-500">Automatically Recorded</p>
-                  <p className="mt-1 text-lg font-bold text-emerald-700">{formatMoney(calculatedTotal)}</p>
-                  <p className="text-xs text-ink-500">Amount is calculated from the active fee structure.</p>
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-
-          <div className="flex items-center justify-end gap-2">
-            <Button variant="cream" type="button" onClick={() => setRecordOpen(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={submitting}>
-              {submitting ? <Spinner className="h-4 w-4" /> : null}
-              Record payment
-            </Button>
-          </div>
-        </form>
-      </Modal>
     </div>
   )
 }

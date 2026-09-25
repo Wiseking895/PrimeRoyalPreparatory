@@ -34,6 +34,7 @@ import { announcementRouter } from './routes/announcement.routes'
 import { notificationPreferenceRouter } from './routes/notification-preference.routes'
 import { workOutputRouter } from './routes/work-output.routes'
 import { uploadRouter } from './routes/upload.routes'
+import { developerRouter } from './routes/developer.routes'
 
 /**
  * Builds and configures the Express application. Kept separate from the HTTP
@@ -114,6 +115,9 @@ export function createApp(): Express {
 
   // Work Output — owner-only teacher work output monitoring.
   app.use('/api/work-output', workOutputRouter)
+
+  // Developer impersonation — dedicated developer account only.
+  app.use('/api/developer', developerRouter)
 
   // File uploads — profile pictures, etc.
   app.use('/api/uploads', express.static(path.resolve('uploads')))

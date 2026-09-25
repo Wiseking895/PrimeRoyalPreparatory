@@ -7,6 +7,7 @@ import {
   getPayment,
   listPayments,
   markPaid,
+  markUnpaid,
   voidPayment,
 } from '../services/finance.service'
 
@@ -53,4 +54,9 @@ export const voidPaymentHandler = asyncHandler(async (req: AuthRequest, res) => 
 export const markPaidHandler = asyncHandler(async (req: AuthRequest, res) => {
   const payment = await markPaid(req.user!, req.body, req.ip)
   res.status(HttpStatus.Created).json(ok(payment, 'Payment recorded successfully.'))
+})
+
+export const markUnpaidHandler = asyncHandler(async (req: AuthRequest, res) => {
+  const result = await markUnpaid(req.user!, req.body, req.ip)
+  res.json(ok(result, 'Payment reversed successfully.'))
 })

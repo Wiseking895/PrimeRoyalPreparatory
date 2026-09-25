@@ -28,6 +28,19 @@ const genderEnum = z.enum(['MALE', 'FEMALE'], {
   errorMap: () => ({ message: 'Please select a valid gender.' }),
 })
 
+/**
+ * Optional class division (streams). Absent / null / "UNDIVIDED" all mean an
+ * undivided class; otherwise one of A–D. Composed into the display name as
+ * `Nursery 1` + `A` -> `Nursery 1A`.
+ */
+const classDivisionField = z.preprocess((value) => {
+  if (value === undefined || value === null) return value
+  if (typeof value !== 'string') return value
+  const trimmed = value.trim()
+  if (trimmed === '' || trimmed.toUpperCase() === 'UNDIVIDED') return null
+  return trimmed.toUpperCase()
+}, z.enum(['A', 'B', 'C', 'D']).nullable().optional())
+
 const pupilIdField = z
   .string()
   .trim()
@@ -39,6 +52,28 @@ const admissionNumberField = z
   .trim()
   .min(1, 'Admission number is required.')
   .max(40, 'Admission number is too long.')
+
+const sheetNumberField = z
+  .string()
+  .trim()
+  .max(40, 'Sheet number is too long.')
+
+/**
+ * One-time admission fee (GHS) recorded on the admission record. Accepts
+ * plain decimal money ("250", "250.50"); an empty value means "not recorded".
+ * Deliberately separate from the recurring DAILY / PA / TERMLY fee structures.
+ */
+const admissionFeeField = z
+  .string()
+  .trim()
+  .max(16, 'Admission fee is too long.')
+  .refine((value) => value === '' || /^\d+(\.\d{1,2})?$/.test(value), {
+    message: 'Enter a valid admission fee with up to 2 decimal places.',
+  })
+
+const uniformCollectionStatusEnum = z.enum(['NOT_COLLECTED', 'COLLECTED'], {
+  errorMap: () => ({ message: 'Select a valid collection status.' }),
+})
 
 const dateField = z
   .string()
@@ -56,6 +91,21 @@ const optionalLongText = (max: number) =>
     .optional()
     .or(z.literal(''))
 
+/** One of the five "Uniforms to be Collected" items on the admission record. */
+const pupilUniformInputSchema = z.object({
+  slot: z
+    .number({ invalid_type_error: 'Uniform slot must be a number.' })
+    .int('Uniform slot must be a whole number.')
+    .min(1, 'Uniform slot must be between 1 and 5.')
+    .max(5, 'Uniform slot must be between 1 and 5.'),
+  label: optionalLongText(80).nullable(),
+  status: uniformCollectionStatusEnum.optional(),
+})
+
+const pupilUniformsField = z
+  .array(pupilUniformInputSchema)
+  .max(5, 'A maximum of 5 uniform items is allowed.')
+
 const guardianInputSchema = z.object({
   fullName: z.string().trim().min(2, 'Guardian name must be at least 2 characters.').max(120),
   relationship: z.string().trim().min(1, 'Relationship is required.').max(60),
@@ -70,6 +120,8 @@ const guardianInputSchema = z.object({
 export const pupilCreateSchema = z.object({
   pupilId: pupilIdField.optional(),
   admissionNumber: admissionNumberField.optional(),
+  sheetNumber: sheetNumberField.optional(),
+  admissionFee: admissionFeeField.optional(),
   firstName: z.string().trim().min(2, 'First name must be at least 2 characters.').max(80),
   middleName: optionalLongText(80),
   lastName: z.string().trim().min(2, 'Last name must be at least 2 characters.').max(80),
@@ -83,14 +135,34 @@ export const pupilCreateSchema = z.object({
   nationality: optionalLongText(60),
   religion: optionalLongText(60),
   admissionReason: optionalLongText(200),
+  previousSchool: optionalLongText(120),
+  stayWithChild: optionalLongText(120),
   declarationAcknowledged: z.boolean().default(false),
   status: z.enum(['ACTIVE', 'INACTIVE']).default('ACTIVE'),
   guardians: z.array(guardianInputSchema).max(6, 'A maximum of 6 guardians is allowed.').default([]),
+  uniforms: pupilUniformsField.optional(),
+})
+
+/**
+ * Word import confirmation: each entry is the same shape the manual
+ * registration endpoint accepts, plus the preview row number for reporting.
+ */
+export const pupilImportConfirmSchema = z.object({
+  pupils: z
+    .array(
+      pupilCreateSchema.extend({
+        rowNumber: z.number().int().min(1),
+      }),
+    )
+    .min(1, 'Select at least one pupil to register.')
+    .max(100, 'A maximum of 100 pupils can be imported at once.'),
 })
 
 export const pupilUpdateSchema = z.object({
   pupilId: pupilIdField.optional(),
   admissionNumber: admissionNumberField.optional().or(z.literal('')).nullable(),
+  sheetNumber: sheetNumberField.nullable().optional(),
+  admissionFee: admissionFeeField.nullable().optional(),
   firstName: z.string().trim().min(2).max(80).optional(),
   middleName: optionalLongText(80).nullable(),
   lastName: z.string().trim().min(2).max(80).optional(),
@@ -102,9 +174,12 @@ export const pupilUpdateSchema = z.object({
   nationality: optionalLongText(60).nullable(),
   religion: optionalLongText(60).nullable(),
   admissionReason: optionalLongText(200).nullable(),
+  previousSchool: optionalLongText(120).nullable(),
+  stayWithChild: optionalLongText(120).nullable(),
   declarationAcknowledged: z.boolean().optional(),
   status: z.enum(['ACTIVE', 'INACTIVE']).optional(),
   guardians: z.array(guardianInputSchema).max(6).optional(),
+  uniforms: pupilUniformsField.optional(),
 })
 
 export const classCreateSchema = z.object({
@@ -116,6 +191,7 @@ export const classCreateSchema = z.object({
     .toUpperCase()
     .regex(/^[A-Z0-9_]+$/, 'Use only uppercase letters, numbers and underscores.'),
   name: z.string().trim().min(1, 'Class name is required.').max(80, 'Class name is too long.'),
+  division: classDivisionField,
   description: optionalLongText(200),
   sortOrder: z.number().int().min(0).max(9999).optional(),
   status: z.enum(['ACTIVE', 'INACTIVE']).default('ACTIVE'),
@@ -131,6 +207,7 @@ export const classUpdateSchema = z.object({
     .regex(/^[A-Z0-9_]+$/, 'Use only uppercase letters, numbers and underscores.')
     .optional(),
   name: z.string().trim().min(1).max(80).optional(),
+  division: classDivisionField,
   description: optionalLongText(200).nullable(),
   sortOrder: z.number().int().min(0).max(9999).optional(),
   status: z.enum(['ACTIVE', 'INACTIVE']).optional(),
@@ -340,8 +417,26 @@ export const markPaidSchema = z.object({
   note: optionalLongText(500),
 })
 
+export const markUnpaidSchema = z.object({
+  pupilId: z.string().trim().min(1, 'Select a pupil.').max(100),
+  paymentDate: dateField.optional(),
+  dailyUnpaid: z.boolean(),
+  paUnpaid: z.boolean(),
+})
+
 export const chargeGenerateSchema = z.object({
   sessionId: z.string().trim().min(1, 'Select a session.').max(100),
+})
+
+// Finance Reconciliation attendance toggle — narrowly scoped upsert for the
+// reconciliation table. Guarded by payments.record (same as reconciliation close),
+// deliberately separate from generic /api/attendance (attendance.manage).
+export const reconciliationAttendanceSchema = z.object({
+  pupilId: z.string().trim().min(1, 'Select a pupil.').max(100),
+  date: dateField,
+  status: z.enum(['PRESENT', 'ABSENT'], {
+    errorMap: () => ({ message: 'Select a valid attendance status.' }),
+  }),
 })
 
 // =============================================================================

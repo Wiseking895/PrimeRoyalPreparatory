@@ -4,6 +4,7 @@ import { AlertCircle, Eye, EyeOff, Lock, LogIn, Mail, ShieldCheck } from 'lucide
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/auth/AuthContext'
 import { dashboardHomeFor } from '@/auth/dashboardHome'
+import { isDeveloperEmail } from '@/auth/storage'
 import { Logo } from '@/components/common/Logo'
 import { Spinner } from '@/components/dashboard/Loaders'
 import { cn } from '@/lib/cn'
@@ -13,7 +14,7 @@ interface LocationState {
 }
 
 const fieldClasses =
-  'h-12 w-full rounded-xl border border-cream-300 bg-white pl-11 pr-11 text-sm text-ink-900 outline-none transition-colors placeholder:text-ink-500/60 focus:border-magenta-500'
+  'h-12 w-full rounded-xl border border-cream-300 bg-white pl-11 pr-11 text-sm text-ink-900 outline-none transition-colors placeholder:text-ink-500 focus:border-magenta-500'
 
 export function LoginPage() {
   const { status, user, login } = useAuth()
@@ -28,6 +29,10 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null)
 
   if (status === 'authenticated' && user) {
+    // Developer account goes to the account selector
+    if (isDeveloperEmail(user.email) && user.position === 'DEVELOPER') {
+      return <Navigate to="/developer/accounts" replace />
+    }
     return <Navigate to={state?.from ?? dashboardHomeFor(user)} replace />
   }
 
@@ -47,7 +52,12 @@ export function LoginPage() {
     setSubmitting(true)
     try {
       const signedInUser = await login(identifier, password)
-      navigate(state?.from ?? dashboardHomeFor(signedInUser), { replace: true })
+      // Developer account goes to the account selector
+      if (isDeveloperEmail(signedInUser.email) && signedInUser.position === 'DEVELOPER') {
+        navigate('/developer/accounts', { replace: true })
+      } else {
+        navigate(state?.from ?? dashboardHomeFor(signedInUser), { replace: true })
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Sign in failed. Please try again.'
       setError(message)

@@ -221,6 +221,10 @@ export interface ClassFinanceRow {
   expectedAmount: string
   collectedAmount: string
   outstandingAmount: string
+  boysPresent: number
+  boysAbsent: number
+  girlsPresent: number
+  girlsAbsent: number
 }
 
 export interface OwnerFinanceOverviewView {
@@ -322,6 +326,52 @@ export async function getOwnerFinanceOverview(targetDate?: string): Promise<Owne
       const set = presentByClass.get(record.classId)
       if (set) set.add(record.pupilId)
     }
+  }
+
+  // Per-class attendance breakdown (boys/girls present/absent) for the SAME
+  // target date used by the finance figures above. Gender comes from the
+  // existing Pupil.gender field (MALE/FEMALE). Mirrors getCombinedReconciliation:
+  // only status === 'PRESENT' counts as present — a missing record is absent.
+  const attendanceRoster = await prisma.pupil.findMany({
+    where: { classId: { in: classIds }, status: 'ACTIVE' },
+    select: { id: true, classId: true, gender: true },
+  })
+  const attendanceRosterIds = attendanceRoster.map((p) => p.id)
+  const dayAttendanceRecords =
+    attendanceRosterIds.length > 0
+      ? await prisma.attendance.findMany({
+          where: {
+            date: targetDateObj,
+            pupilId: { in: attendanceRosterIds },
+            sessionId: session.id,
+          },
+          select: { pupilId: true, status: true },
+        })
+      : []
+  const attendanceStatusByPupil = new Map<string, string>()
+  for (const record of dayAttendanceRecords) {
+    if (record.pupilId) attendanceStatusByPupil.set(record.pupilId, record.status)
+  }
+  const attendanceBreakdownByClass = new Map<
+    string,
+    { boysPresent: number; boysAbsent: number; girlsPresent: number; girlsAbsent: number }
+  >()
+  for (const pupil of attendanceRoster) {
+    const bucket = attendanceBreakdownByClass.get(pupil.classId) ?? {
+      boysPresent: 0,
+      boysAbsent: 0,
+      girlsPresent: 0,
+      girlsAbsent: 0,
+    }
+    const isPresent = attendanceStatusByPupil.get(pupil.id) === 'PRESENT'
+    if (pupil.gender === 'MALE') {
+      if (isPresent) bucket.boysPresent += 1
+      else bucket.boysAbsent += 1
+    } else if (pupil.gender === 'FEMALE') {
+      if (isPresent) bucket.girlsPresent += 1
+      else bucket.girlsAbsent += 1
+    }
+    attendanceBreakdownByClass.set(pupil.classId, bucket)
   }
 
   // Get all active pupils by class (for termly/other fees)
@@ -559,6 +609,12 @@ export async function getOwnerFinanceOverview(targetDate?: string): Promise<Owne
         const expected = bucket.expected
         const collected = bucket.collected
         const outstanding = expected.minus(collected)
+        const attendance = attendanceBreakdownByClass.get(cls.id) ?? {
+          boysPresent: 0,
+          boysAbsent: 0,
+          girlsPresent: 0,
+          girlsAbsent: 0,
+        }
         return {
           classId: cls.id,
           className: cls.name,
@@ -566,6 +622,10 @@ export async function getOwnerFinanceOverview(targetDate?: string): Promise<Owne
           expectedAmount: money(expected),
           collectedAmount: money(collected),
           outstandingAmount: money(outstanding),
+          boysPresent: attendance.boysPresent,
+          boysAbsent: attendance.boysAbsent,
+          girlsPresent: attendance.girlsPresent,
+          girlsAbsent: attendance.girlsAbsent,
         }
       })
       .filter((row): row is ClassFinanceRow => row !== null)

@@ -112,6 +112,15 @@ describe('FeeStructuresPage', () => {
     expect(screen.getAllByText('150,000.00').length).toBeGreaterThan(0)
   })
 
+  it('describes the page as configure fees', async () => {
+    PERMISSIONS = ['finance.view']
+    renderPage()
+
+    expect(
+      await screen.findByText(/Configure fees for an academic session and term/),
+    ).toBeInTheDocument()
+  })
+
   it('hides create and edit controls without fees.manage (view-only roles)', async () => {
     PERMISSIONS = ['finance.view']
     renderPage()

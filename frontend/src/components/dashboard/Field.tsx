@@ -1,8 +1,10 @@
+import { useState } from 'react'
 import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react'
+import { Eye, EyeOff } from 'lucide-react'
 import { cn } from '@/lib/cn'
 
 const baseClasses =
-  'w-full rounded-xl border border-cream-300 bg-white px-4 py-2.5 text-sm text-ink-900 outline-none transition-colors placeholder:text-ink-500/60 focus:border-magenta-500'
+  'w-full rounded-xl border border-cream-300 bg-white px-4 py-2.5 text-sm text-ink-900 outline-none transition-colors placeholder:text-ink-500 focus:border-magenta-500'
 
 function FieldShell({
   label,
@@ -54,6 +56,50 @@ export function TextField({ label, error, hint, id, required, className, ...rest
         className={cn(baseClasses, error ? 'border-red-300' : '', className)}
         {...rest}
       />
+    </FieldShell>
+  )
+}
+
+interface PasswordFieldProps extends Omit<TextFieldProps, 'type'> {
+  /** Accessible label for the visibility toggle. Defaults to a context-aware label. */
+  toggleLabel?: string
+}
+
+/**
+ * Password text field with a keyboard-accessible show/hide control.
+ * The value is masked by default; toggling only changes the input type.
+ */
+export function PasswordField({ label, error, hint, id, required, className, toggleLabel, ...rest }: PasswordFieldProps) {
+  const inputId = id ?? rest.name ?? label.toLowerCase().replace(/\s+/g, '-')
+  const [visible, setVisible] = useState(false)
+  const fallbackToggle = visible ? `Hide ${label.toLowerCase()}` : `Show ${label.toLowerCase()}`
+
+  return (
+    <FieldShell label={label} htmlFor={inputId} required={required} error={error} hint={hint}>
+      <div className="relative">
+        <input
+          id={inputId}
+          type={visible ? 'text' : 'password'}
+          required={required}
+          aria-invalid={Boolean(error)}
+          aria-describedby={error ? `${inputId}-error` : undefined}
+          className={cn(baseClasses, 'pr-11', error ? 'border-red-300' : '', className)}
+          {...rest}
+        />
+        <button
+          type="button"
+          onClick={() => setVisible((current) => !current)}
+          aria-label={toggleLabel ?? fallbackToggle}
+          aria-pressed={visible}
+          className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-ink-500 transition-colors hover:text-ink-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-magenta-500 focus-visible:ring-offset-0"
+        >
+          {visible ? (
+            <EyeOff className="h-4 w-4" aria-hidden="true" />
+          ) : (
+            <Eye className="h-4 w-4" aria-hidden="true" />
+          )}
+        </button>
+      </div>
     </FieldShell>
   )
 }

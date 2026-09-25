@@ -59,3 +59,43 @@ export function elapsedSchoolDays(
 export function schoolDayLabel(count: number): string {
   return `${count} school day${count === 1 ? '' : 's'}`
 }
+
+/**
+ * Enumerates the school days (Mon–Fri) between `termStart` and `termEnd`,
+ * inclusive, as `yyyy-mm-dd` strings.
+ *
+ * Uses the same PRPS school-day rule as `elapsedSchoolDays`: the term start
+ * date is Day 1 when it falls on a weekday; weekends are never counted.
+ * Returns an empty array when either date is invalid or the range is empty.
+ * The list is capped at 400 school days as a safety guard.
+ */
+export function schoolDaysBetween(termStart: string, termEnd: string): string[] {
+  const parse = (iso: string): Date | null => {
+    const parts = iso.split('T')[0].split('-')
+    if (parts.length !== 3) return null
+    const year = Number(parts[0])
+    const month = Number(parts[1]) - 1
+    const day = Number(parts[2])
+    if (Number.isNaN(year) || Number.isNaN(month) || Number.isNaN(day)) return null
+    const date = new Date(year, month, day)
+    return Number.isNaN(date.getTime()) ? null : date
+  }
+
+  const start = parse(termStart)
+  const end = parse(termEnd)
+  if (!start || !end || end.getTime() < start.getTime()) return []
+
+  const days: string[] = []
+  const cursor = new Date(start)
+  while (cursor.getTime() <= end.getTime() && days.length < 400) {
+    const dow = cursor.getDay()
+    if (dow !== 0 && dow !== 6) {
+      const year = cursor.getFullYear()
+      const month = String(cursor.getMonth() + 1).padStart(2, '0')
+      const day = String(cursor.getDate()).padStart(2, '0')
+      days.push(`${year}-${month}-${day}`)
+    }
+    cursor.setDate(cursor.getDate() + 1)
+  }
+  return days
+}

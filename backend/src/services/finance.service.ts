@@ -3,6 +3,7 @@ import { HttpStatus } from '../config/enums'
 import { prisma } from '../lib/prisma'
 import type { AuthenticatedUser } from '../types/auth'
 import { AppError } from '../utils/app-error'
+import { createAttendance, updateAttendance, type AttendanceView } from './attendance.service'
 import { recordAudit } from './audit.service'
 import {
   money,
@@ -1528,6 +1529,146 @@ export async function markPaid(
   throw new AppError('Could not generate a unique payment reference. Please try again.', HttpStatus.Conflict)
 }
 
+export interface MarkUnpaidInput {
+  pupilId: string
+  paymentDate?: string
+  dailyUnpaid: boolean
+  paUnpaid: boolean
+}
+
+/**
+ * Reverse a DAILY and/or PA fee payment for a specific date by voiding the
+ * corresponding payment record. Uses the existing supported void/correction flow.
+ */
+export async function markUnpaid(
+  actor: AuthenticatedUser,
+  input: MarkUnpaidInput,
+  ip?: string,
+): Promise<{ voided: number }> {
+  if (!input.dailyUnpaid && !input.paUnpaid) {
+    throw new AppError('Select at least one fee to mark as unpaid.', HttpStatus.BadRequest)
+  }
+
+  const pupil = await prisma.pupil.findUnique({
+    where: { id: input.pupilId },
+    select: { id: true, pupilId: true, status: true },
+  })
+  if (!pupil) {
+    throw new AppError('Pupil record not found.', HttpStatus.NotFound)
+  }
+  if (pupil.status !== 'ACTIVE') {
+    throw new AppError('Cannot modify payment for an inactive pupil.', HttpStatus.BadRequest)
+  }
+
+  const activeSession = await prisma.academicSession.findFirst({ where: { status: 'ACTIVE' } })
+  if (!activeSession) {
+    throw new AppError('No active academic session found.', HttpStatus.BadRequest)
+  }
+
+  const activeTerm = await prisma.academicTerm.findFirst({
+    where: { sessionId: activeSession.id, status: 'ACTIVE' },
+  })
+  if (!activeTerm) {
+    throw new AppError('No active academic term found.', HttpStatus.BadRequest)
+  }
+
+  const paymentDate = input.paymentDate ? new Date(input.paymentDate) : new Date()
+  const paymentDateOnly = new Date(paymentDate.toISOString().slice(0, 10) + 'T00:00:00.000Z')
+
+  // Check if this day's reconciliation is locked
+  await assertReconciliationNotLocked(paymentDateOnly)
+
+  const fees = await prisma.financeFee.findMany({
+    where: { sessionId: activeSession.id, termId: activeTerm.id, status: 'ACTIVE' },
+    select: { id: true, feeType: true },
+  })
+
+  const dailyFee = fees.find((f) => f.feeType === 'DAILY')
+  const paFee = fees.find((f) => f.feeType === 'PA')
+
+  const feeChecks = [
+    { unpaid: input.dailyUnpaid, fee: dailyFee, label: 'Daily Fee' },
+    { unpaid: input.paUnpaid, fee: paFee, label: 'PA Fee' },
+  ]
+
+  const paymentIdsToVoid = new Set<string>()
+
+  for (const check of feeChecks) {
+    if (!check.unpaid || !check.fee) continue
+
+    const assignment = await prisma.feeAssignment.findFirst({
+      where: { pupilId: input.pupilId, feeId: check.fee.id, status: 'ACTIVE' },
+      select: { id: true },
+    })
+    if (!assignment) continue
+
+    const charge = await prisma.feeCharge.findFirst({
+      where: { assignmentId: assignment.id, termId: activeTerm.id, status: 'ACTIVE' },
+      select: { id: true },
+    })
+    if (!charge) continue
+
+    // Find payment allocations for this charge on this date
+    const allocations = await prisma.paymentAllocation.findMany({
+      where: {
+        chargeId: charge.id,
+        payment: {
+          pupilId: input.pupilId,
+          status: 'ACTIVE',
+          paymentDate: paymentDateOnly,
+        },
+      },
+      select: { paymentId: true },
+    })
+
+    for (const alloc of allocations) {
+      paymentIdsToVoid.add(alloc.paymentId)
+    }
+  }
+
+  if (paymentIdsToVoid.size === 0) {
+    throw new AppError('No payments found to reverse for this pupil on this date.', HttpStatus.BadRequest)
+  }
+
+  // Void each payment
+  let voided = 0
+  for (const paymentId of paymentIdsToVoid) {
+    const payment = await prisma.payment.findUnique({ where: { id: paymentId } })
+    if (!payment || payment.status === 'VOIDED') continue
+
+    await prisma.$transaction(async (tx) => {
+      await tx.paymentAllocation.deleteMany({ where: { paymentId } })
+      await tx.payment.update({
+        where: { id: paymentId },
+        data: {
+          status: 'VOIDED',
+          voidedAt: new Date(),
+          voidedById: actor.id,
+          voidReason: 'Reversed from reconciliation table',
+        },
+      })
+    })
+
+    await recordAudit({
+      actorUserId: actor.id,
+      action: 'finance.payment.void',
+      resourceType: 'payment',
+      resourceId: paymentId,
+      metadata: {
+        paymentReference: payment.paymentReference,
+        pupilId: pupil.pupilId,
+        reason: 'Reversed from reconciliation table',
+        reversalContext: 'reconciliation_toggle',
+      },
+      ip: ip ?? null,
+    })
+
+    voided += 1
+  }
+
+  return { voided }
+}
+
 export async function voidPayment(
   actor: AuthenticatedUser,
   id: string,
@@ -2668,23 +2809,30 @@ export async function getCombinedReconciliation(options: CombinedReconciliationO
         overallStatus = 'PAID'
       }
 
-      // Update counters
       if (isAbsent) {
         absentCount += 1
         clsAbsent += 1
       } else {
         presentCount += 1
         clsPresent += 1
-        if (dailyExempt || paExempt) {
-          exemptCount += 1
+      }
+
+      if (dailyExempt || paExempt) {
+        if (!isAbsent) exemptCount += 1
+      } else {
+        if (dailyStatus === 'PAID') dailyPaidCount += 1
+        else dailyNotPaidCount += 1
+        if (paStatus === 'PAID') paPaidCount += 1
+        else paNotPaidCount += 1
+        if (dailyPaidAmt.gte(dailyFeeAmt) && paPaidAmt.gte(paFeeAmt)) {
+          fullyPaidCount += 1
+        } else if (dailyPaidAmt.gte(dailyFeeAmt) || paPaidAmt.gte(paFeeAmt)) {
+          if (outstanding.gt(0)) partiallyPaidCount += 1
+          else fullyPaidCount += 1
+        } else if (outstanding.gt(0)) {
+          notPaidCount += 1
         } else {
-          if (dailyStatus === 'PAID') dailyPaidCount += 1
-          else dailyNotPaidCount += 1
-          if (paStatus === 'PAID') paPaidCount += 1
-          else paNotPaidCount += 1
-          if (overallStatus === 'PAID') fullyPaidCount += 1
-          else if (overallStatus === 'PARTIALLY_PAID') partiallyPaidCount += 1
-          else notPaidCount += 1
+          fullyPaidCount += 1
         }
       }
 
@@ -2752,6 +2900,93 @@ export async function getCombinedReconciliation(options: CombinedReconciliationO
       totalPaCollected: money(totalPaCollected),
     },
   }
+}
+
+// ---------------------------------------------------------------------------
+// Finance Reconciliation attendance — toggle a pupil PRESENT/ABSENT for the
+// selected reconciliation date. Reuses the existing attendance service for
+// validation, closed-day protection and persistence; guarded by payments.record
+// (the permission already used for reconciliation mutations), not attendance.manage.
+// ---------------------------------------------------------------------------
+
+export interface ReconciliationAttendanceInput {
+  pupilId: string
+  date: string
+  status: 'PRESENT' | 'ABSENT'
+}
+
+export async function setReconciliationAttendance(
+  actor: AuthenticatedUser,
+  input: ReconciliationAttendanceInput,
+  ip?: string,
+): Promise<AttendanceView> {
+  const dateObj = new Date(input.date + 'T00:00:00.000Z')
+
+  const pupil = await prisma.pupil.findUnique({
+    where: { id: input.pupilId },
+    select: { id: true, pupilId: true, status: true, classId: true },
+  })
+  if (!pupil) {
+    throw new AppError('Pupil record not found.', HttpStatus.NotFound)
+  }
+  if (pupil.status !== 'ACTIVE') {
+    throw new AppError('Cannot record attendance for an inactive pupil.', HttpStatus.BadRequest)
+  }
+
+  // The combined reconciliation view filters attendance by the active session,
+  // so new and existing records must be linked to it.
+  const session = await prisma.academicSession.findFirst({
+    where: { status: 'ACTIVE' },
+    select: { id: true },
+    orderBy: { createdAt: 'desc' },
+  })
+  if (!session) {
+    throw new AppError('No active academic session found.', HttpStatus.BadRequest)
+  }
+
+  const existing = await prisma.attendance.findFirst({
+    where: { pupilId: input.pupilId, date: dateObj },
+    orderBy: { createdAt: 'asc' },
+  })
+
+  let record: AttendanceView
+  if (existing) {
+    // Reuses the attendance service's closed-day (409) protection.
+    record = await updateAttendance(existing.id, { status: input.status })
+    if (existing.sessionId !== session.id || existing.classId !== pupil.classId) {
+      await prisma.attendance.update({
+        where: { id: existing.id },
+        data: { sessionId: session.id, classId: pupil.classId },
+      })
+    }
+  } else {
+    // Reuses the attendance service's pupil validation, date handling and
+    // closed-day (409) protection. Never invents today's date — uses input.date.
+    record = await createAttendance({
+      pupilId: input.pupilId,
+      staffId: actor.id,
+      status: input.status,
+      date: input.date,
+      sessionId: session.id,
+      classId: pupil.classId,
+    })
+  }
+
+  await recordAudit({
+    actorUserId: actor.id,
+    action: 'finance.reconciliation.attendance',
+    resourceType: 'attendance',
+    resourceId: record.id,
+    metadata: {
+      pupilId: pupil.pupilId,
+      date: input.date,
+      status: input.status,
+      updatedExisting: Boolean(existing),
+    },
+    ip: ip ?? null,
+  })
+
+  return record
 }
 
 // ---------------------------------------------------------------------------

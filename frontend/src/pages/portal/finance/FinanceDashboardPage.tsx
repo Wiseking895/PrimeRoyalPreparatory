@@ -3,10 +3,10 @@ import {
   ArrowRight,
   Banknote,
   CalendarDays,
+  ClipboardCheck,
   Construction,
   ListChecks,
   Receipt,
-  ScrollText,
   Users,
   Wallet,
   XCircle,
@@ -81,17 +81,17 @@ function KpiCard({
             'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl',
             accent
               ? 'bg-magenta-500/20 text-magenta-300'
-              : 'bg-white/[0.06] text-cream-200/50',
+              : 'bg-white/[0.06] text-cream-200/70',
           )}
         >
           <Icon className="h-5 w-5" aria-hidden="true" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-cream-200/35">{label}</p>
+          <p className="text-[11px] font-bold uppercase tracking-wider text-cream-200/60">{label}</p>
           <p className={cn('mt-1 text-2xl font-extrabold tracking-tight', accent ? 'text-magenta-300' : 'text-white')}>
             {value}
           </p>
-          {supporting && <p className="mt-1 text-[11px] text-cream-200/30">{supporting}</p>}
+          {supporting && <p className="mt-1 text-[11px] text-cream-200/60">{supporting}</p>}
         </div>
       </div>
       {children}
@@ -112,7 +112,7 @@ function ProgressBar({ value, max }: { value: number; max: number }) {
           }}
         />
       </div>
-      <span className="text-[11px] font-bold text-cream-200/50 w-8 text-right">{pct}%</span>
+      <span className="text-[11px] font-bold text-cream-200/70 w-8 text-right">{pct}%</span>
     </div>
   )
 }
@@ -131,8 +131,8 @@ function SkeletonRow() {
 function EmptyStateCard({ title, description }: { title: string; description?: string }) {
   return (
     <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-white/[0.08] bg-white/[0.02] px-6 py-12 text-center">
-      <p className="text-sm font-semibold text-cream-200/50">{title}</p>
-      {description && <p className="mt-1 text-[12px] text-cream-200/30">{description}</p>}
+      <p className="text-sm font-semibold text-cream-200/70">{title}</p>
+      {description && <p className="mt-1 text-[12px] text-cream-200/60">{description}</p>}
     </div>
   )
 }
@@ -203,6 +203,21 @@ export function FinanceDashboardPage() {
     return { expected: exp.toFixed(2), collected: col.toFixed(2), outstanding: (exp - col).toFixed(2) }
   }, [finance, activeCategory, activeFeeRows])
 
+  const activeAttendanceTotals = useMemo(() => {
+    return activeFeeRows.reduce(
+      (acc, row) => ({
+        boysPresent: acc.boysPresent + row.boysPresent,
+        boysAbsent: acc.boysAbsent + row.boysAbsent,
+        girlsPresent: acc.girlsPresent + row.girlsPresent,
+        girlsAbsent: acc.girlsAbsent + row.girlsAbsent,
+      }),
+      { boysPresent: 0, boysAbsent: 0, girlsPresent: 0, girlsAbsent: 0 },
+    )
+  }, [activeFeeRows])
+  const activeTotalPresent = activeAttendanceTotals.boysPresent + activeAttendanceTotals.girlsPresent
+  const activeTotalAbsent = activeAttendanceTotals.boysAbsent + activeAttendanceTotals.girlsAbsent
+  const activeGrandTotal = activeTotalPresent + activeTotalAbsent
+
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center rounded-2xl border border-red-500/20 bg-red-500/[0.06] px-6 py-12 text-center">
@@ -227,7 +242,7 @@ export function FinanceDashboardPage() {
           <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-white sm:text-3xl">
             {greeting()}, {user?.fullName.split(' ')[0] ?? 'Accountant'}
           </h1>
-          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-cream-200/40">
+          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-cream-200/65">
             Prime Royal Preparatory School — fees, assignments, charges and payment collection at a glance.
           </p>
         </div>
@@ -298,7 +313,7 @@ export function FinanceDashboardPage() {
                       'rounded-full px-3 py-1 text-[11px] font-semibold transition-colors',
                       activeCategory === key
                         ? 'bg-magenta-500/20 text-magenta-300 ring-1 ring-magenta-500/30'
-                        : 'bg-white/[0.05] text-cream-200/40 hover:bg-white/[0.08] hover:text-cream-200/60',
+                        : 'bg-white/[0.05] text-cream-200/65 hover:bg-white/[0.08] hover:text-cream-200/60',
                     )}
                   >
                     {label}
@@ -320,25 +335,48 @@ export function FinanceDashboardPage() {
                     <table className="w-full text-left text-[13px]">
                       <thead>
                         <tr className="border-b border-white/[0.06]">
-                          <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Class</th>
-                          <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Pupils</th>
-                          <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Expected</th>
-                          <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Collected</th>
-                          <th className="pb-2 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Outstanding</th>
+                          <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60">Class</th>
+                          <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Boys Present</th>
+                          <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Boys Absent</th>
+                          <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Girls Present</th>
+                          <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Girls Absent</th>
+                          <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Total Present</th>
+                          <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Total Absent</th>
+                          <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Grand Total</th>
+                          <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Expected</th>
+                          <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Collected</th>
+                          <th className="pb-2 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Outstanding</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {activeFeeRows.map((row) => (
-                          <tr key={row.classId} className="border-b border-white/[0.04]">
-                            <td className="py-2.5 pr-4 font-semibold text-cream-100">{row.className}</td>
-                            <td className="py-2.5 pr-4 text-right text-cream-200/60">{row.pupilCount}</td>
-                            <td className="py-2.5 pr-4 text-right text-cream-200/60">{formatMoney(row.expectedAmount)}</td>
-                            <td className="py-2.5 pr-4 text-right font-semibold text-emerald-400">{formatMoney(row.collectedAmount)}</td>
-                            <td className="py-2.5 text-right font-semibold text-red-400">{formatMoney(row.outstandingAmount)}</td>
-                          </tr>
-                        ))}
+                        {activeFeeRows.map((row) => {
+                          const rowTotalPresent = row.boysPresent + row.girlsPresent
+                          const rowTotalAbsent = row.boysAbsent + row.girlsAbsent
+                          return (
+                            <tr key={row.classId} className="border-b border-white/[0.04]">
+                              <td className="py-2.5 pr-4 font-semibold text-cream-100">{row.className}</td>
+                              <td className="py-2.5 pr-4 text-right text-cream-200/60">{row.boysPresent}</td>
+                              <td className="py-2.5 pr-4 text-right text-cream-200/60">{row.boysAbsent}</td>
+                              <td className="py-2.5 pr-4 text-right text-cream-200/60">{row.girlsPresent}</td>
+                              <td className="py-2.5 pr-4 text-right text-cream-200/60">{row.girlsAbsent}</td>
+                              <td className="py-2.5 pr-4 text-right font-semibold text-emerald-400">{rowTotalPresent}</td>
+                              <td className="py-2.5 pr-4 text-right font-semibold text-red-400">{rowTotalAbsent}</td>
+                              <td className="py-2.5 pr-4 text-right text-cream-200/60">{rowTotalPresent + rowTotalAbsent}</td>
+                              <td className="py-2.5 pr-4 text-right text-cream-200/60">{formatMoney(row.expectedAmount)}</td>
+                              <td className="py-2.5 pr-4 text-right font-semibold text-emerald-400">{formatMoney(row.collectedAmount)}</td>
+                              <td className="py-2.5 text-right font-semibold text-red-400">{formatMoney(row.outstandingAmount)}</td>
+                            </tr>
+                          )
+                        })}
                         <tr className="border-t border-magenta-500/20">
-                          <td colSpan={2} className="pt-3 pr-4 text-[12px] font-bold text-magenta-300">Total</td>
+                          <td className="pt-3 pr-4 text-[12px] font-bold text-magenta-300">GRAND TOTAL</td>
+                          <td className="pt-3 pr-4 text-right text-[12px] font-bold text-magenta-300">{activeAttendanceTotals.boysPresent}</td>
+                          <td className="pt-3 pr-4 text-right text-[12px] font-bold text-magenta-300">{activeAttendanceTotals.boysAbsent}</td>
+                          <td className="pt-3 pr-4 text-right text-[12px] font-bold text-magenta-300">{activeAttendanceTotals.girlsPresent}</td>
+                          <td className="pt-3 pr-4 text-right text-[12px] font-bold text-magenta-300">{activeAttendanceTotals.girlsAbsent}</td>
+                          <td className="pt-3 pr-4 text-right text-[12px] font-bold text-magenta-300">{activeTotalPresent}</td>
+                          <td className="pt-3 pr-4 text-right text-[12px] font-bold text-magenta-300">{activeTotalAbsent}</td>
+                          <td className="pt-3 pr-4 text-right text-[12px] font-extrabold text-magenta-300">{activeGrandTotal}</td>
                           <td className="pt-3 pr-4 text-right text-[12px] font-bold text-magenta-300">{formatMoney(activeFeeTotals.expected)}</td>
                           <td className="pt-3 pr-4 text-right text-[12px] font-bold text-magenta-300">{formatMoney(activeFeeTotals.collected)}</td>
                           <td className="pt-3 text-right text-[12px] font-extrabold text-magenta-300">{formatMoney(activeFeeTotals.outstanding)}</td>
@@ -349,7 +387,7 @@ export function FinanceDashboardPage() {
                       <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/[0.08]">
                         <div className="h-full rounded-full bg-gradient-to-r from-magenta-500 to-pink-400" style={{ width: `${Number(activeFeeTotals.expected) > 0 ? Math.min(Math.round((Number(activeFeeTotals.collected) / Number(activeFeeTotals.expected)) * 100), 100) : 0}%` }} />
                       </div>
-                      <span className="text-[11px] font-bold text-cream-200/50 w-8 text-right">{Number(activeFeeTotals.expected) > 0 ? Math.min(Math.round((Number(activeFeeTotals.collected) / Number(activeFeeTotals.expected)) * 100), 100) : 0}%</span>
+                      <span className="text-[11px] font-bold text-cream-200/70 w-8 text-right">{Number(activeFeeTotals.expected) > 0 ? Math.min(Math.round((Number(activeFeeTotals.collected) / Number(activeFeeTotals.expected)) * 100), 100) : 0}%</span>
                     </div>
                   </div>
                 )}
@@ -366,7 +404,7 @@ export function FinanceDashboardPage() {
                 <h3 className="text-[12px] font-bold text-cream-100">Outstanding Arrears</h3>
               </div>
               {Number(finance.totals.totalOutstanding) <= 0 ? (
-                <p className="text-[12px] text-cream-200/30 py-4 text-center">No outstanding arrears.</p>
+                <p className="text-[12px] text-cream-200/60 py-4 text-center">No outstanding arrears.</p>
               ) : (
                 <>
                   <div className="space-y-2">
@@ -381,7 +419,7 @@ export function FinanceDashboardPage() {
                         >
                           <div className="min-w-0">
                             <p className="text-[12px] font-semibold text-cream-100 truncate">{row.className}</p>
-                            <p className="text-[10px] text-cream-200/30">{row.pupilCount} pupils with charges</p>
+                            <p className="text-[10px] text-cream-200/60">{row.pupilCount} pupils with charges</p>
                           </div>
                           <span className="text-[12px] font-bold text-red-400">{formatMoney(row.outstandingAmount)}</span>
                         </div>
@@ -389,7 +427,7 @@ export function FinanceDashboardPage() {
                   </div>
                   <div className="border-t border-white/[0.06] mt-3 pt-3">
                     <div className="flex items-center justify-between">
-                      <span className="text-[12px] font-bold text-cream-200/50">Total Arrears</span>
+                      <span className="text-[12px] font-bold text-cream-200/70">Total Arrears</span>
                       <span className="text-lg font-extrabold text-red-400">{formatMoney(finance.totals.totalOutstanding)}</span>
                     </div>
                   </div>
@@ -406,10 +444,18 @@ export function FinanceDashboardPage() {
 
       {/* ── All Classes Summary Table ── */}
       {finance && (() => {
-        const classMap = new Map<string, { className: string; pupilCount: number; expected: number; collected: number; outstanding: number }>()
+        const classMap = new Map<string, { className: string; boysPresent: number; boysAbsent: number; girlsPresent: number; girlsAbsent: number; expected: number; collected: number; outstanding: number }>()
         for (const row of [...finance.dailyFees, ...finance.ptaFees, ...finance.maintenanceFees]) {
-          const existing = classMap.get(row.classId) ?? { className: row.className, pupilCount: 0, expected: 0, collected: 0, outstanding: 0 }
-          existing.pupilCount = Math.max(existing.pupilCount, row.pupilCount)
+          const existing = classMap.get(row.classId) ?? {
+            className: row.className,
+            boysPresent: row.boysPresent,
+            boysAbsent: row.boysAbsent,
+            girlsPresent: row.girlsPresent,
+            girlsAbsent: row.girlsAbsent,
+            expected: 0,
+            collected: 0,
+            outstanding: 0,
+          }
           existing.expected += Number(row.expectedAmount)
           existing.collected += Number(row.collectedAmount)
           existing.outstanding += Number(row.outstandingAmount)
@@ -420,6 +466,12 @@ export function FinanceDashboardPage() {
         const grandExpected = allRows.reduce((s, r) => s + r.expected, 0)
         const grandCollected = allRows.reduce((s, r) => s + r.collected, 0)
         const grandOutstanding = allRows.reduce((s, r) => s + r.outstanding, 0)
+        const grandBoysPresent = allRows.reduce((s, r) => s + r.boysPresent, 0)
+        const grandBoysAbsent = allRows.reduce((s, r) => s + r.boysAbsent, 0)
+        const grandGirlsPresent = allRows.reduce((s, r) => s + r.girlsPresent, 0)
+        const grandGirlsAbsent = allRows.reduce((s, r) => s + r.girlsAbsent, 0)
+        const grandTotalPresent = grandBoysPresent + grandGirlsPresent
+        const grandTotalAbsent = grandBoysAbsent + grandGirlsAbsent
 
         return (
           <GlassInnerCard>
@@ -428,7 +480,7 @@ export function FinanceDashboardPage() {
                 <div className="inline-block w-1 h-5 rounded-full bg-magenta-500 shrink-0" aria-hidden="true" />
                 <h3 className="text-[12px] font-bold text-cream-100">All Classes — Finance Summary</h3>
               </div>
-              <span className="text-[11px] font-semibold text-cream-200/40">
+              <span className="text-[11px] font-semibold text-cream-200/65">
                 {finance.session?.name ?? 'No active session'} &middot; {finance.term?.name ?? 'No active term'}
               </span>
             </div>
@@ -436,25 +488,48 @@ export function FinanceDashboardPage() {
               <table className="w-full text-left text-[13px]">
                 <thead>
                   <tr className="border-b border-white/[0.06]">
-                    <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35">Class</th>
-                    <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Pupils</th>
-                    <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Expected</th>
-                    <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Collected</th>
-                    <th className="pb-2 text-[11px] font-bold uppercase tracking-wider text-cream-200/35 text-right">Outstanding</th>
+                    <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60">Class</th>
+                    <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Boys Present</th>
+                    <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Boys Absent</th>
+                    <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Girls Present</th>
+                    <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Girls Absent</th>
+                    <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Total Present</th>
+                    <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Total Absent</th>
+                    <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Grand Total</th>
+                    <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Expected</th>
+                    <th className="pb-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Collected</th>
+                    <th className="pb-2 text-[11px] font-bold uppercase tracking-wider text-cream-200/60 text-right">Outstanding</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {allRows.map((row) => (
-                    <tr key={row.className} className="border-b border-white/[0.04]">
-                      <td className="py-2.5 pr-4 font-semibold text-cream-100">{row.className}</td>
-                      <td className="py-2.5 pr-4 text-right text-cream-200/60">{row.pupilCount}</td>
-                      <td className="py-2.5 pr-4 text-right text-cream-200/60">{formatMoney(row.expected)}</td>
-                      <td className="py-2.5 pr-4 text-right font-semibold text-emerald-400">{formatMoney(row.collected)}</td>
-                      <td className="py-2.5 text-right font-semibold text-red-400">{formatMoney(row.outstanding)}</td>
-                    </tr>
-                  ))}
+                  {allRows.map((row) => {
+                    const rowTotalPresent = row.boysPresent + row.girlsPresent
+                    const rowTotalAbsent = row.boysAbsent + row.girlsAbsent
+                    return (
+                      <tr key={row.className} className="border-b border-white/[0.04]">
+                        <td className="py-2.5 pr-4 font-semibold text-cream-100">{row.className}</td>
+                        <td className="py-2.5 pr-4 text-right text-cream-200/60">{row.boysPresent}</td>
+                        <td className="py-2.5 pr-4 text-right text-cream-200/60">{row.boysAbsent}</td>
+                        <td className="py-2.5 pr-4 text-right text-cream-200/60">{row.girlsPresent}</td>
+                        <td className="py-2.5 pr-4 text-right text-cream-200/60">{row.girlsAbsent}</td>
+                        <td className="py-2.5 pr-4 text-right font-semibold text-emerald-400">{rowTotalPresent}</td>
+                        <td className="py-2.5 pr-4 text-right font-semibold text-red-400">{rowTotalAbsent}</td>
+                        <td className="py-2.5 pr-4 text-right text-cream-200/60">{rowTotalPresent + rowTotalAbsent}</td>
+                        <td className="py-2.5 pr-4 text-right text-cream-200/60">{formatMoney(row.expected)}</td>
+                        <td className="py-2.5 pr-4 text-right font-semibold text-emerald-400">{formatMoney(row.collected)}</td>
+                        <td className="py-2.5 text-right font-semibold text-red-400">{formatMoney(row.outstanding)}</td>
+                      </tr>
+                    )
+                  })}
                   <tr className="border-t border-magenta-500/20">
-                    <td colSpan={2} className="pt-3 pr-4 text-[12px] font-bold text-magenta-300">School Total</td>
+                    <td className="pt-3 pr-4 text-[12px] font-bold text-magenta-300">GRAND TOTAL</td>
+                    <td className="pt-3 pr-4 text-right text-[12px] font-bold text-magenta-300">{grandBoysPresent}</td>
+                    <td className="pt-3 pr-4 text-right text-[12px] font-bold text-magenta-300">{grandBoysAbsent}</td>
+                    <td className="pt-3 pr-4 text-right text-[12px] font-bold text-magenta-300">{grandGirlsPresent}</td>
+                    <td className="pt-3 pr-4 text-right text-[12px] font-bold text-magenta-300">{grandGirlsAbsent}</td>
+                    <td className="pt-3 pr-4 text-right text-[12px] font-bold text-magenta-300">{grandTotalPresent}</td>
+                    <td className="pt-3 pr-4 text-right text-[12px] font-bold text-magenta-300">{grandTotalAbsent}</td>
+                    <td className="pt-3 pr-4 text-right text-[12px] font-extrabold text-magenta-300">{grandTotalPresent + grandTotalAbsent}</td>
                     <td className="pt-3 pr-4 text-right text-[12px] font-bold text-magenta-300">{formatMoney(grandExpected)}</td>
                     <td className="pt-3 pr-4 text-right text-[12px] font-bold text-magenta-300">{formatMoney(grandCollected)}</td>
                     <td className="pt-3 text-right text-[12px] font-extrabold text-magenta-300">{formatMoney(grandOutstanding)}</td>
@@ -465,7 +540,7 @@ export function FinanceDashboardPage() {
                 <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/[0.08]">
                   <div className="h-full rounded-full bg-gradient-to-r from-magenta-500 to-pink-400" style={{ width: `${grandExpected > 0 ? Math.min(Math.round((grandCollected / grandExpected) * 100), 100) : 0}%` }} />
                 </div>
-                <span className="text-[11px] font-bold text-cream-200/50 w-8 text-right">{grandExpected > 0 ? Math.min(Math.round((grandCollected / grandExpected) * 100), 100) : 0}%</span>
+                <span className="text-[11px] font-bold text-cream-200/70 w-8 text-right">{grandExpected > 0 ? Math.min(Math.round((grandCollected / grandExpected) * 100), 100) : 0}%</span>
               </div>
             </div>
           </GlassInnerCard>
@@ -481,22 +556,21 @@ export function FinanceDashboardPage() {
             <ul className="space-y-1">
               {[
                 { label: 'Fee Structures', to: `${base}/fees`, icon: Receipt },
-                { label: 'Record Payment', to: `${base}/payments`, icon: Wallet },
-                { label: 'Pupil Finance', to: `${base}/pupils`, icon: Users },
+                { label: 'Reconciliation', to: `${base}/reconciliation`, icon: ClipboardCheck },
+                { label: 'Payment History', to: `${base}/payments`, icon: Wallet },
                 { label: 'Sessions & Terms', to: `${base}/sessions`, icon: CalendarDays },
-                { label: 'Finance Summary', to: `${base}/summary`, icon: ScrollText },
               ].map(({ label, to, icon: Icon }) => (
                 <li key={label}>
                   <Link
                     to={to}
                     className="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-cream-100 transition-colors hover:bg-white/[0.05]"
                   >
-                    <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/[0.06] text-cream-200/50">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/[0.06] text-cream-200/70">
                       <Icon className="h-4.5 w-4.5" aria-hidden="true" />
                     </span>
                     <span className="flex-1">{label}</span>
                     <ArrowRight
-                      className="h-4 w-4 text-cream-200/30 transition-transform group-hover:translate-x-0.5"
+                      className="h-4 w-4 text-cream-200/60 transition-transform group-hover:translate-x-0.5"
                       aria-hidden="true"
                     />
                   </Link>
@@ -534,7 +608,7 @@ export function FinanceDashboardPage() {
                         <p className="truncate text-sm font-semibold text-cream-100">
                           {payment.pupilName} — {formatMoney(payment.amountPaid)}
                         </p>
-                        <p className="truncate text-xs text-cream-200/40">
+                        <p className="truncate text-xs text-cream-200/65">
                           {payment.paymentReference} · {payment.paymentMethod.replace('_', ' ')} ·{' '}
                           {formatDate(payment.paymentDate)}
                         </p>

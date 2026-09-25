@@ -4,12 +4,13 @@ import {
   getPaymentHandler,
   listPaymentsHandler,
   markPaidHandler,
+  markUnpaidHandler,
   voidPaymentHandler,
 } from '../controllers/payments.controller'
 import { requireAuth } from '../middleware/require-auth'
 import { requirePermission } from '../middleware/require-permission'
 import { validate } from '../middleware/validate'
-import { markPaidSchema, paymentCreateSchema, paymentVoidSchema } from '../schemas'
+import { markPaidSchema, markUnpaidSchema, paymentCreateSchema, paymentVoidSchema } from '../schemas'
 
 const router = Router()
 
@@ -18,6 +19,7 @@ router.use(requireAuth)
 router.get('/', requirePermission('finance.view'), listPaymentsHandler)
 router.post('/', requirePermission('payments.record'), validate(paymentCreateSchema), createPaymentHandler)
 router.post('/mark-paid', requirePermission('payments.record'), validate(markPaidSchema), markPaidHandler)
+router.post('/mark-unpaid', requirePermission('payments.record'), validate(markUnpaidSchema), markUnpaidHandler)
 router.get('/:id', requirePermission('finance.view'), getPaymentHandler)
 router.post('/:id/void', requirePermission('payments.record'), validate(paymentVoidSchema), voidPaymentHandler)
 

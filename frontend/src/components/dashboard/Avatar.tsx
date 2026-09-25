@@ -3,7 +3,7 @@ import { cn } from '@/lib/cn'
 interface AvatarProps {
   name: string
   imageUrl?: string | null
-  size?: 'sm' | 'md' | 'lg'
+  size?: 'sm' | 'md' | 'lg' | 'xl'
   className?: string
 }
 
@@ -11,6 +11,7 @@ const sizes = {
   sm: 'h-9 w-9 text-xs',
   md: 'h-11 w-11 text-sm',
   lg: 'h-16 w-16 text-lg',
+  xl: 'h-24 w-24 text-2xl sm:h-28 sm:w-28 sm:text-3xl',
 }
 
 function initials(name: string): string {

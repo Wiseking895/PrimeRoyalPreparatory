@@ -310,7 +310,7 @@ export function StaffManagementPage() {
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Search name, email or staff ID…"
               aria-label="Search staff"
-              className="h-11 w-full rounded-xl border border-cream-300 bg-white pl-11 pr-4 text-sm text-ink-900 outline-none transition-colors placeholder:text-ink-500/60 focus:border-magenta-500"
+              className="h-11 w-full rounded-xl border border-cream-300 bg-white pl-11 pr-4 text-sm text-ink-900 outline-none transition-colors placeholder:text-ink-500 focus:border-magenta-500"
             />
           </div>
         </div>
