@@ -26,4 +26,17 @@ describe('Button', () => {
     expect(button.className).toContain('bg-royal-600')
     expect(button.className).toContain('px-7')
   })
+
+  it('keeps the label on a single line', () => {
+    renderInRouter(<Button>Deactivate</Button>)
+    const button = screen.getByRole('button', { name: 'Deactivate' })
+    expect(button.className).toContain('whitespace-nowrap')
+  })
+
+  it('supports the compact xs size', () => {
+    renderInRouter(<Button size="xs">Edit</Button>)
+    const button = screen.getByRole('button', { name: 'Edit' })
+    expect(button.className).toContain('px-3 py-1.5')
+    expect(button.className).toContain('whitespace-nowrap')
+  })
 })

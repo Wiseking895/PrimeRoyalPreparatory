@@ -169,7 +169,7 @@ export function NotificationBell({ dark = false }: { dark?: boolean }) {
                     }
                   }}
                   className={cn(
-                    'flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-cream-50',
+                    'flex w-full items-start gap-3 whitespace-normal px-4 py-3 text-left transition-colors hover:bg-cream-50',
                     !notification.read && 'bg-royal-50/50',
                   )}
                 >

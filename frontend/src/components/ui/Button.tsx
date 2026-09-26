@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { cn } from '@/lib/cn'
 
 type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'cream' | 'ghost-dark' | 'soft' | 'success' | 'danger' | 'neutral'
-type ButtonSize = 'sm' | 'md' | 'lg'
+type ButtonSize = 'xs' | 'sm' | 'md' | 'lg'
 
 const variantClasses: Record<ButtonVariant, string> = {
   primary: 'bg-magenta-500 text-white shadow-sm hover:bg-magenta-600 focus-visible:ring-2 focus-visible:ring-magenta-500 focus-visible:ring-offset-2',
@@ -18,6 +18,7 @@ const variantClasses: Record<ButtonVariant, string> = {
 }
 
 const sizeClasses: Record<ButtonSize, string> = {
+  xs: 'px-3 py-1.5 text-sm',
   sm: 'px-4 py-2 text-sm',
   md: 'px-5 py-2.5 text-sm',
   lg: 'px-7 py-3.5 text-base',
@@ -55,7 +56,7 @@ export type ButtonProps = ButtonAsLinkProps | ButtonAsAnchorProps | ButtonAsNati
 export function Button(props: ButtonProps) {
   const { variant = 'primary', size = 'md', className, children, ariaLabel } = props
   const classes = cn(
-    'inline-flex items-center justify-center gap-2 rounded-full font-semibold transition-colors duration-200',
+    'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full font-semibold transition-colors duration-200',
     variantClasses[variant],
     sizeClasses[size],
     className,

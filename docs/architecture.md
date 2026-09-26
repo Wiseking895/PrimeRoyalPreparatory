@@ -58,6 +58,7 @@ and data. The frontend mirrors only the string constants it renders for display
 | Icons | lucide-react | Lightweight, tree-shakeable. |
 | PWA | vite-plugin-pwa | Manifest, workbox precaching, installability, no offline sync in early phases. |
 | Data fetching | fetch-based `lib/api.ts` | Thin typed HTTP client; TanStack Query may replace it in a later phase. |
+| Object storage | Cloudflare R2 (private bucket) via AWS SDK v3 | `@aws-sdk/client-s3` + `@aws-sdk/s3-request-presigner`; PostgreSQL stays the source of truth (object **keys** only), and clients only ever receive short-lived presigned URLs issued after RBAC. |
 
 ## 4. Backend Structure
 
@@ -86,6 +87,19 @@ prisma/          schema.prisma, migrations, seed.ts
   `{ success: true, message: "PRPS API is running", data: {...} }`.
 - Prisma database commands run from the `backend/` workspace:
   `db:generate`, `db:migrate`, `db:deploy`, `db:seed`, `db:studio`.
+- Private binary objects (admission-form PDFs, profile pictures) live in a
+  **private Cloudflare R2 bucket** — never on the local disk and never under
+  public URLs:
+  - `services/r2-storage.service.ts` is the **only** module that imports the
+    AWS SDK (put/head/get/delete/presign + non-writing health probe).
+  - `services/document-storage.service.ts` owns metadata: SHA-256 integrity
+    (Node `crypto`), the `StoredDocument` row lifecycle
+    (`UPLOADING` → `AVAILABLE`/`FAILED`, admission-form dedupe +
+    `SUPERSEDED`), object-key layout (`admissions/…`, `pupils/…`, `staff/…`)
+    and audit events.
+  - Controllers/routes enforce permission checks; the browser stores
+    `/api/documents/{id}` **references** (never object keys or URLs) and asks
+    the API for a short-lived presigned URL.
 
 ## 5. Frontend Structure
 
@@ -154,6 +168,13 @@ neck and sleeves). The deep blue is a brand color, never a shirt color.
   password hashing (bcrypt).
 - Secrets only exist in the backend (`.env`, git-ignored); the frontend only
   ever receives `VITE_API_URL`.
+- R2 bucket is **private**: no public/r2.dev URLs, no object ACLs. Reads go
+  through `GET /api/documents/:id/url` (staff) or
+  `GET /api/parent/documents/:id/url` (guardian of the linked pupil) after
+  JWT + permission checks, returning presigned URLs that expire
+  (`R2_PRESIGN_EXPIRES_IN`, default 300 s). R2 credentials never leave the
+  backend, are never `VITE_*`, and never appear in API responses or logs
+  (logs reference object keys only).
 
 ## 8. Phases
 

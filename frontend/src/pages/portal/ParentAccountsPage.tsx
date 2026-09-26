@@ -144,7 +144,7 @@ export function ParentAccountsPage() {
       ) : error ? (
         <ErrorState title="Could not load guardians" message={error} onRetry={load} />
       ) : guardians && guardians.length > 0 ? (
-        <div className="overflow-hidden rounded-2xl border border-cream-300/70 bg-white shadow-[0_2px_16px_-8px_rgba(11,20,48,0.1)]">
+        <div className="overflow-x-auto rounded-2xl border border-cream-300/70 bg-white shadow-[0_2px_16px_-8px_rgba(11,20,48,0.1)]">
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="border-b border-cream-200 bg-cream-50 text-[11px] uppercase tracking-wider text-ink-500">
@@ -166,7 +166,7 @@ export function ParentAccountsPage() {
                     {guardian.hasAccount ? (
                       <span
                         className={cn(
-                          'inline-flex rounded-full px-2.5 py-0.5 text-xs font-bold ring-1 ring-inset',
+                          'inline-flex whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-bold ring-1 ring-inset',
                           guardian.accountStatus === 'ACTIVE'
                             ? 'bg-emerald-100 text-emerald-700 ring-emerald-600/20'
                             : 'bg-cream-200 text-ink-500 ring-ink-500/20',
@@ -175,7 +175,7 @@ export function ParentAccountsPage() {
                         {guardian.accountStatus === 'ACTIVE' ? 'Active' : 'Inactive'}
                       </span>
                     ) : (
-                      <span className="inline-flex rounded-full bg-cream-200 px-2.5 py-0.5 text-xs font-bold text-ink-500">
+                      <span className="inline-flex whitespace-nowrap rounded-full bg-cream-200 px-2.5 py-0.5 text-xs font-bold text-ink-500">
                         No account
                       </span>
                     )}
@@ -194,7 +194,7 @@ export function ParentAccountsPage() {
                         Create account
                       </button>
                     ) : canManage ? (
-                      <span className="inline-flex flex-wrap items-center justify-end gap-2">
+                      <span className="inline-flex items-center justify-end gap-2 whitespace-nowrap">
                         <button
                           type="button"
                           onClick={() => handleResend(guardian)}

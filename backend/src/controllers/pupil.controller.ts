@@ -14,8 +14,13 @@ import { getAdmissionFee } from '../services/finance.service'
 import {
   admissionFormFilename,
   renderAdmissionFormPdf,
-  resolveAcademicYear,
+  resolveAcademicSession,
 } from '../services/admission-form-pdf.service'
+import {
+  buildAdmissionFormKey,
+  storeDocument,
+  supersedeOlderAdmissionForms,
+} from '../services/document-storage.service'
 
 export const listPupilsHandler = asyncHandler(async (req, res) => {
   const page = Number.parseInt(String(req.query.page ?? '1'), 10)
@@ -47,10 +52,37 @@ export const getPupilHandler = asyncHandler(async (req, res) => {
   res.json(ok(pupil))
 })
 
-export const admissionFormPdfHandler = asyncHandler(async (req, res) => {
+export const admissionFormPdfHandler = asyncHandler(async (req: AuthRequest, res) => {
   const pupil = await getPupil(req.params.id)
-  const academicYear = await resolveAcademicYear()
-  const pdf = await renderAdmissionFormPdf(pupil, academicYear)
+  const session = await resolveAcademicSession()
+  const pdf = await renderAdmissionFormPdf(pupil, session.name)
+
+  // Persist the generated PDF in the private R2 bucket. Identical content is
+  // reused (hash dedupe); older copies of the same pupil+session form are kept
+  // as SUPERSEDED history rather than deleted.
+  const { document } = await storeDocument({
+    documentType: 'ADMISSION_FORM',
+    buildKey: (documentId) => buildAdmissionFormKey(pupil.id, session.id, documentId),
+    body: pdf,
+    mimeType: 'application/pdf',
+    originalFileName: admissionFormFilename(pupil),
+    pupilId: pupil.id,
+    academicYearId: session.id,
+    actorUserId: req.user?.id ?? null,
+    audit: {
+      action: 'document.generate',
+      resourceType: 'pupil',
+      resourceId: pupil.id,
+      ip: req.ip ?? null,
+    },
+  })
+
+  await supersedeOlderAdmissionForms({
+    pupilId: pupil.id,
+    academicYearId: session.id,
+    keepDocumentId: document.id,
+  })
+
   res.setHeader('Content-Type', 'application/pdf')
   res.setHeader('Content-Disposition', `attachment; filename="${admissionFormFilename(pupil)}"`)
   res.setHeader('Cache-Control', 'private, no-store')

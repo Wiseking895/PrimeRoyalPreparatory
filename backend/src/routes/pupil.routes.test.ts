@@ -3,6 +3,22 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createApp } from '../app'
 
 const verifyTokenMock = vi.hoisted(() => vi.fn())
+const r2Mock = vi.hoisted(() => ({
+  isR2Configured: vi.fn(() => true),
+  putR2Object: vi.fn(() => Promise.resolve()),
+  deleteR2Object: vi.fn(() => Promise.resolve()),
+  getPresignedR2Url: vi.fn(() => Promise.resolve('https://r2.test/presigned')),
+  checkR2Health: vi.fn(() =>
+    Promise.resolve({
+      configured: true,
+      reachable: true,
+      bucket: 'prps-test',
+      endpointHost: 'r2.test',
+      message: 'ok',
+    }),
+  ),
+  r2NotConfiguredError: vi.fn(),
+}))
 const prismaMock = vi.hoisted(() => ({
   user: { findUnique: vi.fn() },
   pupil: {
@@ -21,12 +37,22 @@ const prismaMock = vi.hoisted(() => ({
   feeAssignment: { createMany: vi.fn() },
   pupilGuardian: { create: vi.fn(), deleteMany: vi.fn() },
   pupilUniform: { createMany: vi.fn(), deleteMany: vi.fn() },
+  storedDocument: {
+    findFirst: vi.fn(),
+    findUnique: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+    updateMany: vi.fn(),
+    delete: vi.fn(),
+  },
   auditLog: { create: vi.fn() },
   $transaction: vi.fn(),
 }))
 
 vi.mock('../lib/jwt', () => ({ verifyToken: verifyTokenMock, verifyTokenPayload: verifyTokenMock }))
 vi.mock('../lib/prisma', () => ({ prisma: prismaMock }))
+// R2 is mocked at the storage boundary — tests never touch live credentials.
+vi.mock('../services/r2-storage.service', () => r2Mock)
 
 const app = createApp()
 
@@ -98,6 +124,17 @@ describe('pupil routes (auth + RBAC enforcement)', () => {
     verifyTokenMock.mockReturnValue({ sub: 'user-1', kind: 'staff' })
     prismaMock.user.findUnique.mockResolvedValue(baseUser())
     prismaMock.auditLog.create.mockResolvedValue({})
+    prismaMock.storedDocument.findFirst.mockResolvedValue(null)
+    prismaMock.storedDocument.findUnique.mockResolvedValue(null)
+    prismaMock.storedDocument.create.mockResolvedValue({ id: 'doc-1' })
+    prismaMock.storedDocument.update.mockImplementation(
+      async (args: { where: { id: string }; data: Record<string, unknown> }) => ({
+        id: args.where.id,
+        ...args.data,
+      }),
+    )
+    prismaMock.storedDocument.updateMany.mockResolvedValue({ count: 0 })
+    prismaMock.storedDocument.delete.mockResolvedValue({})
     prismaMock.pupilUniform.createMany.mockResolvedValue({ count: 5 })
     prismaMock.pupilUniform.deleteMany.mockResolvedValue({ count: 0 })
     prismaMock.$transaction.mockImplementation((arg: unknown) => {

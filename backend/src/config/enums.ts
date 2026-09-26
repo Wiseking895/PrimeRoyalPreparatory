@@ -21,4 +21,6 @@ export enum HttpStatus {
   Conflict = 409,
   UnprocessableEntity = 422,
   InternalServerError = 500,
+  /** Required infrastructure (e.g. object storage) is not available/configured. */
+  ServiceUnavailable = 503,
 }

@@ -29,11 +29,11 @@ export function ProfileHeader({
       <div>
         <nav
           aria-label="Breadcrumb"
-          className="flex items-center gap-1.5 text-xs font-semibold text-cream-200/70"
+          className="flex flex-wrap items-center gap-1.5 text-xs font-semibold text-cream-200/70"
         >
-          <span>{breadcrumb}</span>
+          <span className="whitespace-nowrap">{breadcrumb}</span>
           <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
-          <span className="text-gold-300">{title}</span>
+          <span className="whitespace-nowrap text-gold-300">{title}</span>
         </nav>
         <h1 className="mt-1.5 text-2xl font-extrabold tracking-tight text-white sm:text-3xl">
           {title}

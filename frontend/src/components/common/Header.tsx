@@ -83,7 +83,7 @@ export function Header() {
                 key={item.label}
                 to={item.path as string}
                 className={cn(
-                  'relative rounded-lg py-1 text-[13px] font-semibold transition-colors xl:text-sm',
+                  'relative whitespace-nowrap rounded-lg py-1 text-[13px] font-semibold transition-colors xl:text-sm',
                   active ? 'text-magenta-600' : 'text-ink-700 hover:text-magenta-600',
                 )}
               >

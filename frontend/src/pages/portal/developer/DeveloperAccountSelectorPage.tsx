@@ -244,7 +244,7 @@ export default function DeveloperAccountSelectorPage() {
                         disabled={isSelecting}
                         onClick={() => handleSelect(account)}
                         className={cn(
-                          'group flex items-start gap-4 rounded-xl border border-white/[0.08] bg-white/[0.03] p-5 text-left transition-all duration-200',
+                          'group flex items-start gap-4 whitespace-normal rounded-xl border border-white/[0.08] bg-white/[0.03] p-5 text-left transition-all duration-200',
                           'hover:border-magenta-500/30 hover:bg-white/[0.06]',
                           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-magenta-500/50',
                           isSelecting && 'pointer-events-none opacity-60',

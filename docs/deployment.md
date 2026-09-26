@@ -41,6 +41,12 @@ In the Vercel backend project, go to **Settings → Environment Variables** and 
 | `DATABASE_URL` | `<your PostgreSQL connection string>` | Production, Preview |
 | `JWT_SECRET` | `<a secure random string, 32+ characters>` | Production, Preview |
 | `CLIENT_URL` | `https://<your-frontend-vercel-url>` | Production, Preview |
+| `R2_ACCOUNT_ID` | `<Cloudflare account id>` | Production, Preview |
+| `R2_ENDPOINT` | `https://<account-id>.r2.cloudflarestorage.com` | Production, Preview |
+| `R2_BUCKET_NAME` | `<private bucket name>` | Production, Preview |
+| `R2_ACCESS_KEY_ID` | `<R2 API token access key id>` | Production, Preview |
+| `R2_SECRET_ACCESS_KEY` | `<R2 API token secret>` | Production, Preview |
+| `R2_PRESIGN_EXPIRES_IN` | `300` (optional) | Production, Preview |
 
 **Important:**
 
@@ -48,6 +54,24 @@ In the Vercel backend project, go to **Settings → Environment Variables** and 
 - `JWT_SECRET` — generate a strong random string (e.g. `openssl rand -base64 48`)
 - `CLIENT_URL` — the exact frontend URL (used for CORS). Must include `https://` and no trailing slash.
 - `CLIENT_URL` can be comma-separated for multiple origins if needed.
+- R2 variables are **backend-only** secrets. They must never be added to the
+  frontend project or prefixed with `VITE_`. Without them the API still boots
+  and all non-storage features work; document endpoints (photo uploads,
+  admission-form persistence, presigned downloads, `GET /api/health/storage`)
+  fail clearly with `503 Service Unavailable`.
+
+### Object Storage (Cloudflare R2)
+
+One-time Cloudflare setup (done manually in the dashboard, never in Git):
+
+1. Create a **private** bucket (no public access, no `r2.dev` URLs).
+2. Create an **R2 API token** scoped to that bucket with
+   `Object Read & Write` (permissions `s3:PutObject`, `s3:GetObject`,
+   `s3:DeleteObject`, `s3:ListBucket` for head probes).
+3. Copy the account id, endpoint, bucket name, access key id and secret into
+   the backend environment variables above.
+4. No lifecycle rules — PRPS school records use **R2 Standard** and must not
+   auto-expire (per PRPS storage-retention policy).
 
 ### Run Database Migrations
 
@@ -205,6 +229,12 @@ If the frontend is blocked by CORS, verify:
 | `EMAIL_USER` | No | SMTP username |
 | `EMAIL_PASSWORD` | No | SMTP password |
 | `EMAIL_FROM` | No | Sender address (e.g. `PRPS <no-reply@school.com>`) |
+| `R2_ACCOUNT_ID` | For documents | Cloudflare account id (R2 endpoint host) |
+| `R2_ENDPOINT` | For documents | `https://<account-id>.r2.cloudflarestorage.com` |
+| `R2_BUCKET_NAME` | For documents | Private bucket name |
+| `R2_ACCESS_KEY_ID` | For documents | R2 API token access key id (backend secret) |
+| `R2_SECRET_ACCESS_KEY` | For documents | R2 API token secret (backend secret) |
+| `R2_PRESIGN_EXPIRES_IN` | No | Presigned-URL lifetime in seconds (default `300`) |
 
 ### Frontend (Vercel project)
 

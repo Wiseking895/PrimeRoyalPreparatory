@@ -34,6 +34,7 @@ import { announcementRouter } from './routes/announcement.routes'
 import { notificationPreferenceRouter } from './routes/notification-preference.routes'
 import { workOutputRouter } from './routes/work-output.routes'
 import { uploadRouter } from './routes/upload.routes'
+import { documentRouter } from './routes/document.routes'
 import { developerRouter } from './routes/developer.routes'
 
 /**
@@ -124,6 +125,9 @@ export function createApp(): Express {
 
   // Upload routes — authenticated file upload/delete.
   app.use('/api', uploadRouter)
+
+  // Stored documents — presigned URLs for private R2 objects (+ storage health).
+  app.use('/api', documentRouter)
 
   // 404 + centralized error handling (must be last)
   app.use(notFoundHandler)

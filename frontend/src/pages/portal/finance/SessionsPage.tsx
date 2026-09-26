@@ -655,15 +655,15 @@ export function SessionsPage() {
     )
   }
 
-  const rowActions = (session: AcademicSessionView) => (
-    <div className="flex flex-wrap justify-end gap-2">
-      <Button variant="soft" size="sm" onClick={() => openEditSession(session)}>
+  const rowActions = (session: AcademicSessionView, size: 'xs' | 'sm' = 'sm') => (
+    <div className="flex flex-wrap justify-end gap-1.5 md:flex-nowrap">
+      <Button variant="soft" size={size} onClick={() => openEditSession(session)}>
         <Pencil className="h-4 w-4" aria-hidden="true" />
         Edit
       </Button>
       <Button
         variant="soft"
-        size="sm"
+        size={size}
         onClick={() =>
           setConfirm({
             kind: 'session',
@@ -679,7 +679,7 @@ export function SessionsPage() {
           </>
         )}
       </Button>
-      <Button variant="soft" size="sm" onClick={() => openCreateTerm(session.id)}>
+      <Button variant="soft" size={size} onClick={() => openCreateTerm(session.id)}>
         <Plus className="h-4 w-4" aria-hidden="true" />
         Add term
       </Button>
@@ -857,30 +857,30 @@ export function SessionsPage() {
               <table className="w-full text-left text-sm">
                 <thead className="border-b border-cream-200 bg-cream-50 text-xs font-bold uppercase tracking-wider text-ink-500">
                   <tr>
-                    <th scope="col" className="px-5 py-3.5">Academic Year</th>
-                    <th scope="col" className="px-5 py-3.5">Dates</th>
-                    <th scope="col" className="px-5 py-3.5">Terms</th>
-                    <th scope="col" className="px-5 py-3.5">Fee Structures</th>
-                    <th scope="col" className="px-5 py-3.5">Status</th>
-                    {canManage ? <th scope="col" className="px-5 py-3.5 text-right">Actions</th> : null}
+                    <th scope="col" className="px-3 py-3.5">Academic Year</th>
+                    <th scope="col" className="px-3 py-3.5">Dates</th>
+                    <th scope="col" className="px-3 py-3.5">Terms</th>
+                    <th scope="col" className="px-3 py-3.5">Fee Structures</th>
+                    <th scope="col" className="px-3 py-3.5">Status</th>
+                    {canManage ? <th scope="col" className="px-3 py-3.5 text-right">Actions</th> : null}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-cream-200">
                   {pageRows.map((session) => (
                     <tr key={session.id} className="transition-colors hover:bg-cream-50">
-                      <td className="px-5 py-3.5">
+                      <td className="px-3 py-3.5">
                         <div className="flex flex-wrap items-center gap-2">
                           <p className="font-bold text-ink-900">{session.name}</p>
                           {session.status === 'ACTIVE' ? <Badge tone="gold">Current</Badge> : null}
                         </div>
                       </td>
-                      <td className="px-5 py-3.5 text-ink-700">
+                      <td className="px-3 py-3.5 text-ink-700">
                         {formatDate(session.startDate)} — {formatDate(session.endDate)}
                       </td>
-                      <td className="px-5 py-3.5">{termCell(session)}</td>
-                      <td className="px-5 py-3.5">{feeCell(session)}</td>
-                      <td className="px-5 py-3.5">{renderStatus(session.status)}</td>
-                      {canManage ? <td className="px-5 py-3.5">{rowActions(session)}</td> : null}
+                      <td className="px-3 py-3.5">{termCell(session)}</td>
+                      <td className="px-3 py-3.5">{feeCell(session)}</td>
+                      <td className="px-3 py-3.5">{renderStatus(session.status)}</td>
+                      {canManage ? <td className="px-3 py-3.5">{rowActions(session, 'xs')}</td> : null}
                     </tr>
                   ))}
                 </tbody>

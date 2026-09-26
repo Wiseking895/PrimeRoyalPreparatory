@@ -61,6 +61,33 @@
     @apply bg-cream-100 font-sans text-ink-900 antialiased;
   }
 
+  /*
+   * PRPS text-wrapping rules.
+   *
+   * Short UI labels — action buttons, badges (shared components), table
+   * headers, tab/filter pills — must never break across lines
+   * ("Fee Structures", not "Fee" / "Structures"). Long prose (names,
+   * addresses, notes, descriptions) keeps wrapping normally, so no
+   * `white-space: nowrap` is applied to paragraphs, headings or table cells.
+   *
+   * Multi-line buttons that intentionally hold card/row content opt out with
+   * the `whitespace-normal` utility (utilities win over this base layer).
+   */
+  button {
+    white-space: nowrap;
+  }
+
+  /*
+   * Table headers stay on one line. Because a table cell may only shrink to
+   * its content's minimum width, an unbreakable header gives every column a
+   * sensible minimum width: the table then scrolls horizontally (all PRPS
+   * tables sit in an `overflow-x-auto` container) instead of squeezing
+   * columns until short labels wrap.
+   */
+  table thead th {
+    white-space: nowrap;
+  }
+
   h1,
   h2,
   h3,

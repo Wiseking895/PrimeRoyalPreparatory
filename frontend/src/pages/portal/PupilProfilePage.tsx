@@ -496,12 +496,12 @@ export function PupilProfilePage() {
     <div className="space-y-6 rounded-3xl bg-royal-900 p-5 sm:p-7 lg:p-8">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-xs font-semibold text-cream-200/70">
-            <Link to={`${basePath}/pupils`} className="transition-colors hover:text-white">
+          <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1.5 text-xs font-semibold text-cream-200/70">
+            <Link to={`${basePath}/pupils`} className="whitespace-nowrap transition-colors hover:text-white">
               Pupils
             </Link>
             <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
-            <span className="text-gold-300">Profile</span>
+            <span className="whitespace-nowrap text-gold-300">Profile</span>
           </nav>
           <h1 className="mt-1.5 text-2xl font-extrabold tracking-tight text-white sm:text-3xl">
             Pupil Profile

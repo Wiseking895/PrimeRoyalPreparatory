@@ -117,6 +117,8 @@ model User {
   notifications        Notification[]
   announcements        Announcement[]
   closedReconciliations DailyReconciliationClose[]
+  storedDocuments      StoredDocument[]  @relation("StoredDocumentSubject")
+  createdDocuments     StoredDocument[]  @relation("StoredDocumentCreator")
   createdAt            DateTime             @default(now())
   updatedAt            DateTime             @updatedAt
 
@@ -309,6 +311,7 @@ model Pupil {
   payments                Payment[]
   sbaRecords              SbaRecord[]
   attendance              Attendance[]
+  storedDocuments         StoredDocument[]
   createdAt               DateTime        @default(now())
   updatedAt               DateTime        @updatedAt
 
@@ -405,6 +408,7 @@ model AcademicSession {
   fees      FinanceFee[]
   attendance    Attendance[]
   reconciliationCloses DailyReconciliationClose[]
+  storedDocuments StoredDocument[]
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
 
@@ -432,6 +436,7 @@ model AcademicTerm {
   sbaRecords SbaRecord[]
   workOutputRecords WorkOutputRecord[]
   reconciliationCloses DailyReconciliationClose[]
+  storedDocuments StoredDocument[]
   createdAt  DateTime        @default(now())
   updatedAt  DateTime        @updatedAt
 
@@ -844,4 +849,91 @@ model DailyReconciliationClose {
   @@index([date])
   @@index([sessionId, termId])
   @@map("daily_reconciliation_closes")
+}
+
+// =============================================================================
+// OBJECT STORAGE — Cloudflare R2 document metadata.
+//
+// PostgreSQL remains the source of truth: every object in the private R2
+// bucket has exactly one StoredDocument row describing what it is, who it
+// belongs to, its integrity hash and its lifecycle status. Only the object
+// KEY is stored here — presigned URLs are short-lived and never persisted.
+//
+// The bucket is private; there are no public URLs and no r2.dev links.
+// Related binary data (admission-form PDFs, profile pictures) is uploaded to
+// R2 and referenced through storageKey.
+// =============================================================================
+
+/// What kind of stored document an object holds. Only types PRPS actually
+/// generates today — new document types are added as their features exist.
+enum StoredDocumentType {
+  /// Generated admission form PDF for a pupil in an academic session.
+  ADMISSION_FORM
+  /// Profile picture for a pupil or a staff user.
+  PROFILE_PHOTO
+}
+
+/// Lifecycle of the stored object. Rows are created as UPLOADING and only
+/// become AVAILABLE after the R2 upload succeeds, so PostgreSQL can never
+/// claim success for an object that does not exist.
+enum StoredDocumentStatus {
+  UPLOADING
+  AVAILABLE
+  FAILED
+  SUPERSEDED
+}
+
+model StoredDocument {
+  id String @id @default(cuid())
+
+  /// Which kind of document this is (drives access rules and key layout).
+  documentType StoredDocumentType
+  /// Object-store implementation. Always "r2" for this architecture; kept as
+  /// metadata so the row is self-describing if the provider ever changes.
+  storageProvider String    @default("r2")
+  /// Fully qualified object key inside the private bucket (e.g.
+  /// "admissions/{pupilId}/{sessionId}/{documentId}.pdf"). UNIQUE: one row
+  /// per object.
+  storageKey      String    @unique
+  /// Original client filename, when the object came from an upload.
+  originalFileName String?
+  mimeType        String
+  /// Size in bytes (upload limit 5 MiB).
+  fileSize        Int
+  /// Lowercase hex SHA-256 of the object bytes — integrity and dedupe.
+  sha256          String
+  status          StoredDocumentStatus @default(UPLOADING)
+
+  // Optional business linkage (nullable: not every document ties to all of
+  // these). All relations are SetNull/Restrict so document metadata history
+  // is never silently destroyed.
+  pupilId         String?
+  userId          String?
+  /// Prisma model name is AcademicSession (database table: academic_sessions).
+  academicYearId  String?
+  termId          String?
+  /// Generic pointer for future document types (e.g. "payment_receipt").
+  relatedType     String?
+  relatedId       String?
+  createdById     String?
+
+  pupil          Pupil?          @relation(fields: [pupilId], references: [id], onDelete: SetNull)
+  user           User?           @relation("StoredDocumentSubject", fields: [userId], references: [id], onDelete: SetNull)
+  academicYear   AcademicSession? @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  term           AcademicTerm?   @relation(fields: [termId], references: [id], onDelete: Restrict)
+  createdBy      User?           @relation("StoredDocumentCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// Prevents the same content being stored twice for the same subject.
+  /// (PostgreSQL treats NULLs as distinct, so rows without a pupil/year are
+  /// unaffected — dedupe for those is handled in the service layer.)
+  @@unique([documentType, pupilId, academicYearId, sha256, status])
+  @@index([documentType, pupilId])
+  @@index([pupilId])
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("stored_documents")
 }

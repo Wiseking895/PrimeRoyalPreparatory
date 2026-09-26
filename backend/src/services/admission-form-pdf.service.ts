@@ -372,12 +372,22 @@ export function admissionFormFilename(pupil: PupilView): string {
 
 /** Active academic session shown on the form, with a school-year fallback. */
 export async function resolveAcademicYear(): Promise<string> {
+  return (await resolveAcademicSession()).name
+}
+
+/**
+ * Active academic session resolved together with its id, so the generated PDF
+ * can be filed under the right session when it is stored in object storage.
+ * Falls back to the school-year label (and no session id) when no session is
+ * active, mirroring {@link resolveAcademicYear}.
+ */
+export async function resolveAcademicSession(): Promise<{ id: string | null; name: string }> {
   const session = await prisma.academicSession.findFirst({
     where: { status: 'ACTIVE' },
     orderBy: { startDate: 'desc' },
-    select: { name: true },
+    select: { id: true, name: true },
   })
-  if (session?.name) return session.name
+  if (session?.name) return { id: session.id ?? null, name: session.name }
   const year = new Date().getFullYear()
-  return `${year}/${year + 1}`
+  return { id: null, name: `${year}/${year + 1}` }
 }

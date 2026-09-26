@@ -15,6 +15,7 @@ import {
   listMyPupilsHandler,
 } from '../controllers/parent-portal.controller'
 import { requireParentAuth } from '../middleware/require-parent-auth'
+import { parentGetDocumentUrlHandler } from '../controllers/document.controller'
 import { validate } from '../middleware/validate'
 import {
   parentChangePasswordSchema,
@@ -51,5 +52,8 @@ router.get('/children/:pupilId/reports', requireParentAuth, getMyReportTermsHand
 router.get('/children/:pupilId/reports/sessions', requireParentAuth, getMyReportSessionsHandler)
 
 router.get('/children/:pupilId/reports/terms/:termId', requireParentAuth, getMyReportHandler)
+
+// Stored documents (private R2 objects) belonging to the guardian's own children.
+router.get('/documents/:documentId/url', requireParentAuth, parentGetDocumentUrlHandler)
 
 export const parentRouter = router

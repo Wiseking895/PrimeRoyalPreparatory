@@ -30,7 +30,7 @@ export function StatCard({ label, value, hint, icon, tone = 'royal', action }: S
         {action}
       </div>
       <p className="mt-4 text-3xl font-extrabold tracking-tight text-ink-900">{value}</p>
-      <p className="mt-1 text-sm font-semibold text-ink-700">{label}</p>
+      <p className="mt-1 text-sm font-semibold whitespace-nowrap text-ink-700">{label}</p>
       {hint ? <p className="mt-0.5 text-xs text-ink-500">{hint}</p> : null}
     </div>
   )

@@ -2,6 +2,7 @@ import { Fragment } from 'react'
 import type { ReactNode } from 'react'
 import { ChevronRight } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import { cn } from '@/lib/cn'
 
 export interface PageBreadcrumbItem {
   label: string
@@ -26,11 +27,18 @@ export function PageHeader({ eyebrow, title, description, actions, breadcrumb }:
               <Fragment key={`${item.label}-${index}`}>
                 {index > 0 ? <ChevronRight className="h-3.5 w-3.5 text-ink-400" aria-hidden="true" /> : null}
                 {item.to && index < breadcrumb.length - 1 ? (
-                  <Link to={item.to} className="transition-colors hover:text-magenta-600">
+                  <Link to={item.to} className="whitespace-nowrap transition-colors hover:text-magenta-600">
                     {item.label}
                   </Link>
                 ) : (
-                  <span className={index === breadcrumb.length - 1 ? 'text-magenta-600' : undefined}>{item.label}</span>
+                  <span
+                    className={cn(
+                      'whitespace-nowrap',
+                      index === breadcrumb.length - 1 ? 'text-magenta-600' : undefined,
+                    )}
+                  >
+                    {item.label}
+                  </span>
                 )}
               </Fragment>
             ))}

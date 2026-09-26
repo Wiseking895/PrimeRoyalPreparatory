@@ -1,4 +1,7 @@
+import { useEffect, useState } from 'react'
 import { cn } from '@/lib/cn'
+import { api } from '@/lib/api'
+import { isDocumentReference } from '@/lib/document-reference'
 
 interface AvatarProps {
   name: string
@@ -25,19 +28,46 @@ function initials(name: string): string {
 
 /**
  * Avatar with an initials fallback. Profile pictures follow the existing asset
- * strategy — the API carries a `profilePictureUrl`; when absent we render a
- * branded initials block instead of a broken image.
+ * strategy — the API carries a `profilePictureUrl`. Object-store pictures are
+ * referenced as `/api/documents/{id}` (private bucket); those are resolved to
+ * a short-lived presigned URL through the API, and until (or unless) that
+ * succeeds we render the branded initials block instead of a broken image.
+ * Legacy `/api/uploads/...` and absolute URLs are used as-is.
  */
 export function Avatar({ name, imageUrl = null, size = 'md', className }: AvatarProps) {
+  const needsResolution = isDocumentReference(imageUrl)
+  const [resolvedUrl, setResolvedUrl] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!needsResolution || !imageUrl) {
+      setResolvedUrl(null)
+      return
+    }
+    let active = true
+    api
+      .resolveDocumentUrl(imageUrl)
+      .then((url) => {
+        if (active) setResolvedUrl(url)
+      })
+      .catch(() => {
+        if (active) setResolvedUrl(null)
+      })
+    return () => {
+      active = false
+    }
+  }, [imageUrl, needsResolution])
+
+  const src = needsResolution ? resolvedUrl : imageUrl
+
   const classes = cn(
     'inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full font-bold',
     sizes[size],
-    imageUrl ? 'bg-white' : 'bg-royal-600 text-white',
+    src ? 'bg-white' : 'bg-royal-600 text-white',
     className,
   )
 
-  if (imageUrl) {
-    return <img src={imageUrl} alt={name} className={classes + ' object-cover'} />
+  if (src) {
+    return <img src={src} alt={name} className={classes + ' object-cover'} />
   }
 
   return (

@@ -230,7 +230,7 @@ function NavGroupSection({
             onClick={onNavigate}
             className={({ isActive }) =>
               cn(
-                'group flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-semibold transition-all duration-150',
+                'group flex items-center gap-3 whitespace-nowrap rounded-lg px-3 py-2 text-[13px] font-semibold transition-all duration-150',
                 isOwner
                   ? isActive
                     ? 'bg-magenta-500/15 text-white shadow-sm'

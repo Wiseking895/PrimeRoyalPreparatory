@@ -67,4 +67,15 @@ export const env = {
   attendanceRadiusMeters: toNumberDefault(process.env.ATTENDANCE_RADIUS_METERS, 100),
   attendanceMaxAccuracyMeters: toNumberDefault(process.env.ATTENDANCE_MAX_ACCURACY_METERS, 50),
   attendanceMaxLocationAgeSeconds: toNumberDefault(process.env.ATTENDANCE_MAX_LOCATION_AGE_SECONDS, 120),
+  // Cloudflare R2 (private object storage for documents and profile pictures).
+  // Empty strings mean "not configured": storage-backed operations then fail
+  // with a clear error while the rest of the application keeps working.
+  // These values are server-only and must never be exposed as VITE_* vars.
+  r2AccountId: process.env.R2_ACCOUNT_ID ?? '',
+  r2Endpoint: process.env.R2_ENDPOINT ?? '',
+  r2BucketName: process.env.R2_BUCKET_NAME ?? '',
+  r2AccessKeyId: process.env.R2_ACCESS_KEY_ID ?? '',
+  r2SecretAccessKey: process.env.R2_SECRET_ACCESS_KEY ?? '',
+  /** Lifetime of a presigned object URL in seconds (default 5 minutes). */
+  r2PresignExpiresInSeconds: toNumberDefault(process.env.R2_PRESIGN_EXPIRES_IN, 300),
 } as const

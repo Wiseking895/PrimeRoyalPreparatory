@@ -143,6 +143,22 @@ describe('SessionsPage', () => {
     expect(screen.queryByRole('button', { name: /Restore/i })).not.toBeInTheDocument()
   })
 
+  it('keeps row action buttons on one horizontal line', async () => {
+    PERMISSIONS = ['academic.view', 'academic.manage']
+    renderPage()
+
+    await screen.findAllByText('2026/2027 Academic Session')
+
+    const actions = screen.getAllByRole('button', { name: 'Deactivate' })[0].parentElement
+    expect(actions?.className).toContain('md:flex-nowrap')
+    expect(actions?.className).toContain('gap-1.5')
+    expect(actions?.parentElement?.className).toContain('px-3 py-3.5')
+
+    for (const label of ['Edit', 'Deactivate', 'Add term']) {
+      expect(screen.getAllByRole('button', { name: label })[0].className).toContain('whitespace-nowrap')
+    }
+  })
+
   it('shows manage controls and creates a session with academic.manage', async () => {
     PERMISSIONS = ['academic.view', 'academic.manage']
     renderPage()

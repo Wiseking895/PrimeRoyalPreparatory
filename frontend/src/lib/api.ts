@@ -222,11 +222,51 @@ const jsonBody = (payload: unknown): RequestInit => ({
   body: JSON.stringify(payload),
 })
 
+/**
+ * Internal reference stored in `profilePictureUrl` for objects that live in
+ * the private object store. The backend resolves it to a short-lived presigned
+ * URL after RBAC — object keys and credentials never reach the browser.
+ */
+export { DOCUMENT_REFERENCE_PREFIX, isDocumentReference } from './document-reference'
+import { DOCUMENT_REFERENCE_PREFIX, isDocumentReference } from './document-reference'
+
+export interface ResolvedDocumentUrl {
+  documentId: string
+  /** Short-lived presigned URL. Never persist it — it expires. */
+  url: string
+  expiresInSeconds: number
+  mimeType: string
+  fileName: string | null
+  sha256: string
+}
+
 export const api = {
   // Setup
   setupStatus: () => request<SetupStatus>('/api/setup/status'),
   createOwner: (input: OwnerSetupInput) =>
     request<PublicUser>('/api/setup/owner', jsonBody(input)),
+
+  /**
+   * Resolves a stored document reference (`/api/documents/{id}`) to a
+   * short-lived presigned URL for a private object. Uses the staff session
+   * when present, otherwise the parent-portal session. The URL must never be
+   * persisted — it expires after `expiresInSeconds`.
+   */
+  resolveDocumentUrl: async (reference: string): Promise<string> => {
+    const documentId = isDocumentReference(reference)
+      ? reference.slice(DOCUMENT_REFERENCE_PREFIX.length)
+      : reference
+    const staffToken = getToken()
+    const parentToken = getParentToken()
+    if (!staffToken && !parentToken) {
+      throw new ApiError('Authentication required.', 401)
+    }
+    const path = staffToken
+      ? `/api/documents/${encodeURIComponent(documentId)}/url`
+      : `/api/parent/documents/${encodeURIComponent(documentId)}/url`
+    const resolved = await request<ResolvedDocumentUrl>(path)
+    return resolved.url
+  },
 
   // Auth
   login: (identifier: string, password: string) =>

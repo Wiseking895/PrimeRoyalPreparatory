@@ -275,7 +275,7 @@ function ClassSection({
       <button
         type="button"
         onClick={() => setExpanded((e) => !e)}
-        className="flex w-full items-center justify-between rounded-xl border border-cream-200 bg-cream-50 px-5 py-3 text-left transition-colors hover:bg-cream-100"
+        className="flex w-full items-center justify-between whitespace-normal rounded-xl border border-cream-200 bg-cream-50 px-5 py-3 text-left transition-colors hover:bg-cream-100"
       >
         <div className="flex items-center gap-4">
           <h3 className="text-sm font-bold text-ink-900">{cls.className}</h3>

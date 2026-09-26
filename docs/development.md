@@ -64,6 +64,21 @@ For production the frontend must be given the deployed backend URL:
 VITE_API_URL=https://your-production-backend.example
 ```
 
+### Object storage (Cloudflare R2)
+
+- `backend/.env` may additionally define the R2 variables documented in
+  `backend/.env.example`: `R2_ACCOUNT_ID`, `R2_ENDPOINT`, `R2_BUCKET_NAME`,
+  `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_PRESIGN_EXPIRES_IN`.
+- They are **optional locally**. Leave them empty and the app runs normally;
+  only document-storage operations (profile-picture uploads to R2,
+  admission-form persistence, presigned downloads, `GET /api/health/storage`)
+  return a clear `503 Service Unavailable` explaining which variable is
+  missing. Legacy `/api/uploads/...` files keep being served.
+- Never commit real credentials, never expose them through `VITE_` variables,
+  and never log them — automated tests always mock the R2 boundary
+  (`backend/src/services/r2-storage.service`), so no Cloudflare account is
+  needed to run `npm test`.
+
 ## 5. Adding Content / Code
 
 - **Public site content:** edit typed records in `frontend/src/data/*` and (if
