@@ -2,6 +2,7 @@ import { parse } from 'node-html-parser'
 import mammoth from 'mammoth'
 import JSZip from 'jszip'
 import { HttpStatus } from '../config/enums'
+import { MAX_UPLOAD_FILE_BYTES, MAX_UPLOAD_FILE_MB } from '../config/upload'
 import { prisma } from '../lib/prisma'
 import type { AuthenticatedUser } from '../types/auth'
 import { AppError } from '../utils/app-error'
@@ -329,7 +330,6 @@ const REQUIRED_COLUMN_LABELS: Record<ColumnKey, string> = {
 }
 
 const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-const MAX_IMPORT_FILE_SIZE = 5 * 1024 * 1024
 const MAX_IMPORT_ROWS = 100
 const MAX_ADMISSION_NUMBER_LENGTH = 40
 const MAX_SHEET_NUMBER_LENGTH = 40
@@ -355,8 +355,11 @@ export function assertUsableDocxUpload(file: {
   if (!name.endsWith('.docx')) {
     throw new AppError('Please upload a Microsoft Word (.docx) document.', HttpStatus.BadRequest)
   }
-  if (file.size > MAX_IMPORT_FILE_SIZE) {
-    throw new AppError('The document must be 5 MB or smaller.', HttpStatus.BadRequest)
+  if (file.size > MAX_UPLOAD_FILE_BYTES) {
+    throw new AppError(
+      `The document must be ${MAX_UPLOAD_FILE_MB} MB or smaller.`,
+      HttpStatus.BadRequest,
+    )
   }
   const mimeOk =
     file.mimetype === DOCX_MIME ||

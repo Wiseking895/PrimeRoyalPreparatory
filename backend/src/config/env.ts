@@ -38,6 +38,41 @@ function toEnvironment(value: string | undefined): Environment {
   return Environment.Development
 }
 
+/** Known placeholder used only as a local-development convenience. */
+const DEV_JWT_SECRET_FALLBACK = 'unsafe-default-change-me'
+
+/**
+ * Resolves the JWT signing secret.
+ *
+ * Production never falls back: `JWT_SECRET` must be explicitly provided, and
+ * the built-in development placeholder is rejected, so a misconfigured
+ * deployment fails fast at startup instead of silently signing tokens with a
+ * known value. Non-production keeps the development fallback so local runs and
+ * tests work without extra setup. Error messages never contain the configured
+ * value (or the placeholder itself).
+ */
+export function resolveJwtSecret(isProduction: boolean, rawSecret: string | undefined): string {
+  const secret = rawSecret && rawSecret.trim() ? rawSecret : undefined
+
+  if (!isProduction) {
+    return secret ?? DEV_JWT_SECRET_FALLBACK
+  }
+
+  if (!secret) {
+    throw new Error(
+      'JWT_SECRET is required when NODE_ENV=production. Set a strong secret in the deployment environment before starting the backend.',
+    )
+  }
+
+  if (secret.trim() === DEV_JWT_SECRET_FALLBACK) {
+    throw new Error(
+      'JWT_SECRET must not be the built-in development placeholder when NODE_ENV=production. Set a unique secret in the deployment environment.',
+    )
+  }
+
+  return secret
+}
+
 /**
  * Parsed and validated environment configuration. Secrets are loaded only in
  * the backend process and are never exposed to the frontend bundle.
@@ -48,7 +83,7 @@ export const env = {
   port: toNumber(process.env.PORT, DEFAULT_PORT),
   clientUrl: process.env.CLIENT_URL ?? DEFAULT_CLIENT_URL,
   databaseUrl: process.env.DATABASE_URL ?? '',
-  jwtSecret: process.env.JWT_SECRET ?? 'unsafe-default-change-me',
+  jwtSecret: resolveJwtSecret(process.env.NODE_ENV === Environment.Production, process.env.JWT_SECRET),
   jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? '12h',
   passwordCost: toNumber(process.env.PASSWORD_HASH_COST, 12),
   // Email (invitations). When SMTP is not configured the mail service falls

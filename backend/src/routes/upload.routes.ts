@@ -1,5 +1,6 @@
 ﻿import { Router } from 'express'
 import multer from 'multer'
+import { MAX_UPLOAD_FILE_BYTES } from '../config/upload'
 import { requireAuth } from '../middleware/require-auth'
 import { requirePermission } from '../middleware/require-permission'
 import {
@@ -13,7 +14,7 @@ const router = Router()
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 },
+  limits: { fileSize: MAX_UPLOAD_FILE_BYTES },
 })
 
 router.post(

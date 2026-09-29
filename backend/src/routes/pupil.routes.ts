@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import multer from 'multer'
+import { MAX_UPLOAD_FILE_BYTES } from '../config/upload'
 import {
   activatePupilHandler,
   admissionFeeHandler,
@@ -26,7 +27,7 @@ const router = Router()
 // In-memory DOCX upload: buffered, never written to disk, discarded after parse.
 const docxUpload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 },
+  limits: { fileSize: MAX_UPLOAD_FILE_BYTES },
 })
 
 router.use(requireAuth)

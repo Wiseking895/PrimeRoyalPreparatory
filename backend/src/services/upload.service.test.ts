@@ -38,6 +38,7 @@ vi.mock('../services/r2-storage.service', () => r2Mock)
 vi.mock('../lib/prisma', () => ({ prisma: prismaMock }))
 vi.mock('node:fs/promises', () => fsMock)
 
+import { MAX_UPLOAD_FILE_BYTES } from '../config/upload'
 import { deleteProfilePicture, deletePupilPicture, uploadPupilPicture, uploadProfilePicture } from './upload.service'
 
 function multerFile(overrides: Record<string, unknown> = {}): Express.Multer.File {
@@ -181,9 +182,9 @@ describe('uploadProfilePicture', () => {
     expect(r2Mock.putR2Object).not.toHaveBeenCalled()
   })
 
-  it('rejects files above the 5 MB limit', async () => {
+  it('rejects files above the upload size limit', async () => {
     await expect(
-      uploadProfilePicture('user-1', multerFile({ size: 6 * 1024 * 1024 })),
+      uploadProfilePicture('user-1', multerFile({ size: MAX_UPLOAD_FILE_BYTES + 1024 })),
     ).rejects.toMatchObject({ statusCode: 400 })
     expect(r2Mock.putR2Object).not.toHaveBeenCalled()
   })

@@ -40,6 +40,11 @@ import { developerRouter } from './routes/developer.routes'
 /**
  * Builds and configures the Express application. Kept separate from the HTTP
  * server so tests can exercise the app with supertest.
+ *
+ * `createApp()` is the single application construction path: `src/server.ts`
+ * binds it for local development and `src/vercel.ts` wraps it as the Vercel
+ * serverless handler. There is intentionally no module-level default app
+ * instance, so importing this module never constructs a second application.
  */
 export function createApp(): Express {
   const app = express()
@@ -135,17 +140,3 @@ export function createApp(): Express {
 
   return app
 }
-
-/**
- * Vercel Functions entrypoint.
- *
- * With the "express" framework in Vercel Services, `@vercel/backends`
- * auto-detects an entrypoint among `app|index|server|main` (+ `src/` variants)
- * whose content imports `express`. `src/app.ts` matches, so it becomes the
- * deployed function and this default export (the fully configured app) is what
- * runs. Local development keeps using `src/server.ts` (`npm run dev`), which
- * bootstraps RBAC and binds the HTTP listener. No port is bound here and no
- * RBAC sync runs on serverless cold starts; the production database is migrated
- * and seeded separately, and the Owner setup flow re-ensures the RBAC catalog.
- */
-export default createApp()

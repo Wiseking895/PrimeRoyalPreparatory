@@ -1,12 +1,19 @@
 /**
  * PRPS Developer Bootstrap Script
  *
- * Creates a dedicated developer administrator account for local development
- * and testing. This script is idempotent — running it multiple times will not
- * create duplicate accounts or overwrite existing passwords.
+ * Provisions the PERMANENT developer / maintenance account
+ * (developer@prps.local, OWNER role) so the application owner can maintain and
+ * update PRPS without using school staff credentials.
+ *
+ * This account is a system fixture — it is NOT trial/demo data and must never
+ * be removed by a production-baseline cleanup. It is deliberately kept out of
+ * `prisma/seed.ts`, application start-up and the `/api/setup/owner` flow, so a
+ * fresh deployment can never acquire it silently.
  *
  * USAGE:
  *   npx tsx scripts/developer-bootstrap.ts
+ *   npx tsx scripts/developer-bootstrap.ts --reset
+ *   npx tsx scripts/developer-bootstrap.ts --allow-production   (NODE_ENV=production)
  *
  * The script will:
  *   1. Check if a developer account already exists (by email)
@@ -15,13 +22,22 @@
  *   4. Display the credentials ONCE (they are never stored or logged)
  *   5. Record an audit event
  *
+ * Idempotent: re-running it never duplicates the account and never changes an
+ * existing password (use `--reset` for that).
+ *
+ * RELATIONSHIP TO FIRST-OWNER SETUP:
+ *   The developer account does not satisfy `ownerExists()`, so
+ *   GET /api/setup/status keeps reporting `ownerExists: false` and the school
+ *   can still create its operational Owner through POST /api/setup/owner.
+ *
  * SECURITY:
  *   - Does NOT create a universal password or backdoor
  *   - Does NOT bypass authentication
  *   - Does NOT overwrite existing user passwords
  *   - Does NOT expose password hashes
  *   - Uses the same password hashing as normal user creation
- *   - Requires explicit developer action to run
+ *   - Requires explicit developer action to run (never automatic)
+ *   - Holds no permissions outside the normal OWNER RBAC model
  */
 
 import 'dotenv/config'
@@ -37,6 +53,28 @@ import { randomInt } from 'node:crypto'
 const DATABASE_URL = process.env.DATABASE_URL
 if (!DATABASE_URL) {
   console.error('ERROR: DATABASE_URL is not set. Cannot connect to the database.')
+  process.exit(1)
+}
+
+// ---------------------------------------------------------------------------
+// Production safety.
+//
+// Nothing in the application, the migration path or `prisma db seed` ever runs
+// this script, so a deployment can never *silently* end up with these
+// credentials. Because `developer@prps.local` IS the permanent maintenance
+// account, provisioning it against a production database is a legitimate —
+// but deliberately acknowledged — action, so NODE_ENV=production requires an
+// explicit `--allow-production` opt-in instead of being blocked outright.
+// ---------------------------------------------------------------------------
+const IS_PRODUCTION = process.env.NODE_ENV === 'production'
+const ALLOW_PRODUCTION = process.argv.includes('--allow-production')
+
+if (IS_PRODUCTION && !ALLOW_PRODUCTION) {
+  console.error('ERROR: refusing to provision the developer account with NODE_ENV=production.')
+  console.error('This script never runs automatically (not on start-up, not on migrate, not on seed).')
+  console.error('If provisioning the permanent maintenance account is your intent, re-run with:')
+  console.error('  npx tsx scripts/developer-bootstrap.ts --allow-production')
+  console.error('  npm run dev:bootstrap -- --allow-production')
   process.exit(1)
 }
 

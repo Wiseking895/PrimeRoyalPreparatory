@@ -1,6 +1,7 @@
 import path from 'node:path'
 import fs from 'node:fs/promises'
 import { HttpStatus } from '../config/enums'
+import { MAX_UPLOAD_FILE_BYTES, MAX_UPLOAD_FILE_MB } from '../config/upload'
 import { prisma } from '../lib/prisma'
 import { AppError } from '../utils/app-error'
 import { recordAudit } from './audit.service'
@@ -37,8 +38,6 @@ const ALLOWED_MIME_TYPES = new Set([
   'image/gif',
 ])
 
-const MAX_FILE_SIZE = 5 * 1024 * 1024
-
 const EXT_MAP: Record<string, string> = {
   'image/jpeg': '.jpg',
   'image/png': '.png',
@@ -54,8 +53,11 @@ function validateFile(file: Express.Multer.File): void {
   if (!ALLOWED_MIME_TYPES.has(file.mimetype)) {
     throw new AppError('Only JPEG, PNG, WebP and GIF images are allowed.', HttpStatus.BadRequest)
   }
-  if (file.size > MAX_FILE_SIZE) {
-    throw new AppError('Image must be smaller than 5 MB.', HttpStatus.BadRequest)
+  if (file.size > MAX_UPLOAD_FILE_BYTES) {
+    throw new AppError(
+      `Image must be smaller than ${MAX_UPLOAD_FILE_MB} MB.`,
+      HttpStatus.BadRequest,
+    )
   }
 }
 

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { HttpStatus } from '../config/enums'
 import { OWNER_ROLE } from '../rbac/catalog'
+import { DEVELOPER_EMAIL } from './developer.service'
 import { createOwner, ownerExists } from './setup.service'
 
 const prismaMock = vi.hoisted(() => ({
@@ -41,6 +42,17 @@ describe('setup.service', () => {
     it('returns false when no owner exists', async () => {
       prismaMock.user.findFirst.mockResolvedValue(null)
       await expect(ownerExists()).resolves.toBe(false)
+    })
+
+    it('excludes the permanent developer account from the owner check', async () => {
+      prismaMock.user.findFirst.mockResolvedValue(null)
+      await expect(ownerExists()).resolves.toBe(false)
+      expect(prismaMock.user.findFirst).toHaveBeenCalledWith({
+        where: {
+          roles: { some: { role: { name: OWNER_ROLE } } },
+          email: { not: DEVELOPER_EMAIL },
+        },
+      })
     })
   })
 

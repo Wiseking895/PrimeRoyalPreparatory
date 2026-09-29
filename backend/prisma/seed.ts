@@ -12,6 +12,12 @@ const prisma = new PrismaClient()
  * The Owner account is intentionally NOT seeded: the first Owner is always
  * created through the secure initial setup flow (POST /api/setup/owner) so no
  * plaintext/known credential can ever exist in the database seed.
+ *
+ * The permanent developer/maintenance account (developer@prps.local) is also
+ * never created, updated or deleted here. Seeding must stay incapable of
+ * fabricating credentials: that account exists only through an explicit run of
+ * `scripts/developer-bootstrap.ts`, and any production-baseline cleanup must
+ * preserve it (see `isPermanentDeveloperEmail` in src/services/developer.service.ts).
  */
 async function main(): Promise<void> {
   const school = await prisma.schoolProfile.upsert({

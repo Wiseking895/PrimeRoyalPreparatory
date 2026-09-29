@@ -3,8 +3,26 @@ import { prisma } from '../lib/prisma'
 import { AppError } from '../utils/app-error'
 import { recordAudit } from './audit.service'
 
-const DEVELOPER_EMAIL = 'developer@prps.local'
+/**
+ * The permanent PRPS developer / maintenance account.
+ *
+ * This is a SYSTEM FIXTURE, not trial or demo data: it is how the application
+ * owner maintains and updates PRPS without borrowing school staff credentials.
+ * Production-baseline cleanups must preserve it. It is provisioned only
+ * through `scripts/developer-bootstrap.ts` — never by the database seed,
+ * never by application startup, and never by the `/api/setup/owner` flow.
+ */
+export const DEVELOPER_EMAIL = 'developer@prps.local'
 const DEVELOPER_STAFF_POSITION = 'DEVELOPER'
+
+/**
+ * Single source of truth for "this email belongs to the permanent developer
+ * account". Cleanup/maintenance code must use this instead of comparing the
+ * literal, so the account can never be misclassified as disposable data.
+ */
+export function isPermanentDeveloperEmail(email: string | null | undefined): boolean {
+  return typeof email === 'string' && email.trim().toLowerCase() === DEVELOPER_EMAIL
+}
 
 /**
  * Checks whether the given user is the dedicated PRPS developer account.
@@ -17,7 +35,7 @@ export async function isDeveloperAccount(userId: string): Promise<boolean> {
     include: { staffProfile: true },
   })
   if (!user) return false
-  return user.email === DEVELOPER_EMAIL && user.staffProfile?.position === DEVELOPER_STAFF_POSITION
+  return isPermanentDeveloperEmail(user.email) && user.staffProfile?.position === DEVELOPER_STAFF_POSITION
 }
 
 export interface DeveloperAccount {
@@ -83,7 +101,7 @@ export async function validateImpersonationTarget(targetUserId: string) {
     throw new AppError('This account is not active and cannot be impersonated.', HttpStatus.BadRequest)
   }
 
-  if (target.email === DEVELOPER_EMAIL) {
+  if (isPermanentDeveloperEmail(target.email)) {
     throw new AppError('Cannot impersonate the developer account.', HttpStatus.BadRequest)
   }
 

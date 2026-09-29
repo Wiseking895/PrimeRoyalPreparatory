@@ -4,12 +4,26 @@ import { hashPassword } from '../lib/password'
 import { prisma } from '../lib/prisma'
 import { AppError } from '../utils/app-error'
 import { recordAudit } from './audit.service'
+import { DEVELOPER_EMAIL } from './developer.service'
 import { ensureInitialRbac } from './ensure-rbac'
 import { toPublicUser, type PublicUser } from './user-mapper'
 
+/**
+ * True when the school's OWN Owner exists.
+ *
+ * The permanent developer/maintenance account also holds the OWNER role, but it
+ * must never satisfy this check: otherwise provisioning it would permanently
+ * close the first-Owner flow (POST /api/setup/owner) and the school could never
+ * create its operational Owner. Only a non-developer Owner completes setup.
+ */
 export function ownerExists(): Promise<boolean> {
   return prisma.user
-    .findFirst({ where: { roles: { some: { role: { name: OWNER_ROLE } } } } })
+    .findFirst({
+      where: {
+        roles: { some: { role: { name: OWNER_ROLE } } },
+        email: { not: DEVELOPER_EMAIL },
+      },
+    })
     .then((user) => user !== null)
 }
 
@@ -21,8 +35,10 @@ export interface OwnerSetupInput {
 }
 
 /**
- * Creates the first Owner account. Only reachable while NO Owner exists —
- * enforced here in the backend, never trusted to the frontend.
+ * Creates the school's first operational Owner account. Only reachable while
+ * NO school Owner exists — enforced here in the backend, never trusted to the
+ * frontend. The permanent developer account never blocks this flow and is
+ * never created here.
  */
 export async function createOwner(input: OwnerSetupInput, ip?: string): Promise<PublicUser> {
   await ensureInitialRbac()

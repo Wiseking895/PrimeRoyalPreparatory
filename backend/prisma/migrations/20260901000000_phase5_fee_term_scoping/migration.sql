@@ -55,7 +55,7 @@ END $$;
 ALTER TABLE "finance_fees" ALTER COLUMN "termId" SET NOT NULL;
 
 -- Drop the old unique constraint
-ALTER TABLE "finance_fees" DROP CONSTRAINT "finance_fees_sessionId_name_key";
+DROP INDEX "finance_fees_sessionId_name_key";
 
 -- Add the new unique constraint including termId
 ALTER TABLE "finance_fees" ADD CONSTRAINT "finance_fees_sessionId_termId_name_key" UNIQUE ("sessionId", "termId", "name");
