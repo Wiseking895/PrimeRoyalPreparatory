@@ -1,0 +1,50 @@
+warning: in the working copy of 'backend/scripts/developer-bootstrap.ts', LF will be replaced by CRLF the next time Git touches it
+[1mdiff --git a/backend/scripts/developer-bootstrap.ts b/backend/scripts/developer-bootstrap.ts[m
+[1mindex 43f9609..c13acb9 100644[m
+[1m--- a/backend/scripts/developer-bootstrap.ts[m
+[1m+++ b/backend/scripts/developer-bootstrap.ts[m
+[36m@@ -94,10 +94,13 @@[m [mconst PASSWORD_LENGTH = 18[m
+ const PUBLIC_APP_URL = resolveAppUrl(process.env.CLIENT_URL, IS_PRODUCTION)[m
+ [m
+ /**[m
+[31m- * Staff/owner portal sign-in route (frontend/src/routes/index.tsx: `/login`,[m
+[31m- * the LoginPage protected by ProtectedRoute). This is where the OWNER-role[m
+[31m- * developer signs in — `/setup/owner` is the separate first-owner flow driven[m
+[31m- * by POST /api/setup/owner, which this account does not use.[m
+[32m+[m[32m * Developer account sign-in route (frontend/src/routes/index.tsx: `/login`,[m
+[32m+[m[32m * the LoginPage protected by ProtectedRoute).[m
+[32m+[m[32m *[m
+[32m+[m[32m * The Developer account holds the technical OWNER role but is NOT the school[m
+[32m+[m[32m * Owner/Proprietress account. `/setup/owner` remains the separate, untouched[m
+[32m+[m[32m * Owner setup flow (POST /api/setup/owner): this script never runs it, never[m
+[32m+[m[32m * replaces it and never prints an Owner setup link.[m
+  */[m
+ const LOGIN_ROUTE = '/login'[m
+ [m
+[36m@@ -275,11 +278,13 @@[m [masync function main() {[m
+     console.log('Developer account created successfully!\n')[m
+     console.log('--- CREDENTIALS (shown once, save somewhere safe) ---')[m
+     console.log(`  Email:    ${DEVELOPER_EMAIL}`)[m
+[32m+[m[32m    console.log(`  Staff ID: ${DEVELOPER_STAFF_ID}`)[m
+     console.log(`  Password: ${tempPassword}`)[m
+     console.log('--- END CREDENTIALS ---\n')[m
+     console.log(`Log in at: ${PUBLIC_APP_URL}${LOGIN_ROUTE}`)[m
+     console.log('Use the email and password above to sign in.')[m
+[31m-    console.log('\nThis account has the OWNER role with full administrative access.')[m
+[32m+[m[32m    console.log('\nThis is still the Developer account: it holds the OWNER role for technical administration,')[m
+[32m+[m[32m    console.log('it is NOT the school Owner/Proprietress account.')[m
+     console.log('You may change the password after first login if desired.')[m
+ [m
+     // 6. Security reminders[m
+[36m@@ -344,9 +349,10 @@[m [masync function resetPassword() {[m
+       })[m
+     })[m
+ [m
+[31m-    console.log('Password reset successfully!\n')[m
+[32m+[m[32m    console.log('Developer account password reset successfully!\n')[m
+     console.log('--- NEW CREDENTIALS (shown once, save somewhere safe) ---')[m
+     console.log(`  Email:    ${DEVELOPER_EMAIL}`)[m
+[32m+[m[32m    console.log(`  Staff ID: ${DEVELOPER_STAFF_ID}`)[m
+     console.log(`  Password: ${tempPassword}`)[m
+     console.log('--- END CREDENTIALS ---\n')[m
+     console.log(`Log in at: ${PUBLIC_APP_URL}${LOGIN_ROUTE}`)[m

@@ -94,10 +94,13 @@ const PASSWORD_LENGTH = 18
 const PUBLIC_APP_URL = resolveAppUrl(process.env.CLIENT_URL, IS_PRODUCTION)
 
 /**
- * Staff/owner portal sign-in route (frontend/src/routes/index.tsx: `/login`,
- * the LoginPage protected by ProtectedRoute). This is where the OWNER-role
- * developer signs in — `/setup/owner` is the separate first-owner flow driven
- * by POST /api/setup/owner, which this account does not use.
+ * Developer account sign-in route (frontend/src/routes/index.tsx: `/login`,
+ * the LoginPage protected by ProtectedRoute).
+ *
+ * The Developer account holds the technical OWNER role but is NOT the school
+ * Owner/Proprietress account. `/setup/owner` remains the separate, untouched
+ * Owner setup flow (POST /api/setup/owner): this script never runs it, never
+ * replaces it and never prints an Owner setup link.
  */
 const LOGIN_ROUTE = '/login'
 
@@ -275,11 +278,13 @@ async function main() {
     console.log('Developer account created successfully!\n')
     console.log('--- CREDENTIALS (shown once, save somewhere safe) ---')
     console.log(`  Email:    ${DEVELOPER_EMAIL}`)
+    console.log(`  Staff ID: ${DEVELOPER_STAFF_ID}`)
     console.log(`  Password: ${tempPassword}`)
     console.log('--- END CREDENTIALS ---\n')
     console.log(`Log in at: ${PUBLIC_APP_URL}${LOGIN_ROUTE}`)
     console.log('Use the email and password above to sign in.')
-    console.log('\nThis account has the OWNER role with full administrative access.')
+    console.log('\nThis is still the Developer account: it holds the OWNER role for technical administration,')
+    console.log('it is NOT the school Owner/Proprietress account.')
     console.log('You may change the password after first login if desired.')
 
     // 6. Security reminders
@@ -344,9 +349,10 @@ async function resetPassword() {
       })
     })
 
-    console.log('Password reset successfully!\n')
+    console.log('Developer account password reset successfully!\n')
     console.log('--- NEW CREDENTIALS (shown once, save somewhere safe) ---')
     console.log(`  Email:    ${DEVELOPER_EMAIL}`)
+    console.log(`  Staff ID: ${DEVELOPER_STAFF_ID}`)
     console.log(`  Password: ${tempPassword}`)
     console.log('--- END CREDENTIALS ---\n')
     console.log(`Log in at: ${PUBLIC_APP_URL}${LOGIN_ROUTE}`)
