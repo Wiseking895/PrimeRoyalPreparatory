@@ -159,4 +159,51 @@ describe('mail.service', () => {
       vi.unstubAllEnvs()
     })
   })
+
+  describe('public application URL in generated links', () => {
+    it('points parent invitations at the deployed frontend in production', async () => {
+      vi.stubEnv('EMAIL_ENABLED', 'false')
+      vi.stubEnv('NODE_ENV', 'production')
+      vi.stubEnv('JWT_SECRET', 'production-secret-for-link-test')
+      // A stale/mistyped CLIENT_URL must not put localhost links in real mail.
+      vi.stubEnv('CLIENT_URL', 'http://localhost:5173')
+      vi.resetModules()
+      const { sendGuardianInvitation } = await import('./mail.service')
+      sendMailMock.mockResolvedValue({ messageId: 'dev-id', message: '{}' })
+
+      await sendGuardianInvitation({
+        to: 'parent@example.com',
+        fullName: 'Ada Parent',
+        temporaryPassword: 'T0pSecret12',
+      })
+
+      const [payload] = sendMailMock.mock.calls[0]
+      expect(payload.text).toContain(
+        'Sign in to the PRPS Parent Portal at: https://prime-royal-preparatory-frontend.vercel.app/parent/login',
+      )
+      expect(payload.text).not.toContain('localhost')
+      vi.unstubAllEnvs()
+    })
+
+    it('keeps pointing at the local dev server during development', async () => {
+      vi.stubEnv('EMAIL_ENABLED', 'false')
+      vi.stubEnv('NODE_ENV', 'development')
+      vi.stubEnv('CLIENT_URL', '')
+      vi.resetModules()
+      const { sendStaffInvitation } = await import('./mail.service')
+      sendMailMock.mockResolvedValue({ messageId: 'dev-id', message: '{}' })
+
+      await sendStaffInvitation({
+        to: 'teacher@example.com',
+        fullName: 'Katherine Johnson',
+        staffId: 'PRPS-STF-0002',
+        temporaryPassword: 'T0pSecret12',
+        position: 'Class Teacher',
+      })
+
+      const [payload] = sendMailMock.mock.calls[0]
+      expect(payload.text).toContain('http://localhost:5173/staff/login')
+      vi.unstubAllEnvs()
+    })
+  })
 })

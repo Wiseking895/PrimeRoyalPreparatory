@@ -1,20 +1,11 @@
 import 'dotenv/config'
+import { DEFAULT_CLIENT_URL, PRODUCTION_CLIENT_URL, resolveAppUrl } from './app-url.js'
 import { Environment } from './enums.js'
 
 const DEFAULT_PORT = 4000
-const DEFAULT_CLIENT_URL = 'http://localhost:5173'
 
-/**
- * Canonical origin of the deployed PRPS frontend.
- *
- * Production must never fall back to the localhost default: when `CLIENT_URL`
- * is missing or mistyped on Vercel the CORS allowlist silently becomes
- * `http://localhost:5173`, every response loses `Access-Control-Allow-Origin`
- * and the deployed frontend is rejected at the preflight stage. This origin is
- * therefore always allowed in production; `CLIENT_URL` still adds preview
- * deployments or custom domains.
- */
-export const PRODUCTION_CLIENT_URL = 'https://prime-royal-preparatory-frontend.vercel.app'
+/** Re-exported for callers that already import the deployment constants here. */
+export { PRODUCTION_CLIENT_URL }
 
 /** Trims whitespace and any trailing slashes so `…vercel.app/` still matches. */
 function normalizeOrigin(value: string): string {
@@ -119,11 +110,11 @@ export const env = {
   nodeEnv: toEnvironment(process.env.NODE_ENV),
   isProduction: process.env.NODE_ENV === Environment.Production,
   port: toNumber(process.env.PORT, DEFAULT_PORT),
-  // Primary frontend origin: used for links inside invitation e-mails.
-  // Production falls back to the deployed frontend rather than to localhost.
-  clientUrl:
-    process.env.CLIENT_URL?.trim() ||
-    (process.env.NODE_ENV === Environment.Production ? PRODUCTION_CLIENT_URL : DEFAULT_CLIENT_URL),
+  // Primary frontend origin: used for links inside generated e-mails and for
+  // the developer bootstrap output. Resolved through resolveAppUrl so a
+  // production deployment never emits a localhost link, even when CLIENT_URL
+  // is missing, stale or points at the local dev server.
+  clientUrl: resolveAppUrl(process.env.CLIENT_URL, process.env.NODE_ENV === Environment.Production),
   // Full CORS allowlist (CLIENT_URL entries + the guaranteed origins).
   clientOrigins: resolveClientOrigins(process.env.CLIENT_URL, process.env.NODE_ENV === Environment.Production),
   databaseUrl: process.env.DATABASE_URL ?? '',

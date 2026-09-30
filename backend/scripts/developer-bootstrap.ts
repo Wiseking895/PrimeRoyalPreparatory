@@ -43,6 +43,10 @@
 import 'dotenv/config'
 import bcrypt from 'bcryptjs'
 import { randomInt } from 'node:crypto'
+// The only src/ import: dependency-free and side-effect free, so it cannot
+// drag in the Prisma client or the strict startup validation performed by
+// config/env.ts (which throws when JWT_SECRET is missing in production).
+import { resolveAppUrl } from '../src/config/app-url'
 
 // ---------------------------------------------------------------------------
 // Inline dependencies to avoid importing from src/ (which may require
@@ -83,6 +87,19 @@ const DEVELOPER_FULL_NAME = 'PRPS Developer'
 const DEVELOPER_STAFF_ID = 'PRPS-DEV-001'
 const OWNER_ROLE_NAME = 'OWNER'
 const PASSWORD_LENGTH = 18
+
+// Application origin used for the links printed below. In development this is
+// the local Vite server; with NODE_ENV=production it resolves to the deployed
+// frontend, so production output never points at localhost.
+const PUBLIC_APP_URL = resolveAppUrl(process.env.CLIENT_URL, IS_PRODUCTION)
+
+/**
+ * Staff/owner portal sign-in route (frontend/src/routes/index.tsx: `/login`,
+ * the LoginPage protected by ProtectedRoute). This is where the OWNER-role
+ * developer signs in — `/setup/owner` is the separate first-owner flow driven
+ * by POST /api/setup/owner, which this account does not use.
+ */
+const LOGIN_ROUTE = '/login'
 
 // ---------------------------------------------------------------------------
 // Temporary password generator (copied from src/lib/temporary-password.ts
@@ -260,7 +277,7 @@ async function main() {
     console.log(`  Email:    ${DEVELOPER_EMAIL}`)
     console.log(`  Password: ${tempPassword}`)
     console.log('--- END CREDENTIALS ---\n')
-    console.log('Log in at: http://localhost:5173/login')
+    console.log(`Log in at: ${PUBLIC_APP_URL}${LOGIN_ROUTE}`)
     console.log('Use the email and password above to sign in.')
     console.log('\nThis account has the OWNER role with full administrative access.')
     console.log('You may change the password after first login if desired.')
@@ -332,7 +349,7 @@ async function resetPassword() {
     console.log(`  Email:    ${DEVELOPER_EMAIL}`)
     console.log(`  Password: ${tempPassword}`)
     console.log('--- END CREDENTIALS ---\n')
-    console.log('Log in at: http://localhost:5173/login')
+    console.log(`Log in at: ${PUBLIC_APP_URL}${LOGIN_ROUTE}`)
   } finally {
     await prisma.$disconnect()
   }
