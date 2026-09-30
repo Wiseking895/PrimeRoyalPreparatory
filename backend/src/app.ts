@@ -58,11 +58,14 @@ export function createApp(): Express {
   // Structured request logging
   app.use(pinoHttp({ logger }))
 
-  // CORS — allow the configured frontend origin (comma-separated in production).
-  const origins = env.isProduction ? env.clientUrl.split(',').map((o) => o.trim()) : true
+  // CORS — allow the configured frontend origin(s) (comma-separated in
+  // CLIENT_URL) plus the deployed production frontend. In development every
+  // origin is reflected. Registered before rate limiting, body parsing and
+  // authentication so OPTIONS preflight requests are answered here and never
+  // reach an auth middleware that would reject them.
   app.use(
     cors({
-      origin: origins,
+      origin: env.isProduction ? env.clientOrigins : true,
       credentials: true,
     }),
   )

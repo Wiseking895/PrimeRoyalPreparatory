@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { resolveJwtSecret } from './env'
+import { PRODUCTION_CLIENT_URL, resolveClientOrigins, resolveJwtSecret } from './env'
 
 /** The known development placeholder — never valid in production. */
 const DEV_PLACEHOLDER = 'unsafe-default-change-me'
@@ -43,6 +43,42 @@ describe('resolveJwtSecret', () => {
     expect(messages).toHaveLength(3)
     expect(messages.join(' ')).not.toContain(DEV_PLACEHOLDER)
     expect(messages.join(' ')).not.toContain('a-strong-production-secret')
+  })
+})
+
+describe('resolveClientOrigins', () => {
+  it('allows the deployed frontend in production even when CLIENT_URL is missing', () => {
+    expect(resolveClientOrigins(undefined, true)).toEqual([PRODUCTION_CLIENT_URL])
+    expect(resolveClientOrigins('', true)).toEqual([PRODUCTION_CLIENT_URL])
+    expect(resolveClientOrigins('   ', true)).toEqual([PRODUCTION_CLIENT_URL])
+  })
+
+  it('keeps the deployed frontend allowed when CLIENT_URL points elsewhere', () => {
+    const origins = resolveClientOrigins('https://stale-frontend.example', true)
+    expect(origins).toContain(PRODUCTION_CLIENT_URL)
+    expect(origins).toContain('https://stale-frontend.example')
+  })
+
+  it('supports comma-separated origins and de-duplicates them', () => {
+    const origins = resolveClientOrigins(`${PRODUCTION_CLIENT_URL}, https://preview.vercel.app,`, true)
+    expect(origins).toEqual([PRODUCTION_CLIENT_URL, 'https://preview.vercel.app'])
+  })
+
+  it('normalises whitespace and trailing slashes so an exact match is not required', () => {
+    const origins = resolveClientOrigins(`  ${PRODUCTION_CLIENT_URL}/  `, true)
+    expect(origins).toEqual([PRODUCTION_CLIENT_URL])
+  })
+
+  it('never produces a wildcard origin', () => {
+    for (const origins of [resolveClientOrigins(undefined, true), resolveClientOrigins('*', true)]) {
+      expect(origins).not.toContain('*')
+      expect(origins.every((origin) => origin.startsWith('http'))).toBe(true)
+    }
+  })
+
+  it('defaults to the local dev server outside production', () => {
+    expect(resolveClientOrigins(undefined, false)).toEqual(['http://localhost:5173'])
+    expect(resolveClientOrigins(undefined, false)).not.toContain(PRODUCTION_CLIENT_URL)
   })
 })
 

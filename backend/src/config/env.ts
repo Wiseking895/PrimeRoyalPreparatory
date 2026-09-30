@@ -4,6 +4,44 @@ import { Environment } from './enums.js'
 const DEFAULT_PORT = 4000
 const DEFAULT_CLIENT_URL = 'http://localhost:5173'
 
+/**
+ * Canonical origin of the deployed PRPS frontend.
+ *
+ * Production must never fall back to the localhost default: when `CLIENT_URL`
+ * is missing or mistyped on Vercel the CORS allowlist silently becomes
+ * `http://localhost:5173`, every response loses `Access-Control-Allow-Origin`
+ * and the deployed frontend is rejected at the preflight stage. This origin is
+ * therefore always allowed in production; `CLIENT_URL` still adds preview
+ * deployments or custom domains.
+ */
+export const PRODUCTION_CLIENT_URL = 'https://prime-royal-preparatory-frontend.vercel.app'
+
+/** Trims whitespace and any trailing slashes so `…vercel.app/` still matches. */
+function normalizeOrigin(value: string): string {
+  return value.trim().replace(/\/+$/, '')
+}
+
+/**
+ * Resolves the origins the backend accepts in `Access-Control-Allow-Origin`.
+ *
+ * `CLIENT_URL` is comma-separated (existing convention). In production the
+ * deployed frontend origin is always included so CORS keeps working even if the
+ * environment variable is unset or points somewhere else. The result is never
+ * a wildcard: only explicit origins are ever echoed back.
+ */
+export function resolveClientOrigins(clientUrl: string | undefined, isProduction: boolean): string[] {
+  const configured = (clientUrl ?? '')
+    .split(',')
+    .map(normalizeOrigin)
+    // Only real http(s) origins are accepted — this also drops a stray `*`, so
+    // the allowlist can never degrade into a wildcard.
+    .filter((origin) => /^https?:\/\//.test(origin))
+
+  const guaranteed = isProduction ? [PRODUCTION_CLIENT_URL] : [DEFAULT_CLIENT_URL]
+
+  return Array.from(new Set([...configured, ...guaranteed]))
+}
+
 function toNumber(value: string | undefined, fallback: number): number {
   if (!value) return fallback
   const parsed = Number(value)
@@ -81,7 +119,13 @@ export const env = {
   nodeEnv: toEnvironment(process.env.NODE_ENV),
   isProduction: process.env.NODE_ENV === Environment.Production,
   port: toNumber(process.env.PORT, DEFAULT_PORT),
-  clientUrl: process.env.CLIENT_URL ?? DEFAULT_CLIENT_URL,
+  // Primary frontend origin: used for links inside invitation e-mails.
+  // Production falls back to the deployed frontend rather than to localhost.
+  clientUrl:
+    process.env.CLIENT_URL?.trim() ||
+    (process.env.NODE_ENV === Environment.Production ? PRODUCTION_CLIENT_URL : DEFAULT_CLIENT_URL),
+  // Full CORS allowlist (CLIENT_URL entries + the guaranteed origins).
+  clientOrigins: resolveClientOrigins(process.env.CLIENT_URL, process.env.NODE_ENV === Environment.Production),
   databaseUrl: process.env.DATABASE_URL ?? '',
   jwtSecret: resolveJwtSecret(process.env.NODE_ENV === Environment.Production, process.env.JWT_SECRET),
   jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? '12h',

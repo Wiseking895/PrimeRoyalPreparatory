@@ -200,14 +200,22 @@ After the Owner is logged in:
 
 ## CORS Configuration
 
-The backend CORS is controlled by the `CLIENT_URL` environment variable:
+The backend CORS allowlist is built from the `CLIENT_URL` environment variable:
 
-- In **production** (`NODE_ENV=production`): only origins listed in `CLIENT_URL` are allowed
+- In **production** (`NODE_ENV=production`): origins listed in `CLIENT_URL`
+  (comma-separated) **plus** the deployed frontend
+  `https://prime-royal-preparatory-frontend.vercel.app` are allowed. The
+  deployed frontend is always included, so a missing or mistyped `CLIENT_URL`
+  can no longer strip `Access-Control-Allow-Origin` and block login at preflight.
 - In **development**: all origins are allowed (CORS is permissive)
+- `Access-Control-Allow-Credentials` is `true`; only exact origins are ever
+  echoed back — never `*`.
+- `OPTIONS` preflight is answered by the CORS middleware before rate limiting
+  and authentication.
 
 If the frontend is blocked by CORS, verify:
-1. `CLIENT_URL` is set on the backend
-2. The value exactly matches the frontend URL (including `https://` and no trailing slash)
+1. `CLIENT_URL` is set on the backend for any extra origin (preview deployments, custom domains)
+2. Each value is a full origin including `https://` (a trailing slash is tolerated)
 3. Multiple origins can be comma-separated
 
 ---
