@@ -5,11 +5,11 @@ import {
   listGuardiansHandler,
   resendParentInvitationHandler,
   setParentAccountStatusHandler,
-} from '../controllers/guardians.controller'
-import { requireAuth } from '../middleware/require-auth'
-import { requirePermission } from '../middleware/require-permission'
-import { validate } from '../middleware/validate'
-import { parentAccountCreateSchema } from '../schemas'
+} from '../controllers/guardians.controller.js'
+import { requireAuth } from '../middleware/require-auth.js'
+import { requirePermission } from '../middleware/require-permission.js'
+import { validate } from '../middleware/validate.js'
+import { parentAccountCreateSchema } from '../schemas/index.js'
 
 const router = Router()
 

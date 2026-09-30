@@ -1,14 +1,14 @@
-import { HttpStatus } from '../config/enums'
-import type { AuthRequest } from '../types/auth'
-import { AppError } from '../utils/app-error'
-import { asyncHandler } from '../utils/async-handler'
-import { ok } from '../lib/api-response'
+import { HttpStatus } from '../config/enums.js'
+import type { AuthRequest } from '../types/auth.js'
+import { AppError } from '../utils/app-error.js'
+import { asyncHandler } from '../utils/async-handler.js'
+import { ok } from '../lib/api-response.js'
 import {
   listNotifications,
   countUnreadNotifications,
   markNotificationRead,
   markAllNotificationsRead,
-} from '../services/notification.service'
+} from '../services/notification.service.js'
 
 /**
  * GET /api/notifications — list current user's notifications with pagination.

@@ -1,7 +1,7 @@
-import { HttpStatus } from '../config/enums'
-import { ok } from '../lib/api-response'
-import type { AuthRequest } from '../types/auth'
-import { asyncHandler } from '../utils/async-handler'
+import { HttpStatus } from '../config/enums.js'
+import { ok } from '../lib/api-response.js'
+import type { AuthRequest } from '../types/auth.js'
+import { asyncHandler } from '../utils/async-handler.js'
 import {
   createHeadteacher,
   getHeadteacher,
@@ -12,7 +12,7 @@ import {
   setHeadteacherPermissions,
   setHeadteacherStatus,
   updateHeadteacher,
-} from '../services/owner.service'
+} from '../services/owner.service.js'
 
 export const ownerSummaryHandler = asyncHandler(async (_req, res) => {
   const summary = await getOwnerSummary()

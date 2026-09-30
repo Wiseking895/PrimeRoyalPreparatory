@@ -1,9 +1,9 @@
-import { HttpStatus } from '../config/enums'
-import type { ApiErrorResponse } from '../config/api-contracts'
+import { HttpStatus } from '../config/enums.js'
+import type { ApiErrorResponse } from '../config/api-contracts.js'
 import type { ErrorRequestHandler } from 'express'
-import { env } from '../config/env'
-import { logger } from '../config/logger'
-import { AppError } from '../utils/app-error'
+import { env } from '../config/env.js'
+import { logger } from '../config/logger.js'
+import { AppError } from '../utils/app-error.js'
 
 /**
  * Centralized error handler. Maps operational errors (AppError) to their

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { STAFF_POSITION_KEYS } from '../rbac/catalog'
+import { STAFF_POSITION_KEYS } from '../rbac/catalog.js'
 
 const emailField = z
   .string()

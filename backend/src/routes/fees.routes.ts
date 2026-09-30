@@ -13,11 +13,11 @@ import {
   listFeesHandler,
   removeExemptionHandler,
   updateFeeHandler,
-} from '../controllers/fees.controller'
-import { requireAuth } from '../middleware/require-auth'
-import { requirePermission } from '../middleware/require-permission'
-import { validate } from '../middleware/validate'
-import { feeAssignSchema, feeBatchCreateSchema, feeCreateSchema, feeUpdateSchema } from '../schemas'
+} from '../controllers/fees.controller.js'
+import { requireAuth } from '../middleware/require-auth.js'
+import { requirePermission } from '../middleware/require-permission.js'
+import { validate } from '../middleware/validate.js'
+import { feeAssignSchema, feeBatchCreateSchema, feeCreateSchema, feeUpdateSchema } from '../schemas/index.js'
 
 const router = Router()
 

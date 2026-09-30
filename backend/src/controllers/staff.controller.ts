@@ -1,7 +1,7 @@
-import { HttpStatus } from '../config/enums'
-import { ok } from '../lib/api-response'
-import type { AuthRequest } from '../types/auth'
-import { asyncHandler } from '../utils/async-handler'
+import { HttpStatus } from '../config/enums.js'
+import { ok } from '../lib/api-response.js'
+import type { AuthRequest } from '../types/auth.js'
+import { asyncHandler } from '../utils/async-handler.js'
 import {
   assignRole,
   createStaff,
@@ -12,7 +12,7 @@ import {
   resendStaffInvitation,
   setStaffStatus,
   updateStaff,
-} from '../services/staff.service'
+} from '../services/staff.service.js'
 
 export const listStaffHandler = asyncHandler(async (req, res) => {
   const status = req.query.status === 'ACTIVE' || req.query.status === 'INACTIVE' ? req.query.status : undefined

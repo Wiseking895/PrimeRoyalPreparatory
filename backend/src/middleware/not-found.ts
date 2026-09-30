@@ -1,5 +1,5 @@
-import { HttpStatus } from '../config/enums'
-import type { ApiErrorResponse } from '../config/api-contracts'
+import { HttpStatus } from '../config/enums.js'
+import type { ApiErrorResponse } from '../config/api-contracts.js'
 import type { Request, Response } from 'express'
 
 /**

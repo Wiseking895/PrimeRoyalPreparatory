@@ -1,14 +1,14 @@
-import { HttpStatus } from '../config/enums'
-import { ok } from '../lib/api-response'
-import type { AuthRequest, AuthenticatedUser, ParentRequest } from '../types/auth'
-import { AppError } from '../utils/app-error'
-import { asyncHandler } from '../utils/async-handler'
+import { HttpStatus } from '../config/enums.js'
+import { ok } from '../lib/api-response.js'
+import type { AuthRequest, AuthenticatedUser, ParentRequest } from '../types/auth.js'
+import { AppError } from '../utils/app-error.js'
+import { asyncHandler } from '../utils/async-handler.js'
 import {
   getStoredDocument,
   issueDocumentUrl,
-} from '../services/document-storage.service'
-import { checkR2Health } from '../services/r2-storage.service'
-import { assertGuardianOwnsPupil } from '../services/parent-portal.service'
+} from '../services/document-storage.service.js'
+import { checkR2Health } from '../services/r2-storage.service.js'
+import { assertGuardianOwnsPupil } from '../services/parent-portal.service.js'
 import type { StoredDocument } from '@prisma/client'
 
 /**

@@ -1,6 +1,6 @@
-import { ok } from '../lib/api-response'
-import { asyncHandler } from '../utils/async-handler'
-import { countAudit, listAudit } from '../services/audit.service'
+import { ok } from '../lib/api-response.js'
+import { asyncHandler } from '../utils/async-handler.js'
+import { countAudit, listAudit } from '../services/audit.service.js'
 
 export const listAuditHandler = asyncHandler(async (req, res) => {
   const limit = Number.parseInt(req.query.limit as string, 10) || 50

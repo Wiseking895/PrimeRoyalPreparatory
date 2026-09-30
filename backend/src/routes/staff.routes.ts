@@ -10,16 +10,16 @@ import {
   resendStaffInvitationHandler,
   staffStatsHandler,
   updateStaffHandler,
-} from '../controllers/staff.controller'
+} from '../controllers/staff.controller.js'
 import {
   checkInStaffHandler,
   getStaffTodayAttendanceHandler,
   listAttendanceRecordsAdminHandler,
-} from '../controllers/attendance.controller'
-import { requireAuth } from '../middleware/require-auth'
-import { requirePermission } from '../middleware/require-permission'
-import { validate } from '../middleware/validate'
-import { roleAssignSchema, staffCreateSchema, staffUpdateSchema, staffCheckInSchema } from '../schemas'
+} from '../controllers/attendance.controller.js'
+import { requireAuth } from '../middleware/require-auth.js'
+import { requirePermission } from '../middleware/require-permission.js'
+import { validate } from '../middleware/validate.js'
+import { roleAssignSchema, staffCreateSchema, staffUpdateSchema, staffCheckInSchema } from '../schemas/index.js'
 
 const router = Router()
 

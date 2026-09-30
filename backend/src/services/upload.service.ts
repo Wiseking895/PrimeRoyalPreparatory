@@ -1,10 +1,10 @@
 import path from 'node:path'
 import fs from 'node:fs/promises'
-import { HttpStatus } from '../config/enums'
-import { MAX_UPLOAD_FILE_BYTES, MAX_UPLOAD_FILE_MB } from '../config/upload'
-import { prisma } from '../lib/prisma'
-import { AppError } from '../utils/app-error'
-import { recordAudit } from './audit.service'
+import { HttpStatus } from '../config/enums.js'
+import { MAX_UPLOAD_FILE_BYTES, MAX_UPLOAD_FILE_MB } from '../config/upload.js'
+import { prisma } from '../lib/prisma.js'
+import { AppError } from '../utils/app-error.js'
+import { recordAudit } from './audit.service.js'
 import {
   buildPupilProfileKey,
   buildStaffProfileKey,
@@ -13,7 +13,7 @@ import {
   isDocumentReference,
   removeStoredDocument,
   storeDocument,
-} from './document-storage.service'
+} from './document-storage.service.js'
 
 /**
  * Profile pictures are stored as private objects in Cloudflare R2 (via the

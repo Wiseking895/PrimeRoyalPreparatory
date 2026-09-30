@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs'
-import { env } from '../config/env'
+import { env } from '../config/env.js'
 
 /**
  * Password hashing using bcrypt (industry standard, per-user random salt).

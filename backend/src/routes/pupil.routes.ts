@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import multer from 'multer'
-import { MAX_UPLOAD_FILE_BYTES } from '../config/upload'
+import { MAX_UPLOAD_FILE_BYTES } from '../config/upload.js'
 import {
   activatePupilHandler,
   admissionFeeHandler,
@@ -11,16 +11,16 @@ import {
   listPupilsHandler,
   pupilStatsHandler,
   updatePupilHandler,
-} from '../controllers/pupil.controller'
+} from '../controllers/pupil.controller.js'
 import {
   confirmPupilImportHandler,
   downloadImportTemplateHandler,
   previewPupilImportHandler,
-} from '../controllers/pupil-import.controller'
-import { requireAuth } from '../middleware/require-auth'
-import { requirePermission } from '../middleware/require-permission'
-import { validate } from '../middleware/validate'
-import { pupilCreateSchema, pupilImportConfirmSchema, pupilUpdateSchema } from '../schemas'
+} from '../controllers/pupil-import.controller.js'
+import { requireAuth } from '../middleware/require-auth.js'
+import { requirePermission } from '../middleware/require-permission.js'
+import { validate } from '../middleware/validate.js'
+import { pupilCreateSchema, pupilImportConfirmSchema, pupilUpdateSchema } from '../schemas/index.js'
 
 const router = Router()
 

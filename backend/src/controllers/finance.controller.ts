@@ -1,8 +1,8 @@
-import { HttpStatus } from '../config/enums'
-import { ok } from '../lib/api-response'
-import { getOwnerFinanceOverview } from '../services/owner.service'
-import type { AuthRequest } from '../types/auth'
-import { asyncHandler } from '../utils/async-handler'
+import { HttpStatus } from '../config/enums.js'
+import { ok } from '../lib/api-response.js'
+import { getOwnerFinanceOverview } from '../services/owner.service.js'
+import type { AuthRequest } from '../types/auth.js'
+import { asyncHandler } from '../utils/async-handler.js'
 import {
   closeDailyReconciliation,
   createSession,
@@ -25,7 +25,7 @@ import {
   setTermStatus,
   updateSession,
   updateTerm,
-} from '../services/finance.service'
+} from '../services/finance.service.js'
 
 export const financeSummaryHandler = asyncHandler(async (_req, res) => {
   const summary = await getFinanceSummary()

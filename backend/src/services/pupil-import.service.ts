@@ -1,18 +1,18 @@
 import { parse } from 'node-html-parser'
 import mammoth from 'mammoth'
 import JSZip from 'jszip'
-import { HttpStatus } from '../config/enums'
-import { MAX_UPLOAD_FILE_BYTES, MAX_UPLOAD_FILE_MB } from '../config/upload'
-import { prisma } from '../lib/prisma'
-import type { AuthenticatedUser } from '../types/auth'
-import { AppError } from '../utils/app-error'
-import { recordAudit } from './audit.service'
+import { HttpStatus } from '../config/enums.js'
+import { MAX_UPLOAD_FILE_BYTES, MAX_UPLOAD_FILE_MB } from '../config/upload.js'
+import { prisma } from '../lib/prisma.js'
+import type { AuthenticatedUser } from '../types/auth.js'
+import { AppError } from '../utils/app-error.js'
+import { recordAudit } from './audit.service.js'
 import {
   ADMISSION_UNIFORM_ITEMS,
   createPupil,
   type PupilCreateInput,
   type PupilGender,
-} from './pupil.service'
+} from './pupil.service.js'
 
 /**
  * Word (.docx) pupil admission import.

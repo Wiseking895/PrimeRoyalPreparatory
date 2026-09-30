@@ -6,11 +6,11 @@ import {
   getSubjectHandler,
   listSubjectsHandler,
   updateSubjectHandler,
-} from '../controllers/subject.controller'
-import { requireAuth } from '../middleware/require-auth'
-import { requirePermission } from '../middleware/require-permission'
-import { validate } from '../middleware/validate'
-import { subjectCreateSchema, subjectUpdateSchema } from '../schemas'
+} from '../controllers/subject.controller.js'
+import { requireAuth } from '../middleware/require-auth.js'
+import { requirePermission } from '../middleware/require-permission.js'
+import { validate } from '../middleware/validate.js'
+import { subjectCreateSchema, subjectUpdateSchema } from '../schemas/index.js'
 
 const router = Router()
 

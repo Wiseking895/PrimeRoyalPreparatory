@@ -1,7 +1,7 @@
-import { HttpStatus } from '../config/enums'
-import { asyncHandler } from '../utils/async-handler'
-import { ok } from '../lib/api-response'
-import { createOwner, ownerExists } from '../services/setup.service'
+import { HttpStatus } from '../config/enums.js'
+import { asyncHandler } from '../utils/async-handler.js'
+import { ok } from '../lib/api-response.js'
+import { createOwner, ownerExists } from '../services/setup.service.js'
 
 export const setupStatusHandler = asyncHandler(async (_req, res) => {
   const exists = await ownerExists()

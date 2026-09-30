@@ -1,5 +1,5 @@
 import 'dotenv/config'
-import { Environment } from './enums'
+import { Environment } from './enums.js'
 
 const DEFAULT_PORT = 4000
 const DEFAULT_CLIENT_URL = 'http://localhost:5173'

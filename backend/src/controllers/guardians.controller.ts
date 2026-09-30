@@ -1,14 +1,14 @@
-import { HttpStatus } from '../config/enums'
-import { ok } from '../lib/api-response'
-import type { AuthRequest } from '../types/auth'
-import { asyncHandler } from '../utils/async-handler'
+import { HttpStatus } from '../config/enums.js'
+import { ok } from '../lib/api-response.js'
+import type { AuthRequest } from '../types/auth.js'
+import { asyncHandler } from '../utils/async-handler.js'
 import {
   createParentAccount,
   getGuardian,
   listGuardians,
   resendParentInvitation,
   setParentAccountStatus,
-} from '../services/guardians.service'
+} from '../services/guardians.service.js'
 
 export const listGuardiansHandler = asyncHandler(async (req: AuthRequest, res) => {
   const { q, account, status } = req.query

@@ -1,10 +1,10 @@
-import { HttpStatus } from '../config/enums'
-import { DEFAULT_CLASSES } from '../config/constants'
-import { formatClassName, normalizeDivision, splitClassName } from '../lib/class-name'
-import { prisma } from '../lib/prisma'
-import type { AuthenticatedUser } from '../types/auth'
-import { AppError } from '../utils/app-error'
-import { recordAudit } from './audit.service'
+import { HttpStatus } from '../config/enums.js'
+import { DEFAULT_CLASSES } from '../config/constants.js'
+import { formatClassName, normalizeDivision, splitClassName } from '../lib/class-name.js'
+import { prisma } from '../lib/prisma.js'
+import type { AuthenticatedUser } from '../types/auth.js'
+import { AppError } from '../utils/app-error.js'
+import { recordAudit } from './audit.service.js'
 
 export type ClassStatus = 'ACTIVE' | 'INACTIVE'
 

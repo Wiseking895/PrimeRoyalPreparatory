@@ -1,8 +1,8 @@
-import { ok } from '../lib/api-response'
-import { AppError } from '../utils/app-error'
-import { HttpStatus } from '../config/enums'
-import type { AuthRequest } from '../types/auth'
-import { asyncHandler } from '../utils/async-handler'
+import { ok } from '../lib/api-response.js'
+import { AppError } from '../utils/app-error.js'
+import { HttpStatus } from '../config/enums.js'
+import type { AuthRequest } from '../types/auth.js'
+import { asyncHandler } from '../utils/async-handler.js'
 import {
   getWorkOutput,
   listWorkOutputForReview,
@@ -11,7 +11,7 @@ import {
   reviewWorkOutput,
   type GetWorkOutputOptions,
   type GradeWorkOutputInput,
-} from '../services/work-output.service'
+} from '../services/work-output.service.js'
 
 export const getWorkOutputHandler = asyncHandler(async (req, res) => {
   const options: GetWorkOutputOptions = {

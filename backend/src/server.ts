@@ -1,8 +1,8 @@
-import { createApp } from './app'
-import { env } from './config/env'
-import { logger } from './config/logger'
-import { ensureInitialClasses } from './services/class.service'
-import { ensureInitialRbac } from './services/ensure-rbac'
+import { createApp } from './app.js'
+import { env } from './config/env.js'
+import { logger } from './config/logger.js'
+import { ensureInitialClasses } from './services/class.service.js'
+import { ensureInitialRbac } from './services/ensure-rbac.js'
 
 /**
  * Bootstraps the RBAC catalog (roles + permissions + defaults) and the default

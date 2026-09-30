@@ -1,6 +1,6 @@
-import { Environment } from './enums'
+import { Environment } from './enums.js'
 import { pino, type Logger } from 'pino'
-import { env } from './env'
+import { env } from './env.js'
 
 const level =
   env.nodeEnv === Environment.Test ? 'silent' : env.isProduction ? 'info' : 'debug'

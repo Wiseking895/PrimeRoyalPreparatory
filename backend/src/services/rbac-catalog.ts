@@ -5,9 +5,9 @@ import {
   ROLE_DEFINITIONS,
   type PermissionDefinition,
   type RoleDefinition,
-} from '../rbac/catalog'
-import type { AuthenticatedUser } from '../types/auth'
-import { isOwner } from './rbac-guards'
+} from '../rbac/catalog.js'
+import type { AuthenticatedUser } from '../types/auth.js'
+import { isOwner } from './rbac-guards.js'
 
 /**
  * Read-only views of the role/permission catalog for management screens.

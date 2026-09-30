@@ -6,11 +6,11 @@ import {
   getClassHandler,
   listClassesHandler,
   updateClassHandler,
-} from '../controllers/class.controller'
-import { requireAuth } from '../middleware/require-auth'
-import { requirePermission } from '../middleware/require-permission'
-import { validate } from '../middleware/validate'
-import { classCreateSchema, classUpdateSchema } from '../schemas'
+} from '../controllers/class.controller.js'
+import { requireAuth } from '../middleware/require-auth.js'
+import { requirePermission } from '../middleware/require-permission.js'
+import { validate } from '../middleware/validate.js'
+import { classCreateSchema, classUpdateSchema } from '../schemas/index.js'
 
 const router = Router()
 

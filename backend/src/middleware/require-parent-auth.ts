@@ -1,11 +1,11 @@
-import { HttpStatus } from '../config/enums'
+import { HttpStatus } from '../config/enums.js'
 import type { NextFunction, RequestHandler, Response } from 'express'
-import { verifyTokenForKind } from '../lib/jwt'
-import { prisma } from '../lib/prisma'
-import type { ParentRequest } from '../types/auth'
-import { AppError } from '../utils/app-error'
-import { asyncHandler } from '../utils/async-handler'
-import { toGuardianIdentity } from '../services/guardian-mapper'
+import { verifyTokenForKind } from '../lib/jwt.js'
+import { prisma } from '../lib/prisma.js'
+import type { ParentRequest } from '../types/auth.js'
+import { AppError } from '../utils/app-error.js'
+import { asyncHandler } from '../utils/async-handler.js'
+import { toGuardianIdentity } from '../services/guardian-mapper.js'
 
 /**
  * Parent-portal endpoints that must stay reachable while a guardian still

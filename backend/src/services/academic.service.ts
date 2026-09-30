@@ -1,11 +1,11 @@
 import { Prisma } from '@prisma/client'
-import { HttpStatus } from '../config/enums'
-import { prisma } from '../lib/prisma'
-import { staffPositionByKey } from '../rbac/catalog'
-import type { AuthenticatedUser } from '../types/auth'
-import { AppError } from '../utils/app-error'
-import { recordAudit } from './audit.service'
-import { isHeadteacher, isOwner } from './rbac-guards'
+import { HttpStatus } from '../config/enums.js'
+import { prisma } from '../lib/prisma.js'
+import { staffPositionByKey } from '../rbac/catalog.js'
+import type { AuthenticatedUser } from '../types/auth.js'
+import { AppError } from '../utils/app-error.js'
+import { recordAudit } from './audit.service.js'
+import { isHeadteacher, isOwner } from './rbac-guards.js'
 
 /**
  * Phase 6 academic domain service — teachers, class teachers and subject

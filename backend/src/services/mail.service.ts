@@ -1,8 +1,8 @@
 import nodemailer from 'nodemailer'
 import type { Transporter } from 'nodemailer'
-import { SCHOOL } from '../config/constants'
-import { env } from '../config/env'
-import { logger } from '../config/logger'
+import { SCHOOL } from '../config/constants.js'
+import { env } from '../config/env.js'
+import { logger } from '../config/logger.js'
 
 /**
  * Email service abstraction.

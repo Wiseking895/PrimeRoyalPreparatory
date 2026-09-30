@@ -1,8 +1,8 @@
 import { PDFDocument, StandardFonts, drawCheckMark, rgb } from 'pdf-lib'
 import type { PDFFont, PDFPage } from 'pdf-lib'
-import { prisma } from '../lib/prisma'
-import type { GuardianView, PupilView } from './pupil-mapper'
-import { ADMISSION_UNIFORM_ITEMS } from './pupil.service'
+import { prisma } from '../lib/prisma.js'
+import type { GuardianView, PupilView } from './pupil-mapper.js'
+import { ADMISSION_UNIFORM_ITEMS } from './pupil.service.js'
 
 const PAGE_WIDTH = 595.28
 const PAGE_HEIGHT = 841.89

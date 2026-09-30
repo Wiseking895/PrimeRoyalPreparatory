@@ -1,4 +1,4 @@
-import type { HttpStatus } from './enums'
+import type { HttpStatus } from './enums.js'
 
 /**
  * Canonical envelope for every PRPS API response.

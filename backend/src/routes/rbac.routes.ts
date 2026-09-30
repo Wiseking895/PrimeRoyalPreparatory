@@ -1,7 +1,7 @@
 import { Router } from 'express'
-import { listPermissionsHandler, listRolesHandler } from '../controllers/rbac.controller'
-import { requireAuth } from '../middleware/require-auth'
-import { requirePermission } from '../middleware/require-permission'
+import { listPermissionsHandler, listRolesHandler } from '../controllers/rbac.controller.js'
+import { requireAuth } from '../middleware/require-auth.js'
+import { requirePermission } from '../middleware/require-permission.js'
 
 const router = Router()
 

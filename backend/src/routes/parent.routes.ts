@@ -5,7 +5,7 @@ import {
   parentFirstPasswordChangeHandler,
   parentLoginHandler,
   parentMeHandler,
-} from '../controllers/parent-auth.controller'
+} from '../controllers/parent-auth.controller.js'
 import {
   getMyPupilFinanceHandler,
   getMyPupilHandler,
@@ -13,15 +13,15 @@ import {
   getMyReportSessionsHandler,
   getMyReportTermsHandler,
   listMyPupilsHandler,
-} from '../controllers/parent-portal.controller'
-import { requireParentAuth } from '../middleware/require-parent-auth'
-import { parentGetDocumentUrlHandler } from '../controllers/document.controller'
-import { validate } from '../middleware/validate'
+} from '../controllers/parent-portal.controller.js'
+import { requireParentAuth } from '../middleware/require-parent-auth.js'
+import { parentGetDocumentUrlHandler } from '../controllers/document.controller.js'
+import { validate } from '../middleware/validate.js'
 import {
   parentChangePasswordSchema,
   parentFirstPasswordChangeSchema,
   parentLoginSchema,
-} from '../schemas'
+} from '../schemas/index.js'
 
 const router = Router()
 

@@ -1,8 +1,8 @@
-import { HttpStatus } from '../config/enums'
-import { ok } from '../lib/api-response'
-import type { AuthRequest } from '../types/auth'
-import { asyncHandler } from '../utils/async-handler'
-import { changePassword, completeFirstPasswordChange, getUserProfile, login } from '../services/auth.service'
+import { HttpStatus } from '../config/enums.js'
+import { ok } from '../lib/api-response.js'
+import type { AuthRequest } from '../types/auth.js'
+import { asyncHandler } from '../utils/async-handler.js'
+import { changePassword, completeFirstPasswordChange, getUserProfile, login } from '../services/auth.service.js'
 
 export const loginHandler = asyncHandler(async (req, res) => {
   const result = await login(req.body.identifier, req.body.password, req.ip)

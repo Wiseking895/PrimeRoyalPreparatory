@@ -10,11 +10,11 @@ import {
   listTeachingAssignmentsHandler,
   removeClassTeacherHandler,
   teacherPortalHandler,
-} from '../controllers/academic.controller'
-import { requireAuth } from '../middleware/require-auth'
-import { requirePermission } from '../middleware/require-permission'
-import { validate } from '../middleware/validate'
-import { classTeacherAssignSchema, teachingAssignmentCreateSchema } from '../schemas'
+} from '../controllers/academic.controller.js'
+import { requireAuth } from '../middleware/require-auth.js'
+import { requirePermission } from '../middleware/require-permission.js'
+import { validate } from '../middleware/validate.js'
+import { classTeacherAssignSchema, teachingAssignmentCreateSchema } from '../schemas/index.js'
 
 const router = Router()
 

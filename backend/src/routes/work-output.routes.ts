@@ -5,9 +5,9 @@ import {
   getWorkOutputDetailHandler,
   gradeWorkOutputHandler,
   reviewWorkOutputHandler,
-} from '../controllers/work-output.controller'
-import { requireAuth } from '../middleware/require-auth'
-import { requirePermission } from '../middleware/require-permission'
+} from '../controllers/work-output.controller.js'
+import { requireAuth } from '../middleware/require-auth.js'
+import { requirePermission } from '../middleware/require-permission.js'
 
 const router = Router()
 

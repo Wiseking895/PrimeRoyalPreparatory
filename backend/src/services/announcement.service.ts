@@ -1,5 +1,5 @@
 import type { Prisma } from '@prisma/client'
-import { prisma } from '../lib/prisma'
+import { prisma } from '../lib/prisma.js'
 
 /**
  * Announcement service — school-wide or targeted announcements for the PRPS

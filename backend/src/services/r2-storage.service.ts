@@ -6,10 +6,10 @@ import {
   S3Client,
 } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
-import { env } from '../config/env'
-import { HttpStatus } from '../config/enums'
-import { logger } from '../config/logger'
-import { AppError } from '../utils/app-error'
+import { env } from '../config/env.js'
+import { HttpStatus } from '../config/enums.js'
+import { logger } from '../config/logger.js'
+import { AppError } from '../utils/app-error.js'
 
 /**
  * Centralized Cloudflare R2 (S3-compatible) object storage.

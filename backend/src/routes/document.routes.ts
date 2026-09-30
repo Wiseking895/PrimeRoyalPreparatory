@@ -1,10 +1,10 @@
 import { Router } from 'express'
-import { requireAuth } from '../middleware/require-auth'
-import { requirePermission } from '../middleware/require-permission'
+import { requireAuth } from '../middleware/require-auth.js'
+import { requirePermission } from '../middleware/require-permission.js'
 import {
   getDocumentUrlHandler,
   getStorageHealthHandler,
-} from '../controllers/document.controller'
+} from '../controllers/document.controller.js'
 
 const router = Router()
 

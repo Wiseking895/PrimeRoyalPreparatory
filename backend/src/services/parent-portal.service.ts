@@ -1,8 +1,8 @@
-import { HttpStatus } from '../config/enums'
-import { prisma } from '../lib/prisma'
-import { AppError } from '../utils/app-error'
-import { getPupilFinance } from './finance.service'
-import type { PupilFinanceView } from './finance-mapper'
+import { HttpStatus } from '../config/enums.js'
+import { prisma } from '../lib/prisma.js'
+import { AppError } from '../utils/app-error.js'
+import { getPupilFinance } from './finance.service.js'
+import type { PupilFinanceView } from './finance-mapper.js'
 import {
   getTerminalReport,
   listReportSessionsForPupil,
@@ -10,7 +10,7 @@ import {
   type ReportSessionOption,
   type ReportTermOption,
   type TerminalReportView,
-} from './report.service'
+} from './report.service.js'
 
 /**
  * Phase 7 Parent Portal.

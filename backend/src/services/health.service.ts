@@ -1,5 +1,5 @@
-import { APP } from '../config/constants'
-import type { HealthData } from '../config/api-contracts'
+import { APP } from '../config/constants.js'
+import type { HealthData } from '../config/api-contracts.js'
 
 /**
  * Builds the payload for GET /api/health.

@@ -1,7 +1,7 @@
-import { HttpStatus } from '../config/enums'
-import { ok } from '../lib/api-response'
-import type { AuthRequest } from '../types/auth'
-import { asyncHandler } from '../utils/async-handler'
+import { HttpStatus } from '../config/enums.js'
+import { ok } from '../lib/api-response.js'
+import type { AuthRequest } from '../types/auth.js'
+import { asyncHandler } from '../utils/async-handler.js'
 import {
   createPupil,
   getPupil,
@@ -9,18 +9,18 @@ import {
   listPupils,
   setPupilStatus,
   updatePupil,
-} from '../services/pupil.service'
-import { getAdmissionFee } from '../services/finance.service'
+} from '../services/pupil.service.js'
+import { getAdmissionFee } from '../services/finance.service.js'
 import {
   admissionFormFilename,
   renderAdmissionFormPdf,
   resolveAcademicSession,
-} from '../services/admission-form-pdf.service'
+} from '../services/admission-form-pdf.service.js'
 import {
   buildAdmissionFormKey,
   storeDocument,
   supersedeOlderAdmissionForms,
-} from '../services/document-storage.service'
+} from '../services/document-storage.service.js'
 
 export const listPupilsHandler = asyncHandler(async (req, res) => {
   const page = Number.parseInt(String(req.query.page ?? '1'), 10)

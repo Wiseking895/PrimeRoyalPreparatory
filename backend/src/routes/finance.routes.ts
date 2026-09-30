@@ -24,10 +24,10 @@ import {
   updateReconciliationAttendanceHandler,
   updateSessionHandler,
   updateTermHandler,
-} from '../controllers/finance.controller'
-import { requireAuth } from '../middleware/require-auth'
-import { requirePermission } from '../middleware/require-permission'
-import { validate } from '../middleware/validate'
+} from '../controllers/finance.controller.js'
+import { requireAuth } from '../middleware/require-auth.js'
+import { requirePermission } from '../middleware/require-permission.js'
+import { validate } from '../middleware/validate.js'
 import {
   chargeGenerateSchema,
   reconciliationAttendanceSchema,
@@ -35,7 +35,7 @@ import {
   sessionUpdateSchema,
   termCreateSchema,
   termUpdateSchema,
-} from '../schemas'
+} from '../schemas/index.js'
 
 const router = Router()
 

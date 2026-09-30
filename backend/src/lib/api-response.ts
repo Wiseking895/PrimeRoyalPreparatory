@@ -1,4 +1,4 @@
-import type { ApiResponse } from '../config/api-contracts'
+import type { ApiResponse } from '../config/api-contracts.js'
 
 /** Consistent API response helpers matching the shared envelope contract. */
 export function ok<T>(data: T, message = 'OK'): ApiResponse<T> {

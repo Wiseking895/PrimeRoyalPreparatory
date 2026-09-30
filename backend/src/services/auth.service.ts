@@ -1,10 +1,10 @@
-import { HttpStatus } from '../config/enums'
-import { signToken } from '../lib/jwt'
-import { hashPassword, verifyPassword } from '../lib/password'
-import { prisma } from '../lib/prisma'
-import { AppError } from '../utils/app-error'
-import { recordAudit } from './audit.service'
-import { toPublicUser, type PublicUser } from './user-mapper'
+import { HttpStatus } from '../config/enums.js'
+import { signToken } from '../lib/jwt.js'
+import { hashPassword, verifyPassword } from '../lib/password.js'
+import { prisma } from '../lib/prisma.js'
+import { AppError } from '../utils/app-error.js'
+import { recordAudit } from './audit.service.js'
+import { toPublicUser, type PublicUser } from './user-mapper.js'
 
 const userInclude = {
   staffProfile: true,

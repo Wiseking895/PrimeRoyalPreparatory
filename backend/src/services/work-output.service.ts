@@ -1,5 +1,5 @@
 import { type Prisma, type WorkOutputType, type WorkOutputReviewStatus } from '@prisma/client'
-import { prisma } from '../lib/prisma'
+import { prisma } from '../lib/prisma.js'
 
 /**
  * Single source of truth for the number of weeks per academic term.

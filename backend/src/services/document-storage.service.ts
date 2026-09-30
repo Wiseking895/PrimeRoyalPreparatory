@@ -1,18 +1,18 @@
 import crypto from 'node:crypto'
 import type { StoredDocument, StoredDocumentType } from '@prisma/client'
-import { HttpStatus } from '../config/enums'
-import { prisma } from '../lib/prisma'
-import { sha256Hex } from '../lib/hash'
-import { AppError } from '../utils/app-error'
-import { recordAudit } from './audit.service'
-import { env } from '../config/env'
-import { logger } from '../config/logger'
+import { HttpStatus } from '../config/enums.js'
+import { prisma } from '../lib/prisma.js'
+import { sha256Hex } from '../lib/hash.js'
+import { AppError } from '../utils/app-error.js'
+import { recordAudit } from './audit.service.js'
+import { env } from '../config/env.js'
+import { logger } from '../config/logger.js'
 import {
   getPresignedR2Url,
   isR2Configured,
   putR2Object,
   deleteR2Object,
-} from './r2-storage.service'
+} from './r2-storage.service.js'
 
 /**
  * Document metadata + object lifecycle on top of Cloudflare R2.

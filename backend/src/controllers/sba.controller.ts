@@ -1,15 +1,15 @@
-import { HttpStatus } from '../config/enums'
-import { ok } from '../lib/api-response'
-import type { AuthRequest } from '../types/auth'
-import { AppError } from '../utils/app-error'
-import { asyncHandler } from '../utils/async-handler'
+import { HttpStatus } from '../config/enums.js'
+import { ok } from '../lib/api-response.js'
+import type { AuthRequest } from '../types/auth.js'
+import { AppError } from '../utils/app-error.js'
+import { asyncHandler } from '../utils/async-handler.js'
 import {
   getSbaEntryData,
   getSbaRecord,
   listSba,
   updateSbaRecord,
   upsertSbaBulk,
-} from '../services/sba.service'
+} from '../services/sba.service.js'
 
 export const listSbaHandler = asyncHandler(async (req: AuthRequest, res) => {
   const { sessionId, termId, classId, subjectId, pupilId, teacherId } = req.query

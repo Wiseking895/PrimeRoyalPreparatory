@@ -1,6 +1,6 @@
-import { ASSIGNABLE_STAFF_ROLES, HEADTEACHER_ROLE, OWNER_ROLE } from '../rbac/catalog'
-import type { AuthenticatedUser } from '../types/auth'
-import { AppError } from '../utils/app-error'
+import { ASSIGNABLE_STAFF_ROLES, HEADTEACHER_ROLE, OWNER_ROLE } from '../rbac/catalog.js'
+import type { AuthenticatedUser } from '../types/auth.js'
+import { AppError } from '../utils/app-error.js'
 
 /**
  * Role/permission hierarchy rules.

@@ -1,12 +1,12 @@
-import { OWNER_ROLE } from '../rbac/catalog'
-import { HttpStatus } from '../config/enums'
-import { hashPassword } from '../lib/password'
-import { prisma } from '../lib/prisma'
-import { AppError } from '../utils/app-error'
-import { recordAudit } from './audit.service'
-import { DEVELOPER_EMAIL } from './developer.service'
-import { ensureInitialRbac } from './ensure-rbac'
-import { toPublicUser, type PublicUser } from './user-mapper'
+import { OWNER_ROLE } from '../rbac/catalog.js'
+import { HttpStatus } from '../config/enums.js'
+import { hashPassword } from '../lib/password.js'
+import { prisma } from '../lib/prisma.js'
+import { AppError } from '../utils/app-error.js'
+import { recordAudit } from './audit.service.js'
+import { DEVELOPER_EMAIL } from './developer.service.js'
+import { ensureInitialRbac } from './ensure-rbac.js'
+import { toPublicUser, type PublicUser } from './user-mapper.js'
 
 /**
  * True when the school's OWN Owner exists.

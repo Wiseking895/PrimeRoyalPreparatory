@@ -1,7 +1,7 @@
-import { HttpStatus } from '../config/enums'
-import { ok } from '../lib/api-response'
-import type { AuthRequest } from '../types/auth'
-import { asyncHandler } from '../utils/async-handler'
+import { HttpStatus } from '../config/enums.js'
+import { ok } from '../lib/api-response.js'
+import type { AuthRequest } from '../types/auth.js'
+import { asyncHandler } from '../utils/async-handler.js'
 import {
   assignPupilsToFee,
   createFee,
@@ -15,7 +15,7 @@ import {
   removeExemption,
   setFeeStatus,
   updateFee,
-} from '../services/finance.service'
+} from '../services/finance.service.js'
 
 export const listFeesHandler = asyncHandler(async (req, res) => {
   const sessionId = typeof req.query.sessionId === 'string' ? req.query.sessionId : undefined

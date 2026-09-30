@@ -1,10 +1,10 @@
 import { Prisma } from '@prisma/client'
-import { HttpStatus } from '../config/enums'
-import { prisma } from '../lib/prisma'
-import type { AuthenticatedUser } from '../types/auth'
-import { AppError } from '../utils/app-error'
-import { createAttendance, updateAttendance, type AttendanceView } from './attendance.service'
-import { recordAudit } from './audit.service'
+import { HttpStatus } from '../config/enums.js'
+import { prisma } from '../lib/prisma.js'
+import type { AuthenticatedUser } from '../types/auth.js'
+import { AppError } from '../utils/app-error.js'
+import { createAttendance, updateAttendance, type AttendanceView } from './attendance.service.js'
+import { recordAudit } from './audit.service.js'
 import {
   money,
   toFeeView,
@@ -38,7 +38,7 @@ import {
   type ReconciliationPupilRow,
   type ReconciliationStatus,
   type ReconciliationView,
-} from './finance-mapper'
+} from './finance-mapper.js'
 
 /**
  * Phase 5 finance domain service.

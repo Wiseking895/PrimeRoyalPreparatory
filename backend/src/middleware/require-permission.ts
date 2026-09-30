@@ -1,8 +1,8 @@
-import { HttpStatus } from '../config/enums'
+import { HttpStatus } from '../config/enums.js'
 import type { NextFunction, RequestHandler, Response } from 'express'
-import type { AuthRequest } from '../types/auth'
-import { AppError } from '../utils/app-error'
-import { asyncHandler } from '../utils/async-handler'
+import type { AuthRequest } from '../types/auth.js'
+import { AppError } from '../utils/app-error.js'
+import { asyncHandler } from '../utils/async-handler.js'
 
 /**
  * Authorization guard. Requires any one of the supplied permission keys on the

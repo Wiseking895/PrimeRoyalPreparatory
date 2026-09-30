@@ -1,9 +1,9 @@
 import { z } from 'zod'
-import { HttpStatus } from '../config/enums'
-import type { AuthRequest } from '../types/auth'
-import { AppError } from '../utils/app-error'
-import { asyncHandler } from '../utils/async-handler'
-import { ok, created } from '../lib/api-response'
+import { HttpStatus } from '../config/enums.js'
+import type { AuthRequest } from '../types/auth.js'
+import { AppError } from '../utils/app-error.js'
+import { asyncHandler } from '../utils/async-handler.js'
+import { ok, created } from '../lib/api-response.js'
 import {
   createAnnouncement,
   updateAnnouncement,
@@ -11,9 +11,9 @@ import {
   getAnnouncement,
   deleteAnnouncement,
   getAudienceUserIds,
-} from '../services/announcement.service'
-import { createBulkNotifications } from '../services/notification.service'
-import { recordAudit } from '../services/audit.service'
+} from '../services/announcement.service.js'
+import { createBulkNotifications } from '../services/notification.service.js'
+import { recordAudit } from '../services/audit.service.js'
 
 const announcementCreateSchema = z.object({
   title: z.string().trim().min(2, 'Title must be at least 2 characters.').max(200),

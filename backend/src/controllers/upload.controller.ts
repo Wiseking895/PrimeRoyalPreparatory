@@ -1,12 +1,12 @@
-﻿import { ok } from '../lib/api-response'
-import type { AuthRequest } from '../types/auth'
-import { asyncHandler } from '../utils/async-handler'
+﻿import { ok } from '../lib/api-response.js'
+import type { AuthRequest } from '../types/auth.js'
+import { asyncHandler } from '../utils/async-handler.js'
 import {
   uploadProfilePicture,
   deleteProfilePicture,
   uploadPupilPicture,
   deletePupilPicture,
-} from '../services/upload.service'
+} from '../services/upload.service.js'
 
 export const uploadProfilePictureHandler = asyncHandler(async (req: AuthRequest, res) => {
   if (!req.file) {

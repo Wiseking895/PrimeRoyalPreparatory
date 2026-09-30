@@ -1,14 +1,14 @@
-import { HttpStatus } from '../config/enums'
-import { ok } from '../lib/api-response'
-import type { AuthRequest } from '../types/auth'
-import { asyncHandler } from '../utils/async-handler'
+import { HttpStatus } from '../config/enums.js'
+import { ok } from '../lib/api-response.js'
+import type { AuthRequest } from '../types/auth.js'
+import { asyncHandler } from '../utils/async-handler.js'
 import {
   listAttendance,
   getAttendance,
   createAttendance,
   updateAttendance,
-} from '../services/attendance.service'
-import { checkInStaff, getStaffTodayAttendance, listAttendanceRecordsAdmin } from '../services/gps-attendance.service'
+} from '../services/attendance.service.js'
+import { checkInStaff, getStaffTodayAttendance, listAttendanceRecordsAdmin } from '../services/gps-attendance.service.js'
 
 export const listAttendanceHandler = asyncHandler(async (req, res) => {
   const status = req.query.status as string | undefined

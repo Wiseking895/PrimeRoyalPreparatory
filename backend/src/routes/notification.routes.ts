@@ -4,8 +4,8 @@ import {
   unreadCountHandler,
   markReadHandler,
   markAllReadHandler,
-} from '../controllers/notification.controller'
-import { requireAuth } from '../middleware/require-auth'
+} from '../controllers/notification.controller.js'
+import { requireAuth } from '../middleware/require-auth.js'
 
 const router = Router()
 

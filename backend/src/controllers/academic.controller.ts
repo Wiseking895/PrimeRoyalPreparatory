@@ -1,7 +1,7 @@
-import { HttpStatus } from '../config/enums'
-import { ok } from '../lib/api-response'
-import type { AuthRequest } from '../types/auth'
-import { asyncHandler } from '../utils/async-handler'
+import { HttpStatus } from '../config/enums.js'
+import { ok } from '../lib/api-response.js'
+import type { AuthRequest } from '../types/auth.js'
+import { asyncHandler } from '../utils/async-handler.js'
 import {
   assignClassTeacher,
   assignTeachingAssignment,
@@ -13,7 +13,7 @@ import {
   listTeachers,
   listTeachingAssignments,
   removeClassTeacher,
-} from '../services/academic.service'
+} from '../services/academic.service.js'
 
 export const listTeachersHandler = asyncHandler(async (req, res) => {
   const status = req.query.status === 'ACTIVE' || req.query.status === 'INACTIVE' ? req.query.status : undefined

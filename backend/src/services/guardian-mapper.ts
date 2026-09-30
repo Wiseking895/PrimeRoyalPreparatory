@@ -1,4 +1,4 @@
-import type { GuardianIdentity } from '../types/auth'
+import type { GuardianIdentity } from '../types/auth.js'
 
 /**
  * Guardian / parent-portal view DTOs. Never expose `passwordHash` or the

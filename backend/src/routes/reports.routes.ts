@@ -4,9 +4,9 @@ import {
   getPupilReportSessionsHandler,
   getPupilReportTermsHandler,
   listReportPupilsHandler,
-} from '../controllers/reports.controller'
-import { requireAuth } from '../middleware/require-auth'
-import { requirePermission } from '../middleware/require-permission'
+} from '../controllers/reports.controller.js'
+import { requireAuth } from '../middleware/require-auth.js'
+import { requirePermission } from '../middleware/require-permission.js'
 
 const router = Router()
 

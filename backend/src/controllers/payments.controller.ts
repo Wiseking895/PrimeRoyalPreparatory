@@ -1,7 +1,7 @@
-import { HttpStatus } from '../config/enums'
-import { ok } from '../lib/api-response'
-import type { AuthRequest } from '../types/auth'
-import { asyncHandler } from '../utils/async-handler'
+import { HttpStatus } from '../config/enums.js'
+import { ok } from '../lib/api-response.js'
+import type { AuthRequest } from '../types/auth.js'
+import { asyncHandler } from '../utils/async-handler.js'
 import {
   createPayment,
   getPayment,
@@ -9,7 +9,7 @@ import {
   markPaid,
   markUnpaid,
   voidPayment,
-} from '../services/finance.service'
+} from '../services/finance.service.js'
 
 const parseStatus = (value: unknown) => (value === 'ACTIVE' || value === 'VOIDED' ? value : undefined)
 

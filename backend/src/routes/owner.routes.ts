@@ -10,15 +10,15 @@ import {
   ownerSummaryHandler,
   resendHeadteacherInvitationHandler,
   updateHeadteacherHandler,
-} from '../controllers/owner.controller'
-import { requireAuth } from '../middleware/require-auth'
-import { requirePermission } from '../middleware/require-permission'
-import { validate } from '../middleware/validate'
+} from '../controllers/owner.controller.js'
+import { requireAuth } from '../middleware/require-auth.js'
+import { requirePermission } from '../middleware/require-permission.js'
+import { validate } from '../middleware/validate.js'
 import {
   headteacherCreateSchema,
   headteacherPermissionsSchema,
   headteacherUpdateSchema,
-} from '../schemas'
+} from '../schemas/index.js'
 
 const router = Router()
 

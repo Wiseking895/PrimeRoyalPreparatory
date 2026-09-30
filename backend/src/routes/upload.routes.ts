@@ -1,14 +1,14 @@
 ﻿import { Router } from 'express'
 import multer from 'multer'
-import { MAX_UPLOAD_FILE_BYTES } from '../config/upload'
-import { requireAuth } from '../middleware/require-auth'
-import { requirePermission } from '../middleware/require-permission'
+import { MAX_UPLOAD_FILE_BYTES } from '../config/upload.js'
+import { requireAuth } from '../middleware/require-auth.js'
+import { requirePermission } from '../middleware/require-permission.js'
 import {
   uploadProfilePictureHandler,
   deleteProfilePictureHandler,
   uploadPupilPictureHandler,
   deletePupilPictureHandler,
-} from '../controllers/upload.controller'
+} from '../controllers/upload.controller.js'
 
 const router = Router()
 

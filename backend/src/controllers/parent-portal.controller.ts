@@ -1,6 +1,6 @@
-import { ok } from '../lib/api-response'
-import type { ParentRequest } from '../types/auth'
-import { asyncHandler } from '../utils/async-handler'
+import { ok } from '../lib/api-response.js'
+import type { ParentRequest } from '../types/auth.js'
+import { asyncHandler } from '../utils/async-handler.js'
 import {
   getMyPupil,
   getMyPupilFinance,
@@ -8,7 +8,7 @@ import {
   getMyReportSessions,
   getMyReportTerms,
   listMyPupils,
-} from '../services/parent-portal.service'
+} from '../services/parent-portal.service.js'
 
 export const listMyPupilsHandler = asyncHandler(async (req: ParentRequest, res) => {
   const children = await listMyPupils(req.parent!.id)

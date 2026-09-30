@@ -1,9 +1,9 @@
-import { HttpStatus } from '../config/enums'
-import { ok } from '../lib/api-response'
-import { signImpersonationToken } from '../lib/jwt'
-import type { AuthRequest } from '../types/auth'
-import { AppError } from '../utils/app-error'
-import { asyncHandler } from '../utils/async-handler'
+import { HttpStatus } from '../config/enums.js'
+import { ok } from '../lib/api-response.js'
+import { signImpersonationToken } from '../lib/jwt.js'
+import type { AuthRequest } from '../types/auth.js'
+import { AppError } from '../utils/app-error.js'
+import { asyncHandler } from '../utils/async-handler.js'
 import {
   isDeveloperAccount,
   listImpersonatableAccounts,
@@ -11,8 +11,8 @@ import {
   recordImpersonationStart,
   recordImpersonationEnd,
   recordImpersonationSwitch,
-} from '../services/developer.service'
-import { toPublicUser } from '../services/user-mapper'
+} from '../services/developer.service.js'
+import { toPublicUser } from '../services/user-mapper.js'
 
 /**
  * Resolves the real developer account id for the current request.
@@ -81,7 +81,7 @@ export const stopImpersonationHandler = asyncHandler(async (req: AuthRequest, re
     throw new AppError('Forbidden: developer access only.', HttpStatus.Forbidden)
   }
 
-  const { signToken } = await import('../lib/jwt')
+  const { signToken } = await import('../lib/jwt.js')
   const freshDeveloperToken = signToken(developerId, 'staff')
 
   if (req.user?.impersonator) {

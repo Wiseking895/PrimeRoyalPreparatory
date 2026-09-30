@@ -5,10 +5,10 @@ import {
   firstPasswordChangeHandler,
   loginHandler,
   meHandler,
-} from '../controllers/auth.controller'
-import { requireAuth } from '../middleware/require-auth'
-import { validate } from '../middleware/validate'
-import { changePasswordSchema, firstPasswordChangeSchema, loginSchema } from '../schemas'
+} from '../controllers/auth.controller.js'
+import { requireAuth } from '../middleware/require-auth.js'
+import { validate } from '../middleware/validate.js'
+import { changePasswordSchema, firstPasswordChangeSchema, loginSchema } from '../schemas/index.js'
 
 const router = Router()
 

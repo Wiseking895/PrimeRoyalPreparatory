@@ -1,6 +1,6 @@
-import { prisma } from '../lib/prisma'
-import { env } from '../config/env'
-import { recordAudit } from './audit.service'
+import { prisma } from '../lib/prisma.js'
+import { env } from '../config/env.js'
+import { recordAudit } from './audit.service.js'
 
 /**
  * School coordinates for GPS attendance validation.

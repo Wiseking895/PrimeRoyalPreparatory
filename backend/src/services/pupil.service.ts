@@ -1,11 +1,11 @@
 import type { Prisma } from '@prisma/client'
-import { HttpStatus } from '../config/enums'
-import { prisma } from '../lib/prisma'
-import type { AuthenticatedUser } from '../types/auth'
-import { AppError } from '../utils/app-error'
-import { recordAudit } from './audit.service'
-import { ensureChargesForFee } from './finance.service'
-import { toPupilView, type PupilRecord, type PupilView } from './pupil-mapper'
+import { HttpStatus } from '../config/enums.js'
+import { prisma } from '../lib/prisma.js'
+import type { AuthenticatedUser } from '../types/auth.js'
+import { AppError } from '../utils/app-error.js'
+import { recordAudit } from './audit.service.js'
+import { ensureChargesForFee } from './finance.service.js'
+import { toPupilView, type PupilRecord, type PupilView } from './pupil-mapper.js'
 
 const pupilInclude = {
   class: { select: { id: true, name: true } },

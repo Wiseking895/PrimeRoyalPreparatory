@@ -1,10 +1,10 @@
 import { Prisma } from '@prisma/client'
-import { HttpStatus } from '../config/enums'
-import { prisma } from '../lib/prisma'
-import type { AuthenticatedUser } from '../types/auth'
-import { AppError } from '../utils/app-error'
-import { recordAudit } from './audit.service'
-import { hasAcademicOversight } from './academic.service'
+import { HttpStatus } from '../config/enums.js'
+import { prisma } from '../lib/prisma.js'
+import type { AuthenticatedUser } from '../types/auth.js'
+import { AppError } from '../utils/app-error.js'
+import { recordAudit } from './audit.service.js'
+import { hasAcademicOversight } from './academic.service.js'
 
 /**
  * Phase 6 School-Based Assessment (SBA) service.

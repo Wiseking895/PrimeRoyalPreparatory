@@ -1,5 +1,5 @@
 import type { Prisma } from '@prisma/client'
-import { prisma } from '../lib/prisma'
+import { prisma } from '../lib/prisma.js'
 
 /**
  * Append-only audit log. There are no update or delete operations for audit

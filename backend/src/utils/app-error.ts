@@ -1,4 +1,4 @@
-import { HttpStatus } from '../config/enums'
+import { HttpStatus } from '../config/enums.js'
 
 /**
  * Operational error carrying an HTTP status code. Controllers/services throw

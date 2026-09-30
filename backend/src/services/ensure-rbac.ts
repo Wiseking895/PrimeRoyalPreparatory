@@ -1,5 +1,5 @@
-import { OWNER_ROLE, PERMISSIONS, ROLE_DEFINITIONS, permissionByKey } from '../rbac/catalog'
-import { prisma } from '../lib/prisma'
+import { OWNER_ROLE, PERMISSIONS, ROLE_DEFINITIONS, permissionByKey } from '../rbac/catalog.js'
+import { prisma } from '../lib/prisma.js'
 
 /**
  * Idempotently ensures the role/permission catalog exists in the database.

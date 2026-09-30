@@ -1,7 +1,7 @@
-import { HttpStatus } from '../config/enums'
-import { prisma } from '../lib/prisma'
-import { AppError } from '../utils/app-error'
-import { recordAudit } from './audit.service'
+import { HttpStatus } from '../config/enums.js'
+import { prisma } from '../lib/prisma.js'
+import { AppError } from '../utils/app-error.js'
+import { recordAudit } from './audit.service.js'
 
 /**
  * The permanent PRPS developer / maintenance account.

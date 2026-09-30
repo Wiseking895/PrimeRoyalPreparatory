@@ -6,11 +6,11 @@ import {
   markPaidHandler,
   markUnpaidHandler,
   voidPaymentHandler,
-} from '../controllers/payments.controller'
-import { requireAuth } from '../middleware/require-auth'
-import { requirePermission } from '../middleware/require-permission'
-import { validate } from '../middleware/validate'
-import { markPaidSchema, markUnpaidSchema, paymentCreateSchema, paymentVoidSchema } from '../schemas'
+} from '../controllers/payments.controller.js'
+import { requireAuth } from '../middleware/require-auth.js'
+import { requirePermission } from '../middleware/require-permission.js'
+import { validate } from '../middleware/validate.js'
+import { markPaidSchema, markUnpaidSchema, paymentCreateSchema, paymentVoidSchema } from '../schemas/index.js'
 
 const router = Router()
 

@@ -1,7 +1,7 @@
-import { HttpStatus } from '../config/enums'
-import type { HealthResponse } from '../config/api-contracts'
+import { HttpStatus } from '../config/enums.js'
+import type { HealthResponse } from '../config/api-contracts.js'
 import type { Request, Response } from 'express'
-import { getHealth } from '../services/health.service'
+import { getHealth } from '../services/health.service.js'
 
 export function getHealthHandler(_req: Request, res: Response): void {
   const body: HealthResponse = {

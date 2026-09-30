@@ -4,9 +4,9 @@ import {
   startImpersonationHandler,
   stopImpersonationHandler,
   switchImpersonationHandler,
-} from '../controllers/developer.controller'
-import { requireAuth } from '../middleware/require-auth'
-import { validate } from '../middleware/validate'
+} from '../controllers/developer.controller.js'
+import { requireAuth } from '../middleware/require-auth.js'
+import { validate } from '../middleware/validate.js'
 import { z } from 'zod'
 
 const router = Router()

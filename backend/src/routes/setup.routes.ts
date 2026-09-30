@@ -1,8 +1,8 @@
 import { Router } from 'express'
 import { rateLimit } from 'express-rate-limit'
-import { createOwnerHandler, setupStatusHandler } from '../controllers/setup.controller'
-import { validate } from '../middleware/validate'
-import { ownerSetupSchema } from '../schemas'
+import { createOwnerHandler, setupStatusHandler } from '../controllers/setup.controller.js'
+import { validate } from '../middleware/validate.js'
+import { ownerSetupSchema } from '../schemas/index.js'
 
 const router = Router()
 

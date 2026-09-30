@@ -1,13 +1,13 @@
-import { HttpStatus } from '../config/enums'
-import { logger } from '../config/logger'
-import { hashPassword } from '../lib/password'
-import { generateTemporaryPassword } from '../lib/temporary-password'
-import { prisma } from '../lib/prisma'
-import type { AuthenticatedUser } from '../types/auth'
-import { AppError } from '../utils/app-error'
-import { recordAudit } from './audit.service'
-import { toGuardianView, type GuardianView } from './guardian-mapper'
-import { maskEmail, sendGuardianInvitation, type MailResult } from './mail.service'
+import { HttpStatus } from '../config/enums.js'
+import { logger } from '../config/logger.js'
+import { hashPassword } from '../lib/password.js'
+import { generateTemporaryPassword } from '../lib/temporary-password.js'
+import { prisma } from '../lib/prisma.js'
+import type { AuthenticatedUser } from '../types/auth.js'
+import { AppError } from '../utils/app-error.js'
+import { recordAudit } from './audit.service.js'
+import { toGuardianView, type GuardianView } from './guardian-mapper.js'
+import { maskEmail, sendGuardianInvitation, type MailResult } from './mail.service.js'
 
 /**
  * Phase 7 guardian account administration.

@@ -1,5 +1,5 @@
 import type { Prisma } from '@prisma/client'
-import { money } from './finance-mapper'
+import { money } from './finance-mapper.js'
 
 export type UniformCollectionStatus = 'NOT_COLLECTED' | 'COLLECTED'
 
