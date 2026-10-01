@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
-import { AlertCircle, Eye, EyeOff, Lock, LogIn, Mail, ShieldCheck } from 'lucide-react'
-import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { AlertCircle, CheckCircle2, Eye, EyeOff, Lock, LogIn, Mail, ShieldCheck } from 'lucide-react'
+import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/auth/AuthContext'
 import { dashboardHomeFor } from '@/auth/dashboardHome'
 import { isDeveloperEmail } from '@/auth/storage'
@@ -20,7 +20,12 @@ export function LoginPage() {
   const { status, user, login } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
+  const [searchParams] = useSearchParams()
   const state = location.state as LocationState | null
+
+  // The Google first-time Owner flow sends visitors here once it discovers the
+  // school Owner already exists: they must sign in normally, not register again.
+  const setupComplete = searchParams.get('setup') === 'complete'
 
   const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
@@ -94,6 +99,16 @@ export function LoginPage() {
             </div>
 
             <form onSubmit={handleSubmit} noValidate className="mt-7 space-y-4">
+              {setupComplete ? (
+                <p
+                  role="status"
+                  className="flex items-start gap-2 rounded-xl bg-royal-50 p-3 text-sm leading-relaxed text-royal-700"
+                >
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                  Owner setup is already complete. Sign in with your existing account to continue.
+                </p>
+              ) : null}
+
               <div>
                 <label htmlFor="login-identifier" className="mb-1.5 block text-sm font-semibold text-ink-900">
                   Email, staff ID or phone

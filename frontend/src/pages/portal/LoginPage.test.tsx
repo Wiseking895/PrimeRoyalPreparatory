@@ -30,9 +30,9 @@ vi.mock('react-router-dom', async (importOriginal) => {
   }
 })
 
-function renderPage() {
+function renderPage(entry = '/login') {
   return render(
-    <MemoryRouter initialEntries={['/login']}>
+    <MemoryRouter initialEntries={[entry]}>
       <LoginPage />
     </MemoryRouter>,
   )
@@ -89,5 +89,18 @@ describe('LoginPage', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Invalid email, staff ID, or password.')
     expect(navigateMock).not.toHaveBeenCalled()
+  })
+
+  it('explains why a visitor arriving from an already-complete Owner setup is here', () => {
+    renderPage('/login?setup=complete')
+
+    expect(screen.getByRole('status')).toHaveTextContent(/owner setup is already complete/i)
+    expect(screen.getByLabelText('Email, staff ID or phone')).toBeInTheDocument()
+  })
+
+  it('stays quiet when no setup flag is present', () => {
+    renderPage()
+
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
 })

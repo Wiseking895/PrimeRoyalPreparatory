@@ -47,6 +47,9 @@ In the Vercel backend project, go to **Settings → Environment Variables** and 
 | `R2_ACCESS_KEY_ID` | `<R2 API token access key id>` | Production, Preview |
 | `R2_SECRET_ACCESS_KEY` | `<R2 API token secret>` | Production, Preview |
 | `R2_PRESIGN_EXPIRES_IN` | `300` (optional) | Production, Preview |
+| `GOOGLE_CLIENT_ID` | `<Google OAuth 2.0 client id>` (required for production "Continue with Google" on first-time Owner sign-up) | Production, Preview |
+| `GOOGLE_CLIENT_SECRET` | `<Google OAuth 2.0 client secret>` (required for production Google sign-up — backend-only, never `VITE_*`) | Production, Preview |
+| `GOOGLE_REDIRECT_URI` | `https://prime-royal-preparatory.vercel.app/api/auth/google/callback` (required for production Google sign-up — pinned callback) | Production, Preview |
 
 **Important:**
 
@@ -72,6 +75,32 @@ One-time Cloudflare setup (done manually in the dashboard, never in Git):
    the backend environment variables above.
 4. No lifecycle rules — PRPS school records use **R2 Standard** and must not
    auto-expire (per PRPS storage-retention policy).
+
+### Google OAuth (first-time Owner sign-up)
+
+Optional. Powers **Continue with Google** on the one-time `/setup/owner` screen
+(school Owner/Proprietress registration only — unrelated to the Developer
+bootstrap script). When `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` are unset, the
+button is hidden and **Continue with Email** works exactly as before.
+
+One-time setup done manually in the [Google Cloud console](https://console.cloud.google.com/apis/credentials)
+(never in Git):
+
+1. Create a project (or reuse the school's), then **APIs & Services →
+   OAuth consent screen** (External, add the school owner's Google account as a
+   test user while the app is unverified).
+2. **APIs & Services → Credentials → Create credentials → OAuth client ID →
+   Web application**.
+3. Add **Authorised redirect URIs** (each must match character for character):
+   - `http://localhost:4000/api/auth/google/callback` (local development)
+   - `https://prime-royal-preparatory.vercel.app/api/auth/google/callback`
+     (production — pin it with `GOOGLE_REDIRECT_URI`)
+4. Copy the **Client ID** and **Client secret** into the backend environment
+   variables above. They are backend-only secrets — never prefix them `VITE_`
+   and never commit them.
+5. Local development uses `GOOGLE_REDIRECT_URI=http://localhost:4000/api/auth/google/callback`
+   in `backend/.env` (see `backend/.env.example`), while production pins its
+   own value — both callback URLs can be registered in the same OAuth client.
 
 ### Run Database Migrations
 
@@ -243,6 +272,9 @@ If the frontend is blocked by CORS, verify:
 | `R2_ACCESS_KEY_ID` | For documents | R2 API token access key id (backend secret) |
 | `R2_SECRET_ACCESS_KEY` | For documents | R2 API token secret (backend secret) |
 | `R2_PRESIGN_EXPIRES_IN` | No | Presigned-URL lifetime in seconds (default `300`) |
+| `GOOGLE_CLIENT_ID` | Yes (Google sign-up) | Google OAuth 2.0 client id — enables "Continue with Google" on `/setup/owner` |
+| `GOOGLE_CLIENT_SECRET` | Yes (Google sign-up) | Google OAuth 2.0 client secret (backend/Vercel backend project only — never frontend, never `VITE_*`) |
+| `GOOGLE_REDIRECT_URI` | Yes (Google sign-up) | Pinned callback: `https://prime-royal-preparatory.vercel.app/api/auth/google/callback` (defaults to `<request-origin>/api/auth/google/callback` if unset) |
 
 ### Frontend (Vercel project)
 

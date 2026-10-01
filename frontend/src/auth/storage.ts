@@ -28,6 +28,15 @@ export function saveSession(token: string, user: PublicUser): void {
   localStorage.setItem(USER_KEY, JSON.stringify(user))
 }
 
+/**
+ * Stores a token on its own. Used when a session is issued outside the
+ * password sign-in flow — the first-time Owner Google sign-up hands the token
+ * back in a URL fragment before the profile is known.
+ */
+export function saveToken(token: string): void {
+  localStorage.setItem(TOKEN_KEY, token)
+}
+
 export function clearSession(): void {
   localStorage.removeItem(TOKEN_KEY)
   localStorage.removeItem(USER_KEY)

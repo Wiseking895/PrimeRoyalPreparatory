@@ -45,6 +45,7 @@ import type {
   NotificationView,
   OwnerFinanceOverviewView,
   OwnerSetupInput,
+  OwnerSetupResult,
   ReconciliationAttendanceInput,
   ReconciliationView,
   OwnerSummary,
@@ -244,7 +245,13 @@ export const api = {
   // Setup
   setupStatus: () => request<SetupStatus>('/api/setup/status'),
   createOwner: (input: OwnerSetupInput) =>
-    request<PublicUser>('/api/setup/owner', jsonBody(input)),
+    request<OwnerSetupResult>('/api/setup/owner', jsonBody(input)),
+  /**
+   * Absolute URL of the Google OAuth entry point used by the first-time Owner
+   * sign-up. It is absolute because following it is a whole-page navigation to
+   * the backend (and then to Google), not an in-app API call.
+   */
+  googleOAuthStartUrl: () => `${API_BASE_URL}/api/auth/google/start`,
 
   /**
    * Resolves a stored document reference (`/api/documents/{id}`) to a

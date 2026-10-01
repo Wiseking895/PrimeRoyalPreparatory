@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { HttpStatus } from '../config/enums'
 import { OWNER_ROLE } from '../rbac/catalog'
 import { DEVELOPER_EMAIL } from './developer.service'
-import { createOwner, ownerExists } from './setup.service'
+import { createOwner, createOwnerFromGoogle, ownerExists } from './setup.service'
 
 const prismaMock = vi.hoisted(() => ({
   user: {
@@ -18,6 +18,7 @@ const prismaMock = vi.hoisted(() => ({
   },
   auditLog: { create: vi.fn() },
   $transaction: vi.fn(),
+  $queryRaw: vi.fn(),
   permission: { upsert: vi.fn() },
   rolePermission: { count: vi.fn(), createMany: vi.fn() },
 }))
@@ -144,6 +145,107 @@ describe('setup.service', () => {
           passwordHash: 'hashed',
         },
       })
+    })
+
+    it('takes the advisory lock before looking for an existing Owner', async () => {
+      prismaMock.user.findFirst.mockResolvedValue({ id: 'existing-owner' })
+
+      await expect(
+        createOwner({ fullName: 'Ada Lovelace', email: 'ada@school.edu', password: 'secret123' }),
+      ).rejects.toMatchObject({ statusCode: HttpStatus.Conflict })
+
+      expect(prismaMock.$queryRaw).toHaveBeenCalledTimes(1)
+      const [template] = prismaMock.$queryRaw.mock.calls[0] as [TemplateStringsArray]
+      expect(template.join('')).toContain('pg_advisory_xact_lock')
+      expect(prismaMock.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
+        prismaMock.user.findFirst.mock.invocationCallOrder[0],
+      )
+    })
+
+    it('leaves no trace of a failed registration (no audit, no session side effects)', async () => {
+      prismaMock.user.findFirst.mockResolvedValue(null)
+      prismaMock.user.findUnique.mockResolvedValue(null)
+      prismaMock.role.findUnique.mockResolvedValue({ id: 'role-owner', name: OWNER_ROLE })
+      prismaMock.user.create.mockResolvedValue({ id: 'owner-1', email: 'ada@school.edu' })
+      // Role assignment fails inside the transaction: Prisma rolls the whole
+      // thing back, and nothing outside the transaction may have run yet.
+      prismaMock.userRole.create.mockRejectedValueOnce(new Error('role assignment failed'))
+
+      await expect(createOwner(input)).rejects.toThrow('role assignment failed')
+
+      expect(prismaMock.auditLog.create).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('createOwnerFromGoogle', () => {
+    const profile = { googleId: 'g-123', email: 'ADA@GMAIL.COM', fullName: ' Ada Lovelace ' }
+
+    beforeEach(() => {
+      prismaMock.user.findFirst.mockResolvedValue(null)
+      prismaMock.user.findUnique.mockResolvedValue(null)
+      prismaMock.role.findUnique.mockResolvedValue({ id: 'role-owner', name: OWNER_ROLE })
+      prismaMock.user.create.mockResolvedValue({
+        id: 'owner-1',
+        fullName: 'Ada Lovelace',
+        email: 'ada@gmail.com',
+        phone: null,
+        profilePictureUrl: null,
+        status: 'ACTIVE',
+        lastLoginAt: null,
+        mustChangePassword: false,
+        createdAt: new Date('2026-01-01T00:00:00.000Z'),
+      })
+    })
+
+    it('provisions the first Owner from the verified Google identity', async () => {
+      const result = await createOwnerFromGoogle(profile, '127.0.0.1')
+
+      expect(prismaMock.user.create).toHaveBeenCalledWith({
+        data: {
+          fullName: 'Ada Lovelace',
+          email: 'ada@gmail.com',
+          phone: null,
+          passwordHash: 'hashed',
+        },
+      })
+      expect(prismaMock.userRole.create).toHaveBeenCalledWith({
+        data: { userId: 'owner-1', roleId: 'role-owner' },
+      })
+      expect(result.roles).toContain(OWNER_ROLE)
+      expect(result.email).toBe('ada@gmail.com')
+    })
+
+    it('records the Google sign-up in the audit trail', async () => {
+      await createOwnerFromGoogle(profile)
+
+      expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            action: 'owner.initial_setup_google',
+            metadata: { provider: 'google', googleId: 'g-123' },
+          }),
+        }),
+      )
+    })
+
+    it('never creates a second Owner when one already exists', async () => {
+      prismaMock.user.findFirst.mockResolvedValue({ id: 'existing-owner' })
+
+      await expect(createOwnerFromGoogle(profile)).rejects.toMatchObject({
+        statusCode: HttpStatus.Conflict,
+        message: expect.stringMatching(/already been completed/),
+      })
+      expect(prismaMock.user.create).not.toHaveBeenCalled()
+    })
+
+    it('refuses an email already in use', async () => {
+      prismaMock.user.findUnique.mockResolvedValue({ id: 'someone', email: 'ada@gmail.com' })
+
+      await expect(createOwnerFromGoogle(profile)).rejects.toMatchObject({
+        statusCode: HttpStatus.Conflict,
+        message: expect.stringMatching(/already exists/),
+      })
+      expect(prismaMock.user.create).not.toHaveBeenCalled()
     })
   })
 })

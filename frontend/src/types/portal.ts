@@ -35,6 +35,8 @@ export interface LoginResult {
 
 export interface SetupStatus {
   ownerExists: boolean
+  /** Whether the deployment has Google OAuth configured for first-time sign-up. */
+  googleOAuthEnabled: boolean
 }
 
 export interface OwnerSetupInput {
@@ -43,6 +45,12 @@ export interface OwnerSetupInput {
   phone?: string
   password: string
   confirmPassword: string
+}
+
+/** First-time Owner creation: the new account plus its ready-to-use session. */
+export interface OwnerSetupResult {
+  user: PublicUser
+  token: string
 }
 
 export interface OwnerSummary {

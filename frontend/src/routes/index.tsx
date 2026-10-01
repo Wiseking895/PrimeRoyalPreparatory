@@ -1,6 +1,7 @@
 import { createBrowserRouter, Navigate, Outlet } from 'react-router-dom'
-import { ACCOUNTANT_ROLE, CLASS_TEACHER_ROLE, HEADTEACHER_ROLE, OWNER_ROLE, SUBJECT_TEACHER_ROLE } from '@/auth/roles'
+import { ACCOUNTANT_ROLE, CLASS_TEACHER_ROLE, HEADTEACHER_ROLE, SUBJECT_TEACHER_ROLE } from '@/auth/roles'
 import { ProtectedRoute } from '@/auth/ProtectedRoute'
+import { OwnerSetupGate } from '@/auth/OwnerSetupGate'
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout'
 import { PublicLayout } from '@/layouts/PublicLayout'
 import AboutPage from '@/pages/AboutPage'
@@ -103,9 +104,11 @@ export const router = createBrowserRouter([
   {
     path: '/owner',
     element: (
-      <ProtectedRoute roles={[OWNER_ROLE]}>
+      // First-time onboarding gate: while no school Owner exists yet, an
+      // unauthenticated visit is routed to /setup/owner rather than /login.
+      <OwnerSetupGate>
         <DashboardLayout />
-      </ProtectedRoute>
+      </OwnerSetupGate>
     ),
     children: [
       { index: true, element: <Navigate to="/owner/dashboard" replace /> },

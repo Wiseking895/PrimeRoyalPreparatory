@@ -1,50 +1,106 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { AuthProvider } from '@/auth/AuthContext'
 import { OwnerSetupPage } from './OwnerSetupPage'
 
-const { setupStatusMock, createOwnerMock } = vi.hoisted(() => ({
+const { setupStatusMock, createOwnerMock, meMock } = vi.hoisted(() => ({
   setupStatusMock: vi.fn(),
   createOwnerMock: vi.fn(),
+  meMock: vi.fn(),
 }))
 
 vi.mock('@/lib/api', () => ({
   api: {
     setupStatus: setupStatusMock,
     createOwner: createOwnerMock,
+    me: meMock,
+    googleOAuthStartUrl: () => 'https://api.prps.test/api/auth/google/start',
   },
+  setUnauthorizedHandler: vi.fn(),
 }))
 
-function renderPage() {
+const OWNER_USER = {
+  id: 'owner-1',
+  fullName: 'Ada Lovelace',
+  email: 'ada@example.com',
+  phone: null,
+  profilePictureUrl: null,
+  status: 'ACTIVE',
+  lastLoginAt: null,
+  mustChangePassword: false,
+  createdAt: '2026-01-01T00:00:00.000Z',
+  staffId: null,
+  category: null,
+  position: null,
+  roles: ['OWNER'],
+  permissions: ['owner.manage'],
+}
+
+function renderPage(entry = '/setup/owner') {
   return render(
-    <MemoryRouter initialEntries={['/setup/owner']}>
-      <OwnerSetupPage />
-    </MemoryRouter>,
+    <AuthProvider>
+      <MemoryRouter initialEntries={[entry]}>
+        <Routes>
+          <Route path="/setup/owner" element={<OwnerSetupPage />} />
+          <Route path="/owner/dashboard" element={<div>Owner dashboard</div>} />
+          <Route path="/login" element={<div>Staff sign in</div>} />
+        </Routes>
+      </MemoryRouter>
+    </AuthProvider>,
   )
+}
+
+async function openEmailForm() {
+  fireEvent.click(await screen.findByRole('button', { name: /continue with email/i }))
+  return screen.findByLabelText(/^full name/i)
 }
 
 describe('OwnerSetupPage', () => {
   beforeEach(() => {
+    localStorage.clear()
     setupStatusMock.mockReset()
     createOwnerMock.mockReset()
-    setupStatusMock.mockResolvedValue({ ownerExists: false })
-    createOwnerMock.mockResolvedValue({ id: 'owner-1' })
+    meMock.mockReset()
+    setupStatusMock.mockResolvedValue({ ownerExists: false, googleOAuthEnabled: true })
+    createOwnerMock.mockResolvedValue({ user: OWNER_USER, token: 'new-owner-token' })
   })
 
-  it('renders the setup form when no owner exists', async () => {
+  it('offers Google and email sign-up when Google OAuth is available', async () => {
     renderPage()
 
-    expect(await screen.findByText('Set up your school')).toBeInTheDocument()
-    expect(screen.getByLabelText(/^full name/i)).toBeInTheDocument()
+    expect(await screen.findByText('Create your Owner account')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /continue with google/i })).toHaveAttribute(
+      'href',
+      'https://api.prps.test/api/auth/google/start',
+    )
+    expect(screen.getByRole('button', { name: /continue with email/i })).toBeInTheDocument()
+    expect(screen.queryByLabelText(/^full name/i)).not.toBeInTheDocument()
+  })
+
+  it('goes straight to the email form when Google OAuth is not configured', async () => {
+    setupStatusMock.mockResolvedValue({ ownerExists: false, googleOAuthEnabled: false })
+    renderPage()
+
+    expect(await screen.findByLabelText(/^full name/i)).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /continue with google/i })).not.toBeInTheDocument()
+  })
+
+  it('reveals the email form and a way back to the choice screen', async () => {
+    renderPage()
+
+    await openEmailForm()
     expect(screen.getByLabelText(/^email/i)).toBeInTheDocument()
-    expect(screen.getByLabelText(/^password/i)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /create owner account/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^back$/i })).toBeInTheDocument()
   })
 
-  it('creates the owner and shows the success state', async () => {
+  it('creates the Owner account and continues into the Owner dashboard', async () => {
     renderPage()
 
-    fireEvent.change(await screen.findByLabelText(/^full name/i), { target: { value: 'Ada Lovelace' } })
+    await openEmailForm()
+    fireEvent.change(await screen.findByLabelText(/^full name/i), {
+      target: { value: 'Ada Lovelace' },
+    })
     fireEvent.change(screen.getByLabelText(/^email/i), { target: { value: 'ada@example.com' } })
     fireEvent.change(screen.getByLabelText(/^password/i), { target: { value: 'secret123' } })
     fireEvent.change(screen.getByLabelText(/confirm password/i), { target: { value: 'secret123' } })
@@ -58,11 +114,16 @@ describe('OwnerSetupPage', () => {
       password: 'secret123',
       confirmPassword: 'secret123',
     })
+    expect(localStorage.getItem('prps.portal.token')).toBe('new-owner-token')
+
+    fireEvent.click(screen.getByRole('button', { name: /continue to owner dashboard/i }))
+    expect(await screen.findByText('Owner dashboard')).toBeInTheDocument()
   })
 
   it('shows validation errors for an invalid form', async () => {
     renderPage()
 
+    await openEmailForm()
     fireEvent.change(await screen.findByLabelText(/email/i), { target: { value: 'not-an-email' } })
     fireEvent.click(screen.getByRole('button', { name: /create owner account/i }))
 
@@ -72,7 +133,7 @@ describe('OwnerSetupPage', () => {
   })
 
   it('shows the already-complete screen when an owner exists', async () => {
-    setupStatusMock.mockResolvedValueOnce({ ownerExists: true })
+    setupStatusMock.mockResolvedValueOnce({ ownerExists: true, googleOAuthEnabled: false })
     renderPage()
 
     expect(await screen.findByText('Setup is already complete')).toBeInTheDocument()
@@ -85,5 +146,30 @@ describe('OwnerSetupPage', () => {
 
     expect(await screen.findByText('Cannot reach the server.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument()
+  })
+
+  it('explains a Google sign-in that the backend rejected', async () => {
+    renderPage('/setup/owner?error=denied')
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/Google sign-in was cancelled/i)
+    expect(screen.getByRole('link', { name: /continue with google/i })).toBeInTheDocument()
+  })
+
+  it('accepts the session Google handed back and enters the dashboard', async () => {
+    meMock.mockResolvedValue(OWNER_USER)
+    renderPage('/setup/owner#token=google-session-token')
+
+    expect(await screen.findByText('Owner dashboard')).toBeInTheDocument()
+    expect(meMock).toHaveBeenCalled()
+    expect(localStorage.getItem('prps.portal.token')).toBe('google-session-token')
+  })
+
+  it('recovers when a handed-back session cannot be loaded', async () => {
+    meMock.mockRejectedValue(new Error('Invalid token.'))
+    renderPage('/setup/owner#token=broken-token')
+
+    expect(await screen.findByRole('link', { name: /continue with google/i })).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent(/could not be completed/i)
+    expect(localStorage.getItem('prps.portal.token')).toBeNull()
   })
 })

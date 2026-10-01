@@ -27,6 +27,12 @@ interface AuthContextValue {
   isHeadteacher: boolean
   hasPermission: (key: string) => boolean
   login: (identifier: string, password: string) => Promise<PublicUser>
+  /**
+   * Adopts a session that was issued outside the password sign-in flow — the
+   * first-time Owner sign-up returns its token directly — so the brand-new
+   * account lands in its dashboard without being asked to sign in again.
+   */
+  setSession: (token: string, user: PublicUser) => void
   logout: () => void
   refreshUser: () => Promise<PublicUser | null>
   /** Whether the currently authenticated user is the dedicated developer account. */
@@ -107,6 +113,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return result.user
   }, [])
 
+  const setSession = useCallback((token: string, profile: PublicUser) => {
+    saveSession(token, profile)
+    setUser(profile)
+    setStatus('authenticated')
+  }, [])
+
   const logout = useCallback(() => {
     clearSession()
     setUser(null)
@@ -182,6 +194,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isHeadteacher: user?.roles.includes(HEADTEACHER_ROLE) ?? false,
       hasPermission: (key) => user?.permissions.includes(key) ?? false,
       login,
+      setSession,
       logout,
       refreshUser,
       isDeveloper,
@@ -192,7 +205,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       stopImpersonation,
       switchAccount,
     }),
-    [user, status, login, logout, refreshUser, isDeveloper, impersonation, actingUser, isImpersonating, startImpersonation, stopImpersonation, switchAccount],
+    [user, status, login, setSession, logout, refreshUser, isDeveloper, impersonation, actingUser, isImpersonating, startImpersonation, stopImpersonation, switchAccount],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

@@ -3,6 +3,8 @@ import { rateLimit } from 'express-rate-limit'
 import {
   changePasswordHandler,
   firstPasswordChangeHandler,
+  googleCallbackHandler,
+  googleStartHandler,
   loginHandler,
   meHandler,
 } from '../controllers/auth.controller.js'
@@ -20,7 +22,21 @@ const loginLimiter = rateLimit({
   message: { success: false, message: 'Too many sign-in attempts, please try again later.' },
 })
 
+// First-time Owner sign-in with Google. Tighter than the global limiter
+// because every hit redirects the browser out to an external provider.
+const googleStartLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many sign-in attempts, please try again later.' },
+})
+
 router.post('/login', loginLimiter, validate(loginSchema), loginHandler)
+
+// Google OAuth (first-time Owner sign-up only — never a general login path).
+router.get('/google/start', googleStartLimiter, googleStartHandler)
+router.get('/google/callback', googleCallbackHandler)
 
 router.get('/me', requireAuth, meHandler)
 

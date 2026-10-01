@@ -137,6 +137,22 @@ export const env = {
   attendanceRadiusMeters: toNumberDefault(process.env.ATTENDANCE_RADIUS_METERS, 100),
   attendanceMaxAccuracyMeters: toNumberDefault(process.env.ATTENDANCE_MAX_ACCURACY_METERS, 50),
   attendanceMaxLocationAgeSeconds: toNumberDefault(process.env.ATTENDANCE_MAX_LOCATION_AGE_SECONDS, 120),
+  // Google OAuth 2.0 — first-time school Owner sign-up only.
+  // Both values come from the Google Cloud console (OAuth 2.0 client ID). An
+  // empty value means "not configured": the sign-in option is then hidden and
+  // the regular email setup flow keeps working. Server-only, never exposed to
+  // the browser bundle.
+  googleClientId: process.env.GOOGLE_CLIENT_ID ?? '',
+  googleClientSecret: process.env.GOOGLE_CLIENT_SECRET ?? '',
+  /**
+   * Authorised redirect URI registered in the Google console. When unset it is
+   * derived from the incoming request origin (`/api/auth/google/callback`).
+   * Setting it explicitly is recommended so the value can never drift between
+   * the start and callback legs of the flow.
+   */
+  googleRedirectUri: process.env.GOOGLE_REDIRECT_URI?.trim() ?? '',
+  /** Whether the "Continue with Google" option should be offered at all. */
+  googleOAuthEnabled: Boolean(process.env.GOOGLE_CLIENT_ID?.trim() && process.env.GOOGLE_CLIENT_SECRET?.trim()),
   // Cloudflare R2 (private object storage for documents and profile pictures).
   // Empty strings mean "not configured": storage-backed operations then fail
   // with a clear error while the rest of the application keeps working.
