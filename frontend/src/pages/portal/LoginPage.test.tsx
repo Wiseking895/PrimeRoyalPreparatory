@@ -77,6 +77,26 @@ describe('LoginPage', () => {
     expect(navigateMock).toHaveBeenCalledWith('/owner/dashboard', { replace: true })
   })
 
+  it('keeps the Developer account signing in through the normal /login route', async () => {
+    loginMock.mockResolvedValueOnce({
+      id: 'dev-1',
+      email: 'developer@prps.local',
+      position: 'DEVELOPER',
+      roles: ['OWNER'],
+    })
+    renderPage()
+
+    fireEvent.change(screen.getByLabelText('Email, staff ID or phone'), {
+      target: { value: 'developer@prps.local' },
+    })
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'secret123' } })
+    fireEvent.click(screen.getByRole('button', { name: /sign in/i }))
+
+    expect(await screen.findByRole('button', { name: /sign in/i })).toBeInTheDocument()
+    expect(loginMock).toHaveBeenCalledWith('developer@prps.local', 'secret123')
+    expect(navigateMock).toHaveBeenCalledWith('/developer/accounts', { replace: true })
+  })
+
   it('surfaces the backend error message when sign in fails', async () => {
     loginMock.mockRejectedValueOnce(new Error('Invalid email, staff ID, or password.'))
     renderPage()

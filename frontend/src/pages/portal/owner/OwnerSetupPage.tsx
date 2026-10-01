@@ -75,7 +75,6 @@ export function OwnerSetupPage() {
 
   const [statusLoading, setStatusLoading] = useState(true)
   const [ownerExists, setOwnerExists] = useState<boolean | null>(null)
-  const [googleEnabled, setGoogleEnabled] = useState(false)
   const [statusError, setStatusError] = useState<string | null>(null)
 
   const [mode, setMode] = useState<'choose' | 'email'>('choose')
@@ -98,7 +97,6 @@ export function OwnerSetupPage() {
     try {
       const status = await api.setupStatus()
       setOwnerExists(status.ownerExists)
-      setGoogleEnabled(status.googleOAuthEnabled === true)
     } catch (err) {
       setStatusError(err instanceof Error ? err.message : 'Could not check the setup status.')
     } finally {
@@ -181,10 +179,11 @@ export function OwnerSetupPage() {
         password: form.password,
         confirmPassword: form.confirmPassword,
       })
-      // The account exists and is already signed in — the next click simply
-      // walks into the Owner dashboard.
+      // The account exists and the session is already active: registration
+      // walks straight into the Owner dashboard without a stop at /login.
       setSession(result.token, result.user)
       setCompleted(true)
+      navigate('/owner/dashboard', { replace: true })
     } catch (err) {
       if (err instanceof Error) {
         const apiError = err as { fieldErrors?: Record<string, string> }
@@ -202,7 +201,7 @@ export function OwnerSetupPage() {
   const providerError = searchParams.get('error')
   const errorMessage =
     submitError ?? (providerError ? (GOOGLE_ERROR_MESSAGES[providerError] ?? GOOGLE_ERROR_MESSAGES.unavailable) : null)
-  const showChoice = mode === 'choose' && googleEnabled && !completed && !ownerExists
+  const showChoice = mode === 'choose' && !completed && !ownerExists
 
   return (
     <div className="flex min-h-screen flex-col bg-cream-100">
@@ -227,9 +226,13 @@ export function OwnerSetupPage() {
               </span>
               <div>
                 <h1 className="text-xl font-extrabold tracking-tight text-ink-900">
-                  {completed ? 'Your school is ready' : 'Create your Owner account'}
+                  {completed ? 'Your school is ready' : 'Set up your Owner account'}
                 </h1>
-                <p className="mt-0.5 text-sm text-ink-500">Prime Royal Preparatory School</p>
+                <p className="mt-0.5 text-sm text-ink-500">
+                  {completed
+                    ? 'Prime Royal Preparatory School'
+                    : 'Create the account that will manage Prime Royal Preparatory School.'}
+                </p>
               </div>
             </div>
 
@@ -323,16 +326,14 @@ export function OwnerSetupPage() {
               <form onSubmit={handleSubmit} noValidate className="mt-7 space-y-4">
                 <div className="flex items-center justify-between">
                   <p className="text-sm font-semibold text-ink-900">Sign up with email</p>
-                  {googleEnabled ? (
-                    <button
-                      type="button"
-                      onClick={() => setMode('choose')}
-                      className="inline-flex items-center gap-1 text-xs font-semibold text-royal-600 transition-colors hover:text-magenta-600"
-                    >
-                      <ChevronLeft className="h-3.5 w-3.5" aria-hidden="true" />
-                      Back
-                    </button>
-                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => setMode('choose')}
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-royal-600 transition-colors hover:text-magenta-600"
+                  >
+                    <ChevronLeft className="h-3.5 w-3.5" aria-hidden="true" />
+                    Back
+                  </button>
                 </div>
 
                 <TextField
@@ -407,7 +408,7 @@ export function OwnerSetupPage() {
                     </>
                   ) : (
                     <>
-                      <ShieldCheck className="h-4.5 w-4.5" aria-hidden="true" /> Create Owner account
+                      <ShieldCheck className="h-4.5 w-4.5" aria-hidden="true" /> Create Owner Account
                     </>
                   )}
                 </button>

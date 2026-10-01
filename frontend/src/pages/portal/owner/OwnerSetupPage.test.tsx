@@ -69,7 +69,10 @@ describe('OwnerSetupPage', () => {
   it('offers Google and email sign-up when Google OAuth is available', async () => {
     renderPage()
 
-    expect(await screen.findByText('Create your Owner account')).toBeInTheDocument()
+    expect(await screen.findByText('Set up your Owner account')).toBeInTheDocument()
+    expect(
+      screen.getByText('Create the account that will manage Prime Royal Preparatory School.'),
+    ).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /continue with google/i })).toHaveAttribute(
       'href',
       'https://api.prps.test/api/auth/google/start',
@@ -78,12 +81,16 @@ describe('OwnerSetupPage', () => {
     expect(screen.queryByLabelText(/^full name/i)).not.toBeInTheDocument()
   })
 
-  it('goes straight to the email form when Google OAuth is not configured', async () => {
+  it('still offers both sign-up options when Google OAuth is not configured yet', async () => {
     setupStatusMock.mockResolvedValue({ ownerExists: false, googleOAuthEnabled: false })
     renderPage()
 
-    expect(await screen.findByLabelText(/^full name/i)).toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: /continue with google/i })).not.toBeInTheDocument()
+    expect(await screen.findByRole('link', { name: /continue with google/i })).toHaveAttribute(
+      'href',
+      'https://api.prps.test/api/auth/google/start',
+    )
+    expect(screen.getByRole('button', { name: /continue with email/i })).toBeInTheDocument()
+    expect(screen.queryByLabelText(/^full name/i)).not.toBeInTheDocument()
   })
 
   it('reveals the email form and a way back to the choice screen', async () => {
@@ -94,7 +101,7 @@ describe('OwnerSetupPage', () => {
     expect(screen.getByRole('button', { name: /^back$/i })).toBeInTheDocument()
   })
 
-  it('creates the Owner account and continues into the Owner dashboard', async () => {
+  it('creates the Owner account, authenticates it and lands in the Owner dashboard', async () => {
     renderPage()
 
     await openEmailForm()
@@ -106,7 +113,7 @@ describe('OwnerSetupPage', () => {
     fireEvent.change(screen.getByLabelText(/confirm password/i), { target: { value: 'secret123' } })
     fireEvent.click(screen.getByRole('button', { name: /create owner account/i }))
 
-    expect(await screen.findByText('School set up successfully')).toBeInTheDocument()
+    expect(await screen.findByText('Owner dashboard')).toBeInTheDocument()
     expect(createOwnerMock).toHaveBeenCalledWith({
       fullName: 'Ada Lovelace',
       email: 'ada@example.com',
@@ -114,10 +121,9 @@ describe('OwnerSetupPage', () => {
       password: 'secret123',
       confirmPassword: 'secret123',
     })
+    // Registration authenticates the brand-new Owner without a stop at /login.
     expect(localStorage.getItem('prps.portal.token')).toBe('new-owner-token')
-
-    fireEvent.click(screen.getByRole('button', { name: /continue to owner dashboard/i }))
-    expect(await screen.findByText('Owner dashboard')).toBeInTheDocument()
+    expect(screen.queryByText(/staff sign in/i)).not.toBeInTheDocument()
   })
 
   it('shows validation errors for an invalid form', async () => {
@@ -130,6 +136,23 @@ describe('OwnerSetupPage', () => {
     expect(await screen.findByText('Full name must be at least 3 characters.')).toBeInTheDocument()
     expect(screen.getByText('Enter a valid email address.')).toBeInTheDocument()
     expect(createOwnerMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects a password confirmation that does not match', async () => {
+    renderPage()
+
+    await openEmailForm()
+    fireEvent.change(await screen.findByLabelText(/^full name/i), {
+      target: { value: 'Ada Lovelace' },
+    })
+    fireEvent.change(screen.getByLabelText(/^email/i), { target: { value: 'ada@example.com' } })
+    fireEvent.change(screen.getByLabelText(/^password/i), { target: { value: 'secret123' } })
+    fireEvent.change(screen.getByLabelText(/confirm password/i), { target: { value: 'secret124' } })
+    fireEvent.click(screen.getByRole('button', { name: /create owner account/i }))
+
+    expect(await screen.findByText('Passwords do not match.')).toBeInTheDocument()
+    expect(createOwnerMock).not.toHaveBeenCalled()
+    expect(localStorage.getItem('prps.portal.token')).toBeNull()
   })
 
   it('shows the already-complete screen when an owner exists', async () => {

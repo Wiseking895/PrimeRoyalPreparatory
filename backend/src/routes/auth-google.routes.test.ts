@@ -95,10 +95,10 @@ describe('Google OAuth owner sign-in', () => {
       expect(payload?.purpose).toBe('owner-setup')
     })
 
-    it('returns 503 when Google OAuth is not configured', async () => {
+    it('sends the visitor back to onboarding when Google OAuth is not configured', async () => {
       googleConfiguredMock.mockReturnValue(false)
-      const res = await request(app).get('/api/auth/google/start')
-      expect(res.status).toBe(503)
+      const res = await request(app).get('/api/auth/google/start').expect(302)
+      expect(res.headers.location).toBe(`${FRONTEND}/setup/owner?error=unavailable`)
     })
   })
 

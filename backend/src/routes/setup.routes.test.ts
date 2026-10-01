@@ -106,6 +106,51 @@ describe('setup routes', () => {
       expect(createOwnerMock).not.toHaveBeenCalled()
     })
 
+    it('rejects an invalid email address before touching the database', async () => {
+      const res = await request(app)
+        .post('/api/setup/owner')
+        .send({
+          fullName: 'Ada Lovelace',
+          email: 'not-an-email',
+          password: 'secret123',
+          confirmPassword: 'secret123',
+        })
+        .expect(422)
+
+      expect(res.body.errors.some((error: { field: string }) => error.field === 'email')).toBe(true)
+      expect(createOwnerMock).not.toHaveBeenCalled()
+    })
+
+    it('rejects a password confirmation that does not match', async () => {
+      const res = await request(app)
+        .post('/api/setup/owner')
+        .send({
+          fullName: 'Ada Lovelace',
+          email: 'ada@example.com',
+          password: 'secret123',
+          confirmPassword: 'secret124',
+        })
+        .expect(422)
+
+      expect(res.body.errors.some((error: { field: string }) => error.field === 'confirmPassword')).toBe(
+        true,
+      )
+      expect(createOwnerMock).not.toHaveBeenCalled()
+    })
+
+    it('ignores extra fields such as a self-assigned role', async () => {
+      createOwnerMock.mockResolvedValue(OWNER)
+
+      await request(app)
+        .post('/api/setup/owner')
+        .send({ ...VALID_SETUP, roles: ['OWNER'], role: 'OWNER', isAdmin: true })
+        .expect(201)
+
+      // Only the validated shape reaches the service: no caller-supplied role
+      // can ever escalate this registration beyond the first Owner.
+      expect(createOwnerMock).toHaveBeenCalledWith(VALID_SETUP, expect.anything())
+    })
+
     it('propagates the first-owner-only conflict as a 409', async () => {
       createOwnerMock.mockRejectedValue(
         new AppError('Initial owner setup has already been completed.', HttpStatus.Conflict),

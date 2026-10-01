@@ -70,13 +70,17 @@ function failRedirect(res: { redirect: (url: string) => void }, reason: GoogleCa
 /**
  * `GET /api/auth/google/start`
  * Signs the CSRF `state` and sends the browser to Google's consent screen.
+ *
+ * When OAuth is not configured for this deployment the browser is sent back to
+ * the onboarding screen with a plain-language reason instead of a raw error
+ * document: the first-time Owner page always offers "Continue with Google", so
+ * this endpoint must degrade into a readable message rather than a dead end.
  */
 export const googleStartHandler = asyncHandler(async (req, res) => {
   if (!isGoogleOAuthConfigured()) {
-    throw new AppError(
-      'Sign in with Google is not configured for this deployment.',
-      HttpStatus.ServiceUnavailable,
-    )
+    logger.warn('Google Owner sign-in start rejected: OAuth is not configured.')
+    failRedirect(res, 'unavailable')
+    return
   }
 
   const redirectUri = resolveRedirectUri(requestOrigin(req))

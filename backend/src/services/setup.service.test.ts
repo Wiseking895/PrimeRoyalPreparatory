@@ -175,6 +175,56 @@ describe('setup.service', () => {
 
       expect(prismaMock.auditLog.create).not.toHaveBeenCalled()
     })
+
+    it('creates exactly one Owner when two first-time registrations race', async () => {
+      // Emulates `pg_advisory_xact_lock`: transaction bodies run strictly one
+      // after the other, which is what Postgres guarantees in production. The
+      // check-and-create pair must live inside that critical section, otherwise
+      // both requests would observe "no Owner yet" and both would insert one.
+      let queue: Promise<unknown> = Promise.resolve()
+      prismaMock.$transaction.mockImplementation((fn: (tx: typeof prismaMock) => unknown) => {
+        const run = queue.then(() => fn(prismaMock))
+        queue = run.catch(() => undefined)
+        return run
+      })
+
+      let storedOwner: { id: string } | null = null
+      prismaMock.user.findFirst.mockImplementation(async () => storedOwner)
+      prismaMock.user.findUnique.mockResolvedValue(null)
+      prismaMock.role.findUnique.mockResolvedValue({ id: 'role-owner', name: OWNER_ROLE })
+      prismaMock.user.create.mockImplementation(async ({ data }: { data: { fullName: string; email: string } }) => {
+        storedOwner = { id: 'owner-race' }
+        return {
+          id: 'owner-race',
+          fullName: data.fullName,
+          email: data.email,
+          phone: null,
+          profilePictureUrl: null,
+          status: 'ACTIVE',
+          lastLoginAt: null,
+          mustChangePassword: false,
+          createdAt: new Date('2026-01-01T00:00:00.000Z'),
+        }
+      })
+
+      const results = await Promise.allSettled([
+        createOwner({ fullName: 'Ada Lovelace', email: 'ada@example.com', password: 'secret123' }),
+        createOwner({ fullName: 'Grace Hopper', email: 'grace@example.com', password: 'secret123' }),
+      ])
+
+      const fulfilled = results.filter((result) => result.status === 'fulfilled')
+      const rejected = results.filter((result): result is PromiseRejectedResult => result.status === 'rejected')
+
+      expect(fulfilled).toHaveLength(1)
+      expect(rejected).toHaveLength(1)
+      expect(rejected[0].reason).toMatchObject({
+        statusCode: HttpStatus.Conflict,
+        message: expect.stringMatching(/already been completed/),
+      })
+      expect(prismaMock.user.create).toHaveBeenCalledTimes(1)
+      expect(prismaMock.userRole.create).toHaveBeenCalledTimes(1)
+      expect(prismaMock.auditLog.create).toHaveBeenCalledTimes(1)
+    })
   })
 
   describe('createOwnerFromGoogle', () => {
