@@ -15,6 +15,7 @@ import {
   setHeadteacherStatus,
   updateHeadteacher,
 } from './owner.service'
+import { ensureInitialRbac } from './ensure-rbac'
 
 const prismaMock = vi.hoisted(() => ({
   user: {
@@ -23,21 +24,24 @@ const prismaMock = vi.hoisted(() => ({
     findUnique: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
+    delete: vi.fn(),
     count: vi.fn(),
   },
   staffProfile: {
     count: vi.fn(),
     update: vi.fn(),
+    delete: vi.fn(),
     create: vi.fn(),
   },
   role: { findUnique: vi.fn() },
-  userRole: { create: vi.fn() },
+  userRole: { create: vi.fn(), deleteMany: vi.fn() },
   rolePermission: {
     deleteMany: vi.fn(),
     create: vi.fn(),
   },
   auditLog: { count: vi.fn(), create: vi.fn(), findMany: vi.fn() },
   $transaction: vi.fn(),
+  $queryRaw: vi.fn(),
   permission: { upsert: vi.fn() },
   pupil: { count: vi.fn(), groupBy: vi.fn(), findMany: vi.fn() },
   schoolClass: { count: vi.fn(), findMany: vi.fn() },
@@ -190,6 +194,28 @@ describe('owner.service', () => {
       expect(summary.headteacher?.staffId).toBe('PRPS-HT-001')
       expect(summary.totals.staff).toBe(3)
       expect(summary.totals.auditEntries).toBe(7)
+    })
+
+    it('reports only the ACTIVE Headteacher as the current one', async () => {
+      prismaMock.user.findFirst.mockResolvedValue(null)
+
+      const summary = await getOwnerSummary()
+
+      // A deactivated former Headteacher must not be presented as current, and
+      // must not hide the "Register Headteacher" prompt.
+      expect(summary.headteacher).toBeNull()
+      expect(prismaMock.user.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            status: 'ACTIVE',
+            roles: { some: { role: { name: HEADTEACHER_ROLE } } },
+          }),
+        }),
+      )
+      // The historical Headteacher count stays complete.
+      expect(prismaMock.user.count).toHaveBeenCalledWith({
+        where: { roles: { some: { role: { name: HEADTEACHER_ROLE } } } },
+      })
     })
 
     it('includes pupil and class totals plus a per-class breakdown', async () => {
@@ -500,6 +526,134 @@ describe('owner.service', () => {
         statusCode: HttpStatus.Conflict,
       })
     })
+
+    /** Makes the registration path reachable (no active Headteacher, free email). */
+    function mockRegistrationAllowed() {
+      prismaMock.user.findFirst.mockResolvedValue(null)
+      prismaMock.user.findUnique.mockImplementation(async ({ where }: { where: { id?: string; email?: string } }) => {
+        if (where.email) return null
+        if (where.id === 'ht-1') return headteacherRecord()
+        return null
+      })
+      prismaMock.role.findUnique.mockResolvedValue({ id: 'role-ht', name: HEADTEACHER_ROLE })
+      prismaMock.staffProfile.count.mockResolvedValue(0)
+      prismaMock.user.create.mockResolvedValue({ id: 'ht-1' })
+    }
+
+    it('counts only ACTIVE accounts, so a deactivated former Headteacher never blocks a new one', async () => {
+      mockRegistrationAllowed()
+
+      await createHeadteacher(actor, input)
+
+      const checks = prismaMock.user.findFirst.mock.calls.map(
+        ([args]) => (args as { where?: unknown }).where,
+      )
+      expect(checks).toHaveLength(2) // fast-fail check + authoritative in-transaction check
+      for (const where of checks) {
+        expect(where).toMatchObject({
+          status: 'ACTIVE',
+          roles: { some: { role: { name: HEADTEACHER_ROLE } } },
+        })
+      }
+    })
+
+    it('allows registering a replacement after the former Headteacher was made inactive', async () => {
+      // The former Headteacher is deactivated first (User and StaffProfile kept).
+      prismaMock.user.findUnique.mockResolvedValue(headteacherRecord())
+      await setHeadteacherStatus(actor, 'ht-1', 'INACTIVE')
+
+      // The school now has zero ACTIVE Headteachers, so registration opens.
+      mockRegistrationAllowed()
+      const result = await createHeadteacher(actor, input)
+
+      expect(result.headteacher.roles).toContain(HEADTEACHER_ROLE)
+      expect(prismaMock.user.create).toHaveBeenCalledTimes(1)
+      expect(prismaMock.userRole.create).toHaveBeenCalledWith({ data: { userId: 'ht-1', roleId: 'role-ht' } })
+      expect(prismaMock.staffProfile.create).toHaveBeenCalledTimes(1)
+      // The deactivation only ever flipped the status field.
+      expect(prismaMock.user.update).toHaveBeenCalledTimes(1)
+      expect(prismaMock.user.update).toHaveBeenCalledWith({
+        where: { id: 'ht-1' },
+        data: { status: 'INACTIVE' },
+      })
+    })
+
+    it('provisions the new Headteacher through the existing RBAC pipeline', async () => {
+      mockRegistrationAllowed()
+
+      await createHeadteacher(actor, input)
+
+      expect(vi.mocked(ensureInitialRbac)).toHaveBeenCalled()
+      expect(prismaMock.role.findUnique).toHaveBeenCalledWith({ where: { name: HEADTEACHER_ROLE } })
+      expect(prismaMock.userRole.create).toHaveBeenCalledWith({ data: { userId: 'ht-1', roleId: 'role-ht' } })
+    })
+
+    it('takes the advisory lock before the authoritative active-Headteacher check', async () => {
+      const order: string[] = []
+      mockRegistrationAllowed()
+      prismaMock.$queryRaw.mockImplementation(async () => {
+        order.push('lock')
+        return []
+      })
+      prismaMock.user.findFirst.mockImplementation(async () => {
+        order.push('check')
+        return null
+      })
+
+      await createHeadteacher(actor, input)
+
+      expect(order).toEqual(['check', 'lock', 'check'])
+      expect(prismaMock.$queryRaw).toHaveBeenCalledTimes(1)
+    })
+
+    it('creates exactly one active Headteacher when two Owner requests race', async () => {
+      // Emulates `pg_advisory_xact_lock`: transaction bodies run strictly one
+      // after the other, which is what Postgres guarantees in production. The
+      // check-and-create pair must live inside that critical section.
+      let queue: Promise<unknown> = Promise.resolve()
+      prismaMock.$transaction.mockImplementation((arg: unknown) => {
+        if (typeof arg !== 'function') return Promise.resolve(arg)
+        const run = queue.then(() => (arg as (tx: typeof prismaMock) => unknown)(prismaMock))
+        queue = run.catch(() => undefined)
+        return run
+      })
+
+      let activeHeadteacher: { id: string } | null = null
+      prismaMock.user.findFirst.mockImplementation(async () => activeHeadteacher)
+      prismaMock.user.findUnique.mockImplementation(async ({ where }: { where: { id?: string; email?: string } }) => {
+        if (where.email) return null
+        if (where.id) return headteacherRecord()
+        return null
+      })
+      prismaMock.role.findUnique.mockResolvedValue({ id: 'role-ht', name: HEADTEACHER_ROLE })
+      prismaMock.staffProfile.count.mockResolvedValue(0)
+      prismaMock.user.create.mockImplementation(async () => {
+        activeHeadteacher = { id: 'ht-1' }
+        return { id: 'ht-1' }
+      })
+
+      const results = await Promise.allSettled([
+        createHeadteacher(actor, { firstName: 'Ada', lastName: 'One', email: 'ada@school.edu' }),
+        createHeadteacher(actor, { firstName: 'Grace', lastName: 'Two', email: 'grace@school.edu' }),
+      ])
+
+      const fulfilled = results.filter((result) => result.status === 'fulfilled')
+      const rejected = results.filter(
+        (result): result is PromiseRejectedResult => result.status === 'rejected',
+      )
+
+      expect(fulfilled).toHaveLength(1)
+      expect(rejected).toHaveLength(1)
+      expect(rejected[0].reason).toMatchObject({
+        statusCode: HttpStatus.Conflict,
+        message: expect.stringMatching(/active Headteacher already exists/),
+      })
+      expect(prismaMock.user.create).toHaveBeenCalledTimes(1)
+      expect(prismaMock.userRole.create).toHaveBeenCalledTimes(1)
+      expect(prismaMock.staffProfile.create).toHaveBeenCalledTimes(1)
+      expect(prismaMock.auditLog.create).toHaveBeenCalledTimes(1)
+      expect(prismaMock.$queryRaw).toHaveBeenCalledTimes(2)
+    })
   })
 
   describe('resendHeadteacherInvitation', () => {
@@ -691,6 +845,49 @@ describe('owner.service', () => {
       await setHeadteacherStatus(actor, 'ht-1', 'ACTIVE')
 
       expect(prismaMock.user.update).toHaveBeenCalledWith({ where: { id: 'ht-1' }, data: { status: 'ACTIVE' } })
+    })
+
+    it('records an auditable event for the Headteacher status change', async () => {
+      prismaMock.user.findUnique.mockResolvedValue(headteacherRecord())
+
+      await setHeadteacherStatus(actor, 'ht-1', 'INACTIVE')
+
+      expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            action: 'owner.headteacher.deactivate',
+            resourceType: 'headteacher',
+            resourceId: 'ht-1',
+            actorUserId: 'owner-1',
+          }),
+        }),
+      )
+    })
+
+    it('deactivation never deletes the User, StaffProfile, role assignment or history', async () => {
+      prismaMock.user.findUnique.mockResolvedValue(headteacherRecord())
+
+      await setHeadteacherStatus(actor, 'ht-1', 'INACTIVE')
+
+      // Exactly one write, and it only flips the status field.
+      expect(prismaMock.user.update).toHaveBeenCalledTimes(1)
+      expect(prismaMock.user.update).toHaveBeenCalledWith({
+        where: { id: 'ht-1' },
+        data: { status: 'INACTIVE' },
+      })
+      expect(prismaMock.staffProfile.update).not.toHaveBeenCalled()
+      expect(prismaMock.user.delete).not.toHaveBeenCalled()
+      expect(prismaMock.staffProfile.delete).not.toHaveBeenCalled()
+      expect(prismaMock.userRole.deleteMany).not.toHaveBeenCalled()
+      expect(prismaMock.auditLog.create).toHaveBeenCalledTimes(1)
+    })
+
+    it('keeps the advisory lock so an activation cannot race another one', async () => {
+      prismaMock.user.findFirst.mockResolvedValue(null)
+
+      await setHeadteacherStatus(actor, 'ht-1', 'ACTIVE')
+
+      expect(prismaMock.$queryRaw).toHaveBeenCalledTimes(1)
     })
   })
 

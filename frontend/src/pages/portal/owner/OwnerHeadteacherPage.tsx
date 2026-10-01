@@ -103,6 +103,7 @@ export function OwnerHeadteacherPage() {
   }, [load])
 
   const hasActive = headteachers?.some((entry) => entry.status === 'ACTIVE') ?? false
+  const activeHeadteacher = headteachers?.find((entry) => entry.status === 'ACTIVE') ?? null
 
   const set = (field: keyof FormState, value: string | 'ACTIVE' | 'INACTIVE') => {
     setForm((current) => ({ ...current, [field]: value }))
@@ -215,6 +216,41 @@ export function OwnerHeadteacherPage() {
           An active Headteacher already exists. Deactivate the current Headteacher before creating a
           replacement.
         </p>
+      ) : null}
+
+      {activeHeadteacher ? (
+        <Card className="p-5">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+            <Avatar name={activeHeadteacher.fullName} size="lg" />
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-sm font-bold uppercase tracking-wider text-ink-500">
+                  Current Headteacher
+                </p>
+                <StatusBadge status={activeHeadteacher.status} />
+              </div>
+              <p className="text-base font-bold text-ink-900">{activeHeadteacher.fullName}</p>
+              <p className="mt-0.5 truncate text-sm text-ink-500">
+                {activeHeadteacher.staffId ?? '—'} — {activeHeadteacher.email}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button to={`/owner/headteacher/${activeHeadteacher.id}`} variant="soft" size="sm">
+                View Profile
+              </Button>
+              <Button
+                variant="cream"
+                size="sm"
+                onClick={() => {
+                  setConfirmTarget(activeHeadteacher)
+                  setConfirmStatus('INACTIVE')
+                }}
+              >
+                Deactivate
+              </Button>
+            </div>
+          </div>
+        </Card>
       ) : null}
 
       {error ? (
@@ -472,8 +508,10 @@ export function OwnerHeadteacherPage() {
             </>
           ) : (
             <>
-              Deactivate <strong>{confirmTarget?.fullName}</strong>? The account will lose access to the staff
-              portal until it is reactivated.
+              Deactivate <strong>{confirmTarget?.fullName}</strong>? They will no longer serve as the
+              active Headteacher and will lose staff portal access until reactivated. Their account,
+              role assignment and historical records are kept in full, and a replacement Headteacher
+              can be registered immediately afterwards.
             </>
           )
         }

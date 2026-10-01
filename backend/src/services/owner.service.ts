@@ -18,6 +18,38 @@ const headteacherInclude = {
   roles: { include: { role: { include: { rolePermissions: { include: { permission: true } } } } } },
 } as const
 
+/**
+ * Postgres advisory-lock key for the one-active-Headteacher rule (ASCII "PRPH").
+ *
+ * Without it, `createHeadteacher` has a TOCTOU window: two simultaneous Owner
+ * requests can both observe "no active Headteacher" and both insert one,
+ * permanently violating EXACTLY ZERO OR ONE ACTIVE HEADTEACHER. The lock is
+ * transaction-scoped (`pg_advisory_xact_lock`), so it is held from the first
+ * statement until commit/rollback and makes check-and-create a single critical
+ * section across concurrent requests. Distinct from `OWNER_SETUP_LOCK_ID`
+ * ("PRPS"), which guards the first-Owner flow.
+ */
+const HEADTEACHER_LOCK_ID = 0x50525048
+
+/**
+ * The single source of truth for "who is the ACTIVE Headteacher".
+ *
+ * A Headteacher counts only while the account itself is ACTIVE: a former
+ * Headteacher whose account was deactivated keeps their User, StaffProfile and
+ * every historical record, but no longer satisfies this predicate and therefore
+ * never blocks registering a replacement.
+ */
+const activeHeadteacherWhere = {
+  status: 'ACTIVE',
+  roles: { some: { role: { name: HEADTEACHER_ROLE } } },
+} satisfies Prisma.UserWhereInput
+
+async function takeHeadteacherLock(client: Pick<Prisma.TransactionClient, '$queryRaw'>): Promise<void> {
+  await client.$queryRaw`SELECT true AS locked FROM (SELECT pg_advisory_xact_lock(CAST(${String(
+    HEADTEACHER_LOCK_ID,
+  )} AS bigint))) AS taken`
+}
+
 export interface HeadteacherCreateInput {
   firstName: string
   lastName: string
@@ -112,8 +144,11 @@ export async function getOwnerSummary(): Promise<{
     staffActivity,
     permissionChanges,
   ] = await Promise.all([
+    // The "current Headteacher" on the Owner dashboard is the ACTIVE one only:
+    // a deactivated former Headteacher must not be presented as current, and
+    // must not hide the "Register Headteacher" prompt.
     prisma.user.findFirst({
-      where: { roles: { some: { role: { name: HEADTEACHER_ROLE } } } },
+      where: activeHeadteacherWhere,
       include: headteacherInclude,
     }),
     prisma.staffProfile.count({ where: { category: { in: ['TEACHING', 'NON_TEACHING'] } } }),
@@ -693,9 +728,9 @@ export async function createHeadteacher(
 ): Promise<HeadteacherCreateResult> {
   await ensureInitialRbac()
 
-  const activeHeadteacher = await prisma.user.findFirst({
-    where: { status: 'ACTIVE', roles: { some: { role: { name: HEADTEACHER_ROLE } } } },
-  })
+  // Cheap fast-fail for the common single-user case. The authoritative check
+  // runs again below, inside the locked transaction.
+  const activeHeadteacher = await prisma.user.findFirst({ where: activeHeadteacherWhere })
   if (activeHeadteacher) {
     throw new AppError(
       'An active Headteacher already exists. Deactivate the current Headteacher before creating a replacement.',
@@ -716,6 +751,18 @@ export async function createHeadteacher(
   const fullName = `${input.firstName.trim()} ${input.lastName.trim()}`.replace(/\s+/g, ' ').trim()
 
   const user = await prisma.$transaction(async (tx) => {
+    // Serialize concurrent registrations first, then re-check: without this,
+    // two simultaneous Owner requests could both pass the check above and
+    // create two active Headteachers.
+    await takeHeadteacherLock(tx)
+    const lockedActive = await tx.user.findFirst({ where: activeHeadteacherWhere })
+    if (lockedActive) {
+      throw new AppError(
+        'An active Headteacher already exists. Deactivate the current Headteacher before creating a replacement.',
+        HttpStatus.Conflict,
+      )
+    }
+
     const created = await tx.user.create({
       data: {
         fullName,
@@ -868,34 +915,49 @@ export async function updateHeadteacher(
   return getHeadteacher(id)
 }
 
+/**
+ * Flips a Headteacher account between ACTIVE and INACTIVE.
+ *
+ * Deactivation ends the person's active Headteacher service WITHOUT deleting
+ * anything: the User, StaffProfile, UserRole and every historical record
+ * (pupils, teaching, attendance, work output, audit, reports) are untouched,
+ * and the account loses access through the normal inactive-account rules.
+ * It therefore vacates the single active slot so a replacement can be
+ * registered.
+ *
+ * The activation guard and the status write run inside the advisory-locked
+ * transaction so an activation can never race a concurrent one and produce two
+ * active Headteachers.
+ */
 export async function setHeadteacherStatus(
   actor: AuthenticatedUser,
   id: string,
   status: 'ACTIVE' | 'INACTIVE',
   ip?: string,
 ): Promise<PublicUser> {
-  const user = await prisma.user.findUnique({ where: { id }, include: headteacherInclude })
-  if (!user || !isHeadteacherUser(user)) {
-    throw new AppError('Headteacher account not found.', HttpStatus.NotFound)
-  }
+  await prisma.$transaction(async (tx) => {
+    await takeHeadteacherLock(tx)
 
-  if (status === 'ACTIVE') {
-    const otherActive = await prisma.user.findFirst({
-      where: {
-        id: { not: id },
-        status: 'ACTIVE',
-        roles: { some: { role: { name: HEADTEACHER_ROLE } } },
-      },
-    })
-    if (otherActive) {
-      throw new AppError(
-        'Another Headteacher is already active. Deactivate them before activating this account.',
-        HttpStatus.Conflict,
-      )
+    const user = await tx.user.findUnique({ where: { id }, include: headteacherInclude })
+    if (!user || !isHeadteacherUser(user)) {
+      throw new AppError('Headteacher account not found.', HttpStatus.NotFound)
     }
-  }
 
-  await prisma.user.update({ where: { id }, data: { status } })
+    if (status === 'ACTIVE') {
+      const otherActive = await tx.user.findFirst({
+        where: { ...activeHeadteacherWhere, id: { not: id } },
+      })
+      if (otherActive) {
+        throw new AppError(
+          'Another Headteacher is already active. Deactivate them before activating this account.',
+          HttpStatus.Conflict,
+        )
+      }
+    }
+
+    await tx.user.update({ where: { id }, data: { status } })
+  })
+
   await recordAudit({
     actorUserId: actor.id,
     action: status === 'ACTIVE' ? 'owner.headteacher.activate' : 'owner.headteacher.deactivate',

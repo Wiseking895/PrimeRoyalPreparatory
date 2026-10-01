@@ -526,7 +526,30 @@ export function OwnerDashboardPage() {
       </GlassCard>
 
       {/* ── Headteacher quick status ── */}
-      {!headteacher && (
+      {headteacher ? (
+        <GlassCard>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gold-400/15 text-gold-300">
+                <GraduationCap className="h-5 w-5" aria-hidden="true" />
+              </span>
+              <div>
+                <p className="text-[13px] font-bold text-cream-100">{headteacher.fullName}</p>
+                <p className="text-[11px] text-cream-200/60">
+                  Current Headteacher · {headteacher.staffId ?? '—'} · Status:{' '}
+                  {headteacher.status === 'ACTIVE' ? 'Active' : 'Inactive'}
+                </p>
+              </div>
+            </div>
+            <Link
+              to={`/owner/headteacher/${headteacher.id}`}
+              className="rounded-full bg-white/10 px-5 py-2 text-sm font-semibold text-cream-100 ring-1 ring-white/15 transition-colors hover:bg-white/15"
+            >
+              View Profile
+            </Link>
+          </div>
+        </GlassCard>
+      ) : (
         <GlassCard>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
