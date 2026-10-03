@@ -58,7 +58,7 @@ export function ProfileIdentityCard({
             {staffId ? (
               <span className="font-mono text-xs font-semibold text-royal-600">{staffId}</span>
             ) : null}
-            <span className="inline-flex items-center gap-1.5">
+            <span className="inline-flex min-w-0 items-center gap-1.5 [overflow-wrap:anywhere]">
               <Mail className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               {email}
             </span>

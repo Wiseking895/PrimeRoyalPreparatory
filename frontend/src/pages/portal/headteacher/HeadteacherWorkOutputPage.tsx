@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   CheckCircle2,
   ClipboardList,
@@ -182,6 +182,43 @@ function GradeModal({
   const [feedback, setFeedback] = useState(record.feedback ?? '')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const modalRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    modalRef.current?.focus()
+  }, [])
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose()
+        return
+      }
+      if (event.key !== 'Tab') return
+      const card = modalRef.current
+      if (!card) return
+      const focusables = Array.from(
+        card.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
+        ),
+      )
+      if (focusables.length === 0) return
+      const first = focusables[0]
+      const last = focusables[focusables.length - 1]
+      const active = document.activeElement
+      if (event.shiftKey) {
+        if (active === first || active === card) {
+          event.preventDefault()
+          last.focus()
+        }
+      } else if (active === last || active === card) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [onClose])
 
   const scoreNum = parseFloat(score)
   const isValidScore = !isNaN(scoreNum) && scoreNum >= 0 && scoreNum <= 10
@@ -224,7 +261,14 @@ function GradeModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="w-full max-w-lg rounded-2xl border border-white/[0.08] bg-[#0b1430] shadow-2xl">
+      <div
+        ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Review Work Output"
+        tabIndex={-1}
+        className="max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto rounded-2xl border border-white/[0.08] bg-[#0b1430] shadow-2xl outline-none"
+      >
         <div className="flex items-center justify-between border-b border-white/[0.06] px-6 py-4">
           <h3 className="text-[15px] font-bold text-cream-100">Review Work Output</h3>
           <button type="button" onClick={onClose} className="text-cream-200/65 hover:text-cream-100">

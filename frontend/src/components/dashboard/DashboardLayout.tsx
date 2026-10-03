@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   BookOpenCheck,
   CalendarDays,
@@ -338,6 +338,25 @@ export function DashboardLayout() {
     }
   }, [drawerOpen])
 
+  const drawerTriggerRef = useRef<HTMLButtonElement | null>(null)
+  const drawerWasOpenRef = useRef(false)
+
+  useEffect(() => {
+    if (!drawerOpen) {
+      if (drawerWasOpenRef.current) {
+        drawerTriggerRef.current?.focus()
+      }
+      drawerWasOpenRef.current = false
+      return
+    }
+    drawerWasOpenRef.current = true
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setDrawerOpen(false)
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [drawerOpen])
+
   const navGroups = useMemo(
     () => (isOwner ? ownerNavGroups : isAccountant ? accountantNavGroups : isTeacher ? teacherNavGroups : headteacherNavGroups),
     [isOwner, isAccountant, isTeacher],
@@ -417,10 +436,14 @@ export function DashboardLayout() {
             <NotificationBell dark />
             <button
               type="button"
-              onClick={() => setDrawerOpen(true)}
+              onClick={(event) => {
+                drawerTriggerRef.current = event.currentTarget
+                setDrawerOpen(true)
+              }}
               className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-cream-200/60 transition-colors hover:bg-white/10"
               aria-label="Open dashboard menu"
               aria-expanded={drawerOpen}
+              aria-controls="dashboard-drawer"
             >
               <Menu className="h-5 w-5" aria-hidden="true" />
             </button>
@@ -429,6 +452,9 @@ export function DashboardLayout() {
 
         {/* Mobile drawer */}
         <div
+          id="dashboard-drawer"
+          inert={!drawerOpen}
+          aria-hidden={!drawerOpen}
           className={cn(
             'fixed inset-0 z-50 lg:hidden',
             drawerOpen ? 'pointer-events-auto' : 'pointer-events-none',
@@ -537,10 +563,14 @@ export function DashboardLayout() {
           <NotificationBell />
           <button
             type="button"
-            onClick={() => setDrawerOpen(true)}
+            onClick={(event) => {
+              drawerTriggerRef.current = event.currentTarget
+              setDrawerOpen(true)
+            }}
             className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-royal-700 transition-colors hover:bg-cream-100"
             aria-label="Open dashboard menu"
             aria-expanded={drawerOpen}
+            aria-controls="dashboard-drawer"
           >
             <Menu className="h-5 w-5" aria-hidden="true" />
           </button>
@@ -549,6 +579,9 @@ export function DashboardLayout() {
 
       {/* Mobile drawer */}
       <div
+        id="dashboard-drawer"
+        inert={!drawerOpen}
+        aria-hidden={!drawerOpen}
         className={cn(
           'fixed inset-0 z-50 lg:hidden',
           drawerOpen ? 'pointer-events-auto' : 'pointer-events-none',

@@ -638,7 +638,7 @@ export function SessionsPage() {
               type="button"
               title={`Edit ${term.name}`}
               onClick={() => openEditTerm(term)}
-              className="rounded-full transition hover:opacity-75 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-magenta-500"
+              className="min-h-6 rounded-full transition hover:opacity-75 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-magenta-500"
             >
               <Badge tone={term.status === 'ACTIVE' ? 'green' : 'neutral'}>{term.name}</Badge>
             </button>

@@ -586,7 +586,7 @@ export function PupilProfilePage() {
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={uploading}
-                  className="text-sm font-bold text-royal-700 underline-offset-2 transition-colors hover:text-magenta-600 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                  className="py-1.5 text-sm font-bold text-royal-700 underline-offset-2 transition-colors hover:text-magenta-600 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {uploading ? 'Uploading…' : pupil.profilePictureUrl ? 'Change Photo' : 'Upload Photo'}
                 </button>
@@ -598,7 +598,7 @@ export function PupilProfilePage() {
                 type="button"
                 onClick={handlePictureDelete}
                 disabled={deleting}
-                className="inline-flex items-center gap-1.5 text-xs font-semibold text-red-600 transition-colors hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 py-1 text-xs font-semibold text-red-600 transition-colors hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {deleting ? (
                   <Spinner className="h-3.5 w-3.5" />

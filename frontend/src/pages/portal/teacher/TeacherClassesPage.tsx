@@ -120,7 +120,7 @@ export function TeacherClassesPage() {
 
 function AssignmentRow({ assignment }: { assignment: TeacherAssignmentView }) {
   return (
-    <li className="flex items-center justify-between gap-3 rounded-xl bg-cream-50 px-4 py-3">
+    <li className="flex min-w-0 items-center justify-between gap-3 rounded-xl bg-cream-50 px-4 py-3">
       <div className="min-w-0">
         <p className="truncate text-sm font-bold text-ink-900">
           {assignment.subjectName} <span className="font-medium text-ink-500">({assignment.subjectCode})</span>

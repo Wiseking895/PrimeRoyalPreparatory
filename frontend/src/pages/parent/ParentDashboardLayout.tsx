@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Eye, LayoutDashboard, LogOut, Menu, UserRound, Users, X } from 'lucide-react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useParentAuth } from '@/auth/ParentAuthContext'
@@ -29,6 +29,32 @@ export function ParentDashboardLayout() {
   useEffect(() => {
     setDrawerOpen(false)
   }, [location.pathname])
+
+  useEffect(() => {
+    document.body.style.overflow = drawerOpen ? 'hidden' : ''
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [drawerOpen])
+
+  const parentDrawerTriggerRef = useRef<HTMLButtonElement | null>(null)
+  const parentDrawerWasOpenRef = useRef(false)
+
+  useEffect(() => {
+    if (!drawerOpen) {
+      if (parentDrawerWasOpenRef.current) {
+        parentDrawerTriggerRef.current?.focus()
+      }
+      parentDrawerWasOpenRef.current = false
+      return
+    }
+    parentDrawerWasOpenRef.current = true
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setDrawerOpen(false)
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [drawerOpen])
 
   const handleLogout = () => {
     logout()
@@ -103,10 +129,14 @@ export function ParentDashboardLayout() {
         </span>
         <button
           type="button"
-          onClick={() => setDrawerOpen(true)}
+          onClick={(event) => {
+            parentDrawerTriggerRef.current = event.currentTarget
+            setDrawerOpen(true)
+          }}
           className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-royal-700 transition-colors hover:bg-cream-100"
           aria-label="Open parent portal menu"
           aria-expanded={drawerOpen}
+          aria-controls="parent-drawer"
         >
           <Menu className="h-6 w-6" aria-hidden="true" />
         </button>
@@ -114,6 +144,9 @@ export function ParentDashboardLayout() {
 
       {/* Mobile drawer */}
       <div
+        id="parent-drawer"
+        inert={!drawerOpen}
+        aria-hidden={!drawerOpen}
         className={cn('fixed inset-0 z-50 lg:hidden', drawerOpen ? 'pointer-events-auto' : 'pointer-events-none')}
       >
         <div

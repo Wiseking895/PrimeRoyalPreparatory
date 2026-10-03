@@ -439,7 +439,7 @@ export function OwnerFinanceOverviewPage() {
 
       {/* ── Fee Tables + Arrears ── */}
       <div className="grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2">
+        <div className="min-w-0 lg:col-span-2">
           {!summary ? (
             <GlassCard>
               <div className="space-y-2">{Array.from({ length: 3 }).map((_, i) => <SkeletonRow key={i} />)}</div>

@@ -91,14 +91,14 @@ export function ParentProfilePage() {
       />
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <div id="profile-section-general" className="scroll-mt-4">
+        <div id="profile-section-general" className="min-w-0 scroll-mt-4">
           <AccountDetailsCard
             description="Your parent account fields."
             rows={detailRows}
           />
         </div>
 
-        <div id="profile-section-security" className="h-fit scroll-mt-4">
+        <div id="profile-section-security" className="min-w-0 h-fit scroll-mt-4">
           <SecurityCard
             onChangePassword={(currentPassword, newPassword) =>
               api.parentChangePassword(currentPassword, newPassword)

@@ -295,7 +295,7 @@ export function FinanceDashboardPage() {
 
       {/* ── Fee Tables + Arrears ── */}
       <div className="grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2">
+        <div className="min-w-0 lg:col-span-2">
           {!finance ? (
             <GlassCard>
               <div className="space-y-2">{Array.from({ length: 3 }).map((_, i) => <SkeletonRow key={i} />)}</div>
@@ -396,7 +396,7 @@ export function FinanceDashboardPage() {
           )}
         </div>
 
-        <div className="lg:col-span-1">
+        <div className="min-w-0 lg:col-span-1">
           {finance ? (
             <GlassInnerCard className="h-full">
               <div className="flex items-center gap-2 mb-3">
@@ -551,7 +551,7 @@ export function FinanceDashboardPage() {
       {summary && (
         <div className="grid gap-6 lg:grid-cols-3">
           {/* Quick actions */}
-          <GlassCard>
+          <GlassCard className="min-w-0">
             <SectionHeader title="Quick Actions" icon={ListChecks} />
             <ul className="space-y-1">
               {[
@@ -580,7 +580,7 @@ export function FinanceDashboardPage() {
           </GlassCard>
 
           {/* Academic period */}
-          <GlassCard>
+          <GlassCard className="min-w-0">
             <SectionHeader title="Academic Period" icon={CalendarDays} />
             {!summary.session && !summary.term ? (
               <EmptyState
@@ -624,7 +624,7 @@ export function FinanceDashboardPage() {
           </GlassCard>
 
           {/* Recent payments */}
-          <GlassCard>
+          <GlassCard className="min-w-0">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2.5">
                 <Wallet className="h-4 w-4 text-magenta-400/60" aria-hidden="true" />

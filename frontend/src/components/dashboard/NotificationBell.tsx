@@ -144,7 +144,7 @@ export function NotificationBell({ dark = false }: { dark?: boolean }) {
               <button
                 type="button"
                 onClick={handleMarkAllRead}
-                className="text-xs font-semibold text-royal-600 hover:text-royal-800"
+                className="inline-flex min-h-10 items-center px-2 text-xs font-semibold text-royal-600 hover:text-royal-800"
               >
                 Mark all read
               </button>
@@ -169,7 +169,7 @@ export function NotificationBell({ dark = false }: { dark?: boolean }) {
                     }
                   }}
                   className={cn(
-                    'flex w-full items-start gap-3 whitespace-normal px-4 py-3 text-left transition-colors hover:bg-cream-50',
+                    'flex min-h-10 w-full items-start gap-3 whitespace-normal px-4 py-3 text-left transition-colors hover:bg-cream-50',
                     !notification.read && 'bg-royal-50/50',
                   )}
                 >
@@ -194,7 +194,7 @@ export function NotificationBell({ dark = false }: { dark?: boolean }) {
             <button
               type="button"
               onClick={handleViewAll}
-              className="w-full text-center text-xs font-semibold text-royal-600 hover:text-royal-800"
+              className="min-h-8 w-full py-2 text-center text-xs font-semibold text-royal-600 hover:text-royal-800"
             >
               View all notifications
             </button>

@@ -149,7 +149,7 @@ export function ClassAcademicOverviewPage() {
             ) : (
               <ul className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {pupils.map((pupil) => (
-                  <li key={pupil.id} className="flex items-center gap-3 rounded-xl bg-cream-50 px-4 py-3">
+                  <li key={pupil.id} className="flex min-w-0 items-center gap-3 rounded-xl bg-cream-50 px-4 py-3">
                     <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-royal-600/10 text-royal-600">
                       <Users className="h-4 w-4" aria-hidden="true" />
                     </span>

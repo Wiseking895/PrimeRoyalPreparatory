@@ -116,7 +116,7 @@ export function TeacherProfilePage() {
           </Card>
 
           <div className="grid gap-6 lg:grid-cols-2">
-            <Card className="p-6">
+            <Card className="min-w-0 p-6">
               <div className="flex items-center gap-2">
                 <Users className="h-5 w-5 text-royal-500" aria-hidden="true" />
                 <h2 className="text-sm font-bold uppercase tracking-wider text-royal-800">Classes as Class Teacher</h2>
@@ -137,7 +137,7 @@ export function TeacherProfilePage() {
               )}
             </Card>
 
-            <Card className="p-6">
+            <Card className="min-w-0 p-6">
               <div className="flex items-center gap-2">
                 <BookOpenCheck className="h-5 w-5 text-magenta-500" aria-hidden="true" />
                 <h2 className="text-sm font-bold uppercase tracking-wider text-royal-800">Teaching Assignments</h2>

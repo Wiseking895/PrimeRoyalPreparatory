@@ -136,7 +136,7 @@ export function TeacherDashboardPage() {
           ) : null}
 
           <div className="grid gap-6 lg:grid-cols-2">
-            <Card className="p-6">
+            <Card className="min-w-0 p-6">
               <h2 className="text-sm font-bold uppercase tracking-wider text-ink-500">My Teaching Assignments</h2>
               {portal.teachingAssignments.length === 0 ? (
                 <div className="mt-4">
@@ -172,7 +172,7 @@ export function TeacherDashboardPage() {
               )}
             </Card>
 
-            <Card className="p-6">
+            <Card className="min-w-0 p-6">
               <h2 className="text-sm font-bold uppercase tracking-wider text-ink-500">Recent SBA Entries</h2>
               {portal.recentSba.length === 0 ? (
                 <div className="mt-4">

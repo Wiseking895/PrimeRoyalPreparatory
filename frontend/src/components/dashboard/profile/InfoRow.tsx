@@ -14,7 +14,7 @@ export function InfoRow({ icon, label, value }: InfoRowProps) {
       </span>
       <div className="min-w-0">
         <dt className="text-xs font-bold uppercase tracking-wider text-ink-500">{label}</dt>
-        <dd className="mt-0.5 break-words text-sm font-semibold text-ink-900">{value}</dd>
+        <dd className="mt-0.5 break-words [overflow-wrap:anywhere] text-sm font-semibold text-ink-900">{value}</dd>
       </div>
     </div>
   )

@@ -63,8 +63,9 @@ import { ParentChildrenPage } from '@/pages/parent/ParentChildrenPage'
 import { ParentChildDetailPage } from '@/pages/parent/ParentChildDetailPage'
 import { ParentReportViewPage } from '@/pages/parent/ParentReportViewPage'
 import { ParentProfilePage } from '@/pages/parent/ParentProfilePage'
+import { RouteError } from '@/routes/RouteError'
 
-export const router = createBrowserRouter([
+const routeConfig = [
   {
     path: '/',
     element: <PublicLayout />,
@@ -242,4 +243,11 @@ export const router = createBrowserRouter([
       },
     ],
   },
-])
+]
+
+// React Router's default error boundary renders the raw error + stack trace in
+// an un-wrappable <pre>, which overflows horizontally on phones. Attach a
+// branded, mobile-safe boundary to every top-level route branch instead.
+export const router = createBrowserRouter(
+  routeConfig.map((route) => ({ ...route, errorElement: <RouteError /> })),
+)

@@ -90,7 +90,7 @@ export function TeacherManagementPage() {
             />
           ) : (
             <Card className="overflow-hidden">
-              <div className="overflow-x-auto">
+              <div className="relative overflow-x-auto">
                 <table className="w-full text-left text-sm">
                   <thead className="bg-cream-50 text-xs uppercase tracking-wider text-ink-500">
                     <tr>

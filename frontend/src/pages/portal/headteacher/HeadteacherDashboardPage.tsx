@@ -506,7 +506,7 @@ export function HeadteacherDashboardPage() {
             title="Finance Overview"
             icon={Wallet}
             action={
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3">
                 {finance?.term && (
                   <span className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.05] px-3 py-1 text-[11px] font-semibold text-cream-200/70 ring-1 ring-white/[0.08]">
                     <Clock className="h-3 w-3" aria-hidden="true" />
@@ -567,7 +567,7 @@ export function HeadteacherDashboardPage() {
 
               {/* Fee table + Outstanding Arrears (2-col grid) */}
               <div className="grid gap-6 lg:grid-cols-3 mb-4">
-                <div className="lg:col-span-2">
+                <div className="min-w-0 lg:col-span-2">
                   {/* Fee type toggle */}
                   <div className="mb-3 flex gap-2">
                     {([['daily', 'Daily Fees'], ['pa', 'PA Fees'], ['maintenance', 'Maintenance Fees']] as const).map(([key, label]) => (
@@ -808,7 +808,7 @@ export function HeadteacherDashboardPage() {
           title="Teachers Overview"
           icon={GraduationCap}
           action={
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               {academic && (
                 <>
                   <span className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-400">

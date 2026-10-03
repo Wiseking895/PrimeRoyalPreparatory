@@ -214,7 +214,7 @@ export function TeacherAssignmentPage() {
                 />
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="relative overflow-x-auto">
                 <table className="w-full text-left text-sm">
                   <thead className="bg-cream-50 text-xs uppercase tracking-wider text-ink-500">
                     <tr>
@@ -286,7 +286,7 @@ export function TeacherAssignmentPage() {
                             {current ? `Current class teacher: ${current.teacherName}` : 'No class teacher assigned'}
                           </p>
                         </div>
-                        <div className="flex shrink-0 items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                           <SelectField
                             label="Teacher"
                             name={`class-teacher-${entry.id}`}

@@ -161,7 +161,7 @@ function WeekPills({
         type="button"
         onClick={() => onChange(null)}
         className={cn(
-          'rounded-full px-2.5 py-1 text-[10px] font-semibold transition-colors',
+          'rounded-full px-2.5 py-1.5 text-[10px] font-semibold transition-colors',
           activeWeek === null
             ? 'bg-magenta-500/20 text-magenta-300 ring-1 ring-magenta-500/30'
             : 'bg-white/[0.05] text-cream-200/65 hover:bg-white/[0.08]',
@@ -175,7 +175,7 @@ function WeekPills({
           type="button"
           onClick={() => onChange(w)}
           className={cn(
-            'rounded-full px-2 py-1 text-[10px] font-semibold transition-colors',
+            'rounded-full px-2 py-1.5 text-[10px] font-semibold transition-colors',
             activeWeek === w
               ? 'bg-magenta-500/20 text-magenta-300 ring-1 ring-magenta-500/30'
               : 'bg-white/[0.05] text-cream-200/65 hover:bg-white/[0.08]',
