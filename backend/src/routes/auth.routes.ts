@@ -32,6 +32,19 @@ const googleStartLimiter = rateLimit({
   message: { success: false, message: 'Too many sign-in attempts, please try again later.' },
 })
 
+// POST /change-password verifies the account's CURRENT password on every
+// attempt, so it is a credential-guessing channel just like /login and needs
+// its own budget (stricter than sign-in). first-password-change is NOT rate
+// limited here: it verifies no credential — only the `mustChangePassword`
+// flag — so there is nothing to brute-force beyond the existing session.
+const passwordChangeLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 15,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many password change attempts, please try again later.' },
+})
+
 router.post('/login', loginLimiter, validate(loginSchema), loginHandler)
 
 // Google OAuth (first-time Owner sign-up only — never a general login path).
@@ -40,7 +53,7 @@ router.get('/google/callback', googleCallbackHandler)
 
 router.get('/me', requireAuth, meHandler)
 
-router.post('/change-password', requireAuth, validate(changePasswordSchema), changePasswordHandler)
+router.post('/change-password', passwordChangeLimiter, requireAuth, validate(changePasswordSchema), changePasswordHandler)
 
 router.post('/first-password-change', requireAuth, validate(firstPasswordChangeSchema), firstPasswordChangeHandler)
 

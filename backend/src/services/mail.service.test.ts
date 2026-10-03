@@ -33,6 +33,27 @@ describe('mail.service', () => {
       vi.unstubAllEnvs()
     })
 
+    it('never falls back to the console transport in production (keeps credentials out of logs)', async () => {
+      // Production without SMTP must fail honestly instead of writing the
+      // full message — including invitation temporary passwords — to the log.
+      vi.stubEnv('NODE_ENV', 'production')
+      vi.stubEnv('JWT_SECRET', 'production-mail-test-secret-value')
+      vi.stubEnv('EMAIL_ENABLED', 'false')
+      vi.stubEnv('EMAIL_HOST', '')
+      vi.resetModules()
+      const { sendMail } = await import('./mail.service')
+
+      const result = await sendMail({
+        to: 'teacher@example.com',
+        subject: 'Invitation',
+        text: 'Your temporary password is: T3mpSecret',
+      })
+
+      expect(result.status).toBe('failed')
+      expect(sendMailMock).not.toHaveBeenCalled()
+      vi.unstubAllEnvs()
+    })
+
     it('reports failure when the transport rejects the message', async () => {
       vi.stubEnv('EMAIL_ENABLED', 'true')
       vi.stubEnv('EMAIL_HOST', 'smtp.example.com')
@@ -162,7 +183,10 @@ describe('mail.service', () => {
 
   describe('public application URL in generated links', () => {
     it('points parent invitations at the deployed frontend in production', async () => {
-      vi.stubEnv('EMAIL_ENABLED', 'false')
+      // Production with SMTP configured (the only way production sends mail —
+      // without SMTP it fails instead of falling back to the console).
+      vi.stubEnv('EMAIL_ENABLED', 'true')
+      vi.stubEnv('EMAIL_HOST', 'smtp.example.com')
       vi.stubEnv('NODE_ENV', 'production')
       vi.stubEnv('JWT_SECRET', 'production-secret-for-link-test')
       // A stale/mistyped CLIENT_URL must not put localhost links in real mail.

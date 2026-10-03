@@ -33,11 +33,27 @@ const parentLoginLimiter = rateLimit({
   message: { success: false, message: 'Too many sign-in attempts, please try again later.' },
 })
 
+// Mirrors the staff-side limiter: this endpoint verifies the guardian's
+// current password on every attempt, so it gets its own guessing budget.
+const parentPasswordChangeLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 15,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many password change attempts, please try again later.' },
+})
+
 router.post('/login', parentLoginLimiter, validate(parentLoginSchema), parentLoginHandler)
 
 router.get('/me', requireParentAuth, parentMeHandler)
 
-router.post('/change-password', requireParentAuth, validate(parentChangePasswordSchema), parentChangePasswordHandler)
+router.post(
+  '/change-password',
+  parentPasswordChangeLimiter,
+  requireParentAuth,
+  validate(parentChangePasswordSchema),
+  parentChangePasswordHandler,
+)
 
 router.post('/first-password-change', requireParentAuth, validate(parentFirstPasswordChangeSchema), parentFirstPasswordChangeHandler)
 

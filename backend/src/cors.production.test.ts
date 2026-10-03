@@ -52,8 +52,11 @@ describe('production CORS preflight for POST /api/auth/login', () => {
 
   beforeAll(async () => {
     // Simulate the reported deployment: CLIENT_URL missing or pointing elsewhere.
+    // Loading the full production module graph (env validation + createApp)
+    // exceeds the default 10s hook timeout on slower machines, which surfaced
+    // as flaky failures/skips in this security suite.
     app = await loadProductionApp('')
-  })
+  }, 30_000)
 
   it('answers the preflight with the deployed frontend origin', async () => {
     const res = await preflight(app, FRONTEND_ORIGIN)
@@ -107,7 +110,7 @@ describe('production CORS preflight with a stale CLIENT_URL', () => {
 
     expect(res.status).toBe(204)
     expect(res.headers['access-control-allow-origin']).toBe(FRONTEND_ORIGIN)
-  })
+  }, 30_000)
 
   it('never answers with a wildcard', async () => {
     const app = await loadProductionApp('*')
@@ -115,7 +118,7 @@ describe('production CORS preflight with a stale CLIENT_URL', () => {
 
     expect(res.headers['access-control-allow-origin']).not.toBe('*')
     expect(res.headers['access-control-allow-origin']).toBe(FRONTEND_ORIGIN)
-  })
+  }, 30_000)
 })
 
 describe('development CORS', () => {

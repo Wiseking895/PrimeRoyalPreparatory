@@ -40,7 +40,12 @@ export const requireAuth: RequestHandler = asyncHandler(
 
     const token = header.slice('Bearer '.length).trim()
     const payload = verifyTokenPayload(token)
-    if (!payload) {
+    // Staff endpoints only accept staff-kind tokens (legacy tokens signed
+    // before the `kind` claim existed default to `staff`). Guardian/parent
+    // tokens are rejected here so the token-kind namespaces documented in
+    // `lib/jwt.ts` are enforced on both sides: `requireParentAuth` rejects
+    // staff tokens and this middleware rejects guardian tokens.
+    if (!payload || payload.kind !== 'staff') {
       throw new AppError('Invalid or expired session. Please sign in again.', HttpStatus.Unauthorized)
     }
 

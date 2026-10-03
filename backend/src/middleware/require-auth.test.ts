@@ -89,6 +89,24 @@ describe('require-auth', () => {
     expect(outcome.error).toMatchObject({ statusCode: HttpStatus.Unauthorized })
   })
 
+  it('rejects a guardian (parent-portal) token on staff endpoints', async () => {
+    verifyTokenMock.mockReturnValue({ sub: 'guardian-1', kind: 'guardian' })
+
+    const outcome = await invoke('/api/owner/summary')
+
+    expect(outcome.error).toMatchObject({ statusCode: HttpStatus.Unauthorized })
+    expect(prismaMock.user.findUnique).not.toHaveBeenCalled()
+  })
+
+  it('rejects a token whose kind claim is not a known namespace', async () => {
+    verifyTokenMock.mockReturnValue({ sub: 'user-1', kind: 'something-else' })
+
+    const outcome = await invoke('/api/staff')
+
+    expect(outcome.error).toMatchObject({ statusCode: HttpStatus.Unauthorized })
+    expect(prismaMock.user.findUnique).not.toHaveBeenCalled()
+  })
+
   it('blocks a deactivated account from every protected endpoint with 403', async () => {
     prismaMock.user.findUnique.mockResolvedValue(
       baseUser({ status: 'INACTIVE', roles: [{ role: { name: 'SUBJECT_TEACHER', rolePermissions: [] } }] }),

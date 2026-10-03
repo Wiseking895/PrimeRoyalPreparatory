@@ -13,6 +13,9 @@ import { logger } from '../config/logger.js'
  *   full message (including the temporary credential) and the service prints it
  *   to the server log instead of delivering real mail. This keeps development
  *   self-contained without inventing fake success.
+ * - In production (`NODE_ENV=production`) that fallback is never taken: without
+ *   SMTP configured the send fails with `status: 'failed'` and nothing — above
+ *   all no temporary password — is written to the log.
  *
  * Every send reports an honest result so callers can distinguish `dev`
  * (console transport), `sent` (accepted by the SMTP server) and `failed`.
@@ -78,9 +81,24 @@ function createTransport(): Transporter {
 }
 
 export async function sendMail(input: MailInput): Promise<MailResult> {
-  const transport = createTransport()
   const isDevTransport = !(env.emailEnabled && env.emailHost)
   const transportName: MailTransport = isDevTransport ? 'dev' : 'smtp'
+
+  // The console transport exists for LOCAL DEVELOPMENT only: it serialises the
+  // full message — including invitation temporary passwords — into the server
+  // log. In production that would write plaintext credentials to the log
+  // stream, so a production deployment without SMTP configured fails honestly
+  // instead of falling back to the log. Callers already surface a `failed`
+  // invitation through their existing status handling.
+  if (isDevTransport && env.isProduction) {
+    logger.warn(
+      { channel: 'mail', status: 'failed', to: maskEmail(input.to) },
+      'SMTP is not configured in production; message was NOT sent and was not written to the log.',
+    )
+    return { status: 'failed', error: 'Email delivery is not configured on this server.' }
+  }
+
+  const transport = createTransport()
 
   try {
     const info = await transport.sendMail({
